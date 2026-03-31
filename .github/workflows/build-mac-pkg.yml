@@ -189,6 +189,7 @@ jobs:
               curl -sL "https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg" -o /tmp/python.pkg
               installer -pkg /tmp/python.pkg -target / 2>/dev/null
               rm -f /tmp/python.pkg
+              rm -rf "/Applications/IDLE.app" "/Applications/Python Launcher.app" 2>/dev/null
               export PATH="/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
               hash -r 2>/dev/null
               command -v python3 &> /dev/null && return 0
