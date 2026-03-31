@@ -52,85 +52,67 @@ class WorkerManager: ObservableObject {
     }
 
     func refresh() {
-        checkRunning()
-        loadEnv()
-        loadVersion()
-        loadLogs()
-        checkStation()
-    }
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            let running = shellOutput("/bin/bash", ["-c", "launchctl list 2>/dev/null | grep crawlstation"])
+            let isUp = !running.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-    private func checkRunning() {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/bash")
-        task.arguments = ["-c", "launchctl list 2>/dev/null | grep crawlstation"]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-        try? task.run()
-        task.waitUntilExit()
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        DispatchQueue.main.async {
-            self.isRunning = !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-    }
+            var wid = "-"
+            var ver = "-"
 
-    private func loadEnv() {
-        let envPath = "\(workerDir)/.env"
-        guard let content = try? String(contentsOfFile: envPath, encoding: .utf8) else { return }
-        for line in content.components(separatedBy: .newlines) {
-            let parts = line.split(separator: "=", maxSplits: 1)
-            guard parts.count == 2 else { continue }
-            let key = String(parts[0]).trimmingCharacters(in: .whitespaces)
-            let val = String(parts[1]).trimmingCharacters(in: .whitespaces)
+            // .env
+            if let content = try? String(contentsOfFile: "\(workerDir)/.env", encoding: .utf8) {
+                for line in content.components(separatedBy: .newlines) {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    let parts = trimmed.split(separator: "=", maxSplits: 1)
+                    guard parts.count == 2 else { continue }
+                    let key = String(parts[0])
+                    let val = String(parts[1])
+                    if key == "WORKER_ID" { wid = val }
+                }
+            }
+
+            // version from worker.py
+            if let content = try? String(contentsOfFile: "\(workerDir)/worker.py", encoding: .utf8) {
+                for line in content.components(separatedBy: .newlines) {
+                    if line.contains("VERSION") && line.contains("=") {
+                        let val = line.replacingOccurrences(of: "\"", with: "")
+                            .replacingOccurrences(of: "'", with: "")
+                            .split(separator: "=").last?
+                            .trimmingCharacters(in: .whitespaces) ?? "-"
+                        ver = val
+                        break
+                    }
+                }
+            }
+
+            // logs
+            let logOutput = shellOutput("/usr/bin/tail", ["-30", "\(workerDir)/logs/worker.log"])
+            let lines = logOutput.components(separatedBy: .newlines).filter { !$0.isEmpty }
+
+            var processed = 0
+            var errors = 0
+            if let allLog = try? String(contentsOfFile: "\(workerDir)/logs/worker.log", encoding: .utf8) {
+                for logLine in allLog.components(separatedBy: .newlines) {
+                    let lower = logLine.lowercased()
+                    if lower.contains("completed") || logLine.contains("완료") { processed += 1 }
+                    if lower.contains("error") || logLine.contains("실패") { errors += 1 }
+                }
+            }
+
             DispatchQueue.main.async {
-                if key == "WORKER_ID" { self.workerID = val }
+                self.isRunning = isUp
+                self.workerID = wid
+                self.version = ver
+                self.logLines = lines
+                self.totalProcessed = processed
+                self.errorCount = errors
+                if let last = lines.last, !last.isEmpty {
+                    self.lastSeen = String(last.prefix(19))
+                }
             }
-        }
-    }
 
-    private func loadVersion() {
-        let workerPy = "\(workerDir)/worker.py"
-        guard let content = try? String(contentsOfFile: workerPy, encoding: .utf8) else { return }
-        for line in content.components(separatedBy: .newlines) {
-            if line.contains("VERSION") && line.contains("=") {
-                let val = line.replacingOccurrences(of: "\"", with: "")
-                    .replacingOccurrences(of: "'", with: "")
-                    .split(separator: "=").last?
-                    .trimmingCharacters(in: .whitespaces) ?? "-"
-                DispatchQueue.main.async { self.version = val }
-                break
-            }
-        }
-    }
-
-    private func loadLogs() {
-        let logPath = "\(workerDir)/logs/worker.log"
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/tail")
-        task.arguments = ["-30", logPath]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-        try? task.run()
-        task.waitUntilExit()
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
-
-        var processed = 0
-        var errors = 0
-        let allLog = (try? String(contentsOfFile: logPath, encoding: .utf8)) ?? ""
-        for line in allLog.components(separatedBy: .newlines) {
-            if line.contains("completed") || line.contains("완료") { processed += 1 }
-            if line.contains("ERROR") || line.contains("error") || line.contains("실패") { errors += 1 }
-        }
-
-        DispatchQueue.main.async {
-            self.logLines = lines
-            self.totalProcessed = processed
-            self.errorCount = errors
-            if let last = lines.last, !last.isEmpty {
-                self.lastSeen = String(last.prefix(19))
-            }
+            // station check (async already)
+            self.checkStation()
         }
     }
 
@@ -145,28 +127,42 @@ class WorkerManager: ObservableObject {
     }
 
     func start() {
-        runShell("launchctl load \"\(plistPath)\" 2>/dev/null")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.refresh() }
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            _ = shellOutput("/bin/launchctl", ["load", plistPath])
+            Thread.sleep(forTimeInterval: 1.5)
+            refresh()
+        }
     }
 
     func stop() {
-        runShell("launchctl unload \"\(plistPath)\" 2>/dev/null")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.refresh() }
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            _ = shellOutput("/bin/launchctl", ["unload", plistPath])
+            Thread.sleep(forTimeInterval: 1.5)
+            refresh()
+        }
     }
 
     func restart() {
-        stop()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            self.start()
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            _ = shellOutput("/bin/launchctl", ["unload", plistPath])
+            Thread.sleep(forTimeInterval: 1.5)
+            _ = shellOutput("/bin/launchctl", ["load", plistPath])
+            Thread.sleep(forTimeInterval: 1.5)
+            refresh()
         }
     }
 
     func uninstall() {
-        stop()
-        runShell("rm -f \"\(plistPath)\"")
-        runShell("rm -rf \"\(workerDir)\"")
-        runShell("rm -rf \"/Applications/CrawlStation Worker.app\"")
-        NSApplication.shared.terminate(nil)
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            _ = shellOutput("/bin/launchctl", ["unload", plistPath])
+            Thread.sleep(forTimeInterval: 0.5)
+            try? FileManager.default.removeItem(atPath: plistPath)
+            try? FileManager.default.removeItem(atPath: workerDir)
+            try? FileManager.default.removeItem(atPath: "/Applications/CrawlStation Worker.app")
+            DispatchQueue.main.async {
+                NSApplication.shared.terminate(nil)
+            }
+        }
     }
 
     func openLogFile() {
@@ -174,14 +170,20 @@ class WorkerManager: ObservableObject {
         NSWorkspace.shared.open(URL(fileURLWithPath: logPath))
     }
 
-    private func runShell(_ cmd: String) {
+    private func shellOutput(_ executable: String, _ args: [String]) -> String {
         let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/bash")
-        task.arguments = ["-c", cmd]
-        task.standardOutput = Pipe()
+        task.executableURL = URL(fileURLWithPath: executable)
+        task.arguments = args
+        let pipe = Pipe()
+        task.standardOutput = pipe
         task.standardError = Pipe()
-        try? task.run()
-        task.waitUntilExit()
+        do {
+            try task.run()
+            task.waitUntilExit()
+        } catch {
+            return ""
+        }
+        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
     }
 }
 
@@ -194,21 +196,12 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             headerView
             Divider()
-
-            // Status Cards
-            statusCards
-                .padding(16)
-
+            statusCards.padding(16)
             Divider()
-
-            // Tabs
             tabBar
             Divider()
-
-            // Tab Content
             Group {
                 if selectedTab == 0 {
                     logView
@@ -217,10 +210,7 @@ struct ContentView: View {
                 }
             }
             .frame(maxHeight: .infinity)
-
             Divider()
-
-            // Bottom Controls
             controlBar
         }
         .background(Color(NSColor.windowBackgroundColor))
@@ -234,7 +224,6 @@ struct ContentView: View {
 
     var headerView: some View {
         HStack(spacing: 12) {
-            // App icon
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(LinearGradient(
@@ -246,7 +235,6 @@ struct ContentView: View {
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
             }
-
             VStack(alignment: .leading, spacing: 2) {
                 Text("CrawlStation Worker")
                     .font(.system(size: 15, weight: .semibold))
@@ -254,10 +242,7 @@ struct ContentView: View {
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.secondary)
             }
-
             Spacer()
-
-            // Status indicator
             HStack(spacing: 6) {
                 Circle()
                     .fill(manager.isRunning ? Color.green : Color.gray)
@@ -280,30 +265,20 @@ struct ContentView: View {
 
     var statusCards: some View {
         HStack(spacing: 10) {
-            StatusCard(
-                title: "Station",
-                value: manager.stationConnected ? "연결됨" : "오프라인",
-                color: manager.stationConnected ? .green : .orange,
-                icon: "antenna.radiowaves.left.and.right"
-            )
-            StatusCard(
-                title: "버전",
-                value: "v\(manager.version)",
-                color: .blue,
-                icon: "tag"
-            )
-            StatusCard(
-                title: "처리",
-                value: "\(manager.totalProcessed)",
-                color: .purple,
-                icon: "checkmark.circle"
-            )
-            StatusCard(
-                title: "에러",
-                value: "\(manager.errorCount)",
-                color: manager.errorCount > 0 ? .red : .gray,
-                icon: "exclamationmark.triangle"
-            )
+            StatusCard(title: "Station",
+                       value: manager.stationConnected ? "연결됨" : "오프라인",
+                       color: manager.stationConnected ? .green : .orange,
+                       icon: "antenna.radiowaves.left.and.right")
+            StatusCard(title: "버전",
+                       value: "v\(manager.version)",
+                       color: .blue, icon: "tag")
+            StatusCard(title: "처리",
+                       value: "\(manager.totalProcessed)",
+                       color: .purple, icon: "checkmark.circle")
+            StatusCard(title: "에러",
+                       value: "\(manager.errorCount)",
+                       color: manager.errorCount > 0 ? .red : .gray,
+                       icon: "exclamationmark.triangle")
         }
     }
 
@@ -359,7 +334,6 @@ struct ContentView: View {
                 InfoRow(label: "설치 경로", value: "~/CrawlWorker")
                 InfoRow(label: "로그", value: "~/CrawlWorker/logs/worker.log")
                 InfoRow(label: "LaunchAgent", value: "com.crawlstation.worker")
-
                 Button(action: { manager.openLogFile() }) {
                     Label("로그 파일 열기", systemImage: "doc.text")
                         .font(.system(size: 12))
@@ -384,9 +358,7 @@ struct ContentView: View {
                     manager.start()
                 }
             }
-
             Spacer()
-
             Button(action: { showUninstallAlert = true }) {
                 Text("삭제")
                     .font(.system(size: 11))
@@ -398,13 +370,14 @@ struct ContentView: View {
     }
 
     func logColor(for line: String) -> Color {
-        if line.contains("ERROR") || line.contains("error") || line.contains("실패") {
+        let lower = line.lowercased()
+        if lower.contains("error") || line.contains("실패") {
             return .red
         }
-        if line.contains("WARNING") || line.contains("warning") {
+        if lower.contains("warning") {
             return .orange
         }
-        if line.contains("completed") || line.contains("완료") || line.contains("시작") {
+        if lower.contains("completed") || line.contains("완료") || line.contains("시작") {
             return .green
         }
         return .primary.opacity(0.8)
@@ -456,9 +429,7 @@ struct TabButton: View {
         .buttonStyle(.plain)
         .overlay(alignment: .bottom) {
             if isSelected {
-                Rectangle()
-                    .fill(Color.blue)
-                    .frame(height: 2)
+                Rectangle().fill(Color.blue).frame(height: 2)
             }
         }
     }
@@ -473,10 +444,8 @@ struct ControlButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 10))
-                Text(title)
-                    .font(.system(size: 12, weight: .medium))
+                Image(systemName: icon).font(.system(size: 10))
+                Text(title).font(.system(size: 12, weight: .medium))
             }
             .foregroundColor(.white)
             .padding(.horizontal, 14)
