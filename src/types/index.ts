@@ -18,6 +18,7 @@ export interface Worker {
   registered_by: "auto" | "manual";
   command: "stop" | "restart" | "update" | null;
   created_at: string;
+  is_active?: boolean;
 }
 
 export interface WorkerRelease {

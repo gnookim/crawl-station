@@ -100,9 +100,7 @@ export default function WorkersPage() {
     (w) => latestVersion && w.version !== latestVersion
   ).length;
 
-  const activeWorkers = workers.filter((w) =>
-    ["online", "idle", "crawling"].includes(w.status)
-  );
+  const activeWorkers = workers.filter((w) => w.is_active);
 
   return (
     <div className="p-6 max-w-6xl">
@@ -229,9 +227,8 @@ export default function WorkersPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {workers.map((w) => {
-                const isActive = ["online", "idle", "crawling"].includes(
-                  w.status
-                );
+                const displayStatus = w.is_active ? w.status : "offline";
+                const isActive = w.is_active;
                 const hasPendingCommand = !!w.command;
                 return (
                   <tr key={w.id} className="hover:bg-gray-50">
@@ -250,7 +247,7 @@ export default function WorkersPage() {
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-1.5">
-                        <WorkerStatusBadge status={w.status} />
+                        <WorkerStatusBadge status={displayStatus} />
                         {hasPendingCommand && (
                           <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-xs">
                             {w.command}
