@@ -46,7 +46,7 @@ function WorkerInstall() {
     <>
       <h2 className="text-xl font-bold mb-2">크롤링 워커 설치</h2>
       <p className="text-sm text-gray-500 mb-6">
-        다운로드 후 더블클릭 한 번이면 끝. 나머지는 전부 자동입니다.
+        다운로드 후 설치하면 끝. 나머지는 전부 자동입니다.
       </p>
 
       {/* 다운로드 버튼 */}
@@ -58,10 +58,9 @@ function WorkerInstall() {
         <div className="flex gap-3">
           <a
             href="/api/download?type=mac"
-            download="CrawlWorker-Install.command"
             className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm"
           >
-            Mac 다운로드
+            Mac 다운로드 (.pkg)
           </a>
           <a
             href="/api/download"
@@ -80,16 +79,16 @@ function WorkerInstall() {
           <div className="flex items-start gap-4">
             <div className="flex items-center gap-3 text-sm">
               <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
-              <span>다운로드</span>
+              <span>.pkg 다운로드</span>
               <span className="text-gray-300">→</span>
               <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
-              <span>더블클릭</span>
+              <span>더블클릭하여 설치</span>
               <span className="text-gray-300">→</span>
               <span className="text-green-600 font-semibold">끝</span>
             </div>
           </div>
           <p className="text-xs text-gray-400 mt-3">
-            &quot;확인되지 않은 개발자&quot; 경고 시: 파일 우클릭 → 열기
+            &quot;확인되지 않은 개발자&quot; 경고 시: 시스템 설정 → 개인정보 보호 및 보안 → &quot;확인 없이 열기&quot;
           </p>
         </div>
 
