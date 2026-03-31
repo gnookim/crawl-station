@@ -224,11 +224,11 @@ struct ContentView: View {
             controlBar
         }
         .background(Color(NSColor.windowBackgroundColor))
-        .alert("CrawlStation Worker \uC0AD\uC81C", isPresented: $showUninstallAlert) {
-            Button("\uCDE8\uC18C", role: .cancel) {}
-            Button("\uC0AD\uC81C", role: .destructive) { manager.uninstall() }
+        .alert("CrawlStation Worker 삭제", isPresented: $showUninstallAlert) {
+            Button("취소", role: .cancel) {}
+            Button("삭제", role: .destructive) { manager.uninstall() }
         } message: {
-            Text("\uC6CC\uCEE4 \uC11C\uBE44\uC2A4, \uC124\uC815, \uB370\uC774\uD130\uAC00 \uBAA8\uB450 \uC0AD\uC81C\uB429\uB2C8\uB2E4.\n\uC815\uB9D0 \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?")
+            Text("워커 서비스, 설정, 데이터가 모두 삭제됩니다.\n정말 삭제하시겠습니까?")
         }
     }
 
@@ -262,7 +262,7 @@ struct ContentView: View {
                 Circle()
                     .fill(manager.isRunning ? Color.green : Color.gray)
                     .frame(width: 8, height: 8)
-                Text(manager.isRunning ? "\uC2E4\uD589 \uC911" : "\uC911\uC9C0\uB428")
+                Text(manager.isRunning ? "실행 중" : "중지됨")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(manager.isRunning ? .green : .secondary)
             }
@@ -282,24 +282,24 @@ struct ContentView: View {
         HStack(spacing: 10) {
             StatusCard(
                 title: "Station",
-                value: manager.stationConnected ? "\uC5F0\uACB0\uB428" : "\uC624\uD504\uB77C\uC778",
+                value: manager.stationConnected ? "연결됨" : "오프라인",
                 color: manager.stationConnected ? .green : .orange,
                 icon: "antenna.radiowaves.left.and.right"
             )
             StatusCard(
-                title: "\uBC84\uC804",
+                title: "버전",
                 value: "v\(manager.version)",
                 color: .blue,
                 icon: "tag"
             )
             StatusCard(
-                title: "\uCC98\uB9AC",
+                title: "처리",
                 value: "\(manager.totalProcessed)",
                 color: .purple,
                 icon: "checkmark.circle"
             )
             StatusCard(
-                title: "\uC5D0\uB7EC",
+                title: "에러",
                 value: "\(manager.errorCount)",
                 color: manager.errorCount > 0 ? .red : .gray,
                 icon: "exclamationmark.triangle"
@@ -309,8 +309,8 @@ struct ContentView: View {
 
     var tabBar: some View {
         HStack(spacing: 0) {
-            TabButton(title: "\uB85C\uADF8", isSelected: selectedTab == 0) { selectedTab = 0 }
-            TabButton(title: "\uC815\uBCF4", isSelected: selectedTab == 1) { selectedTab = 1 }
+            TabButton(title: "로그", isSelected: selectedTab == 0) { selectedTab = 0 }
+            TabButton(title: "정보", isSelected: selectedTab == 1) { selectedTab = 1 }
             Spacer()
             Button(action: { manager.refresh() }) {
                 Image(systemName: "arrow.clockwise")
@@ -349,19 +349,19 @@ struct ContentView: View {
     var infoView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                InfoRow(label: "\uC6CC\uCEE4 ID", value: manager.workerID)
-                InfoRow(label: "\uBC84\uC804", value: "v\(manager.version)")
-                InfoRow(label: "Station", value: manager.stationConnected ? "\uC5F0\uACB0\uB428" : "\uC624\uD504\uB77C\uC778")
-                InfoRow(label: "\uC0C1\uD0DC", value: manager.isRunning ? "\uC2E4\uD589 \uC911" : "\uC911\uC9C0\uB428")
-                InfoRow(label: "\uCC98\uB9AC \uAC74\uC218", value: "\(manager.totalProcessed)")
-                InfoRow(label: "\uC5D0\uB7EC \uAC74\uC218", value: "\(manager.errorCount)")
+                InfoRow(label: "워커 ID", value: manager.workerID)
+                InfoRow(label: "버전", value: "v\(manager.version)")
+                InfoRow(label: "Station", value: manager.stationConnected ? "연결됨" : "오프라인")
+                InfoRow(label: "상태", value: manager.isRunning ? "실행 중" : "중지됨")
+                InfoRow(label: "처리 건수", value: "\(manager.totalProcessed)")
+                InfoRow(label: "에러 건수", value: "\(manager.errorCount)")
                 Divider()
-                InfoRow(label: "\uC124\uCE58 \uACBD\uB85C", value: "~/CrawlWorker")
-                InfoRow(label: "\uB85C\uADF8", value: "~/CrawlWorker/logs/worker.log")
+                InfoRow(label: "설치 경로", value: "~/CrawlWorker")
+                InfoRow(label: "로그", value: "~/CrawlWorker/logs/worker.log")
                 InfoRow(label: "LaunchAgent", value: "com.crawlstation.worker")
 
                 Button(action: { manager.openLogFile() }) {
-                    Label("\uB85C\uADF8 \uD30C\uC77C \uC5F4\uAE30", systemImage: "doc.text")
+                    Label("로그 파일 열기", systemImage: "doc.text")
                         .font(.system(size: 12))
                 }
                 .padding(.top, 4)
@@ -373,14 +373,14 @@ struct ContentView: View {
     var controlBar: some View {
         HStack(spacing: 8) {
             if manager.isRunning {
-                ControlButton(title: "\uC911\uC9C0", icon: "stop.fill", color: .orange) {
+                ControlButton(title: "중지", icon: "stop.fill", color: .orange) {
                     manager.stop()
                 }
-                ControlButton(title: "\uC7AC\uC2DC\uC791", icon: "arrow.clockwise", color: .blue) {
+                ControlButton(title: "재시작", icon: "arrow.clockwise", color: .blue) {
                     manager.restart()
                 }
             } else {
-                ControlButton(title: "\uC2DC\uC791", icon: "play.fill", color: .green) {
+                ControlButton(title: "시작", icon: "play.fill", color: .green) {
                     manager.start()
                 }
             }
@@ -388,7 +388,7 @@ struct ContentView: View {
             Spacer()
 
             Button(action: { showUninstallAlert = true }) {
-                Text("\uC0AD\uC81C")
+                Text("삭제")
                     .font(.system(size: 11))
                     .foregroundColor(.red)
             }
@@ -398,13 +398,13 @@ struct ContentView: View {
     }
 
     func logColor(for line: String) -> Color {
-        if line.contains("ERROR") || line.contains("error") || line.contains("\uC2E4\uD328") {
+        if line.contains("ERROR") || line.contains("error") || line.contains("실패") {
             return .red
         }
         if line.contains("WARNING") || line.contains("warning") {
             return .orange
         }
-        if line.contains("completed") || line.contains("\uC644\uB8CC") || line.contains("\uC2DC\uC791") {
+        if line.contains("completed") || line.contains("완료") || line.contains("시작") {
             return .green
         }
         return .primary.opacity(0.8)
