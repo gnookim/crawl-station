@@ -49,8 +49,8 @@ export async function GET(request: NextRequest) {
   if (typeParam === "mac") {
     const macScript = `#!/bin/bash
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  CrawlStation — Mac 워커 설치 스크립트
-#  더블클릭으로 실행하면 자동 설치됩니다
+#  CrawlStation — Mac 워커 원클릭 설치
+#  더블클릭 한 번이면 설치 + 자동 실행 + 부팅 시 자동 시작
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 set -e
 
@@ -58,6 +58,10 @@ INSTALL_DIR="$HOME/CrawlWorker"
 STATION_URL="${stationUrl}"
 SUPABASE_URL="${supabaseUrl}"
 SUPABASE_KEY="${supabaseKey}"
+PLIST_LABEL="com.crawlstation.worker"
+PLIST_PATH="$HOME/Library/LaunchAgents/\${PLIST_LABEL}.plist"
+LOG_DIR="\${INSTALL_DIR}/logs"
+PYTHON3=$(which python3)
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -73,11 +77,11 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+PY_VER=\$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 echo "✅ Python \${PY_VER}"
 
 # 설치 디렉토리
-mkdir -p "\${INSTALL_DIR}/handlers"
+mkdir -p "\${INSTALL_DIR}/handlers" "\${LOG_DIR}"
 echo "📁 \${INSTALL_DIR}"
 
 # 패키지 설치
@@ -89,7 +93,7 @@ echo "  ✅ playwright, supabase"
 
 # Chromium 설치
 echo ""
-echo "🌐 Chromium 설치... (1~2분)"
+echo "🌐 Chromium 설치... (1~2분 소요될 수 있음)"
 python3 -m playwright install chromium 2>/dev/null && echo "  ✅ 완료" || echo "  ⚠️ 수동: python3 -m playwright install chromium"
 
 # 워커 파일 다운로드 (최신 릴리즈)
@@ -98,7 +102,7 @@ echo "📄 워커 파일 다운로드..."
 FILES="worker.py handlers/__init__.py handlers/base.py handlers/kin.py handlers/blog.py handlers/serp.py"
 for f in \$FILES; do
     TARGET="\${INSTALL_DIR}/\${f}"
-    mkdir -p "$(dirname "\${TARGET}")"
+    mkdir -p "\$(dirname "\${TARGET}")"
     if curl -sS "\${STATION_URL}/api/download?file=\${f}" -o "\${TARGET}" 2>/dev/null; then
         echo "  ✅ \${f}"
     else
@@ -106,10 +110,10 @@ for f in \$FILES; do
     fi
 done
 
-# .env 생성
+# .env 생성 (최초 설치 시에만)
 ENV_FILE="\${INSTALL_DIR}/.env"
 if [ ! -f "\${ENV_FILE}" ]; then
-    WORKER_ID="worker-$(python3 -c "import uuid; print(uuid.uuid4().hex[:8])")"
+    WORKER_ID="worker-\$(python3 -c "import uuid; print(uuid.uuid4().hex[:8])")"
     cat > "\${ENV_FILE}" << ENVEOF
 SUPABASE_URL=\${SUPABASE_URL}
 SUPABASE_KEY=\${SUPABASE_KEY}
@@ -119,33 +123,101 @@ ENVEOF
     echo "🔑 .env 생성 (ID: \${WORKER_ID})"
 fi
 
-# 자동 실행 스크립트 생성
-LAUNCHER="\${INSTALL_DIR}/start.command"
-cat > "\${LAUNCHER}" << 'LAUNCHEOF'
+# ── LaunchAgent 등록 (로그인 시 자동 실행 + 크래시 시 자동 재시작) ──
+echo ""
+echo "⚙️ 자동 실행 등록..."
+
+# 기존 서비스 중지 (재설치 시)
+launchctl unload "\${PLIST_PATH}" 2>/dev/null || true
+
+mkdir -p "$HOME/Library/LaunchAgents"
+cat > "\${PLIST_PATH}" << PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>\${PLIST_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>\${PYTHON3}</string>
+        <string>\${INSTALL_DIR}/worker.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>\${INSTALL_DIR}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>StandardOutPath</key>
+    <string>\${LOG_DIR}/worker.log</string>
+    <key>StandardErrorPath</key>
+    <string>\${LOG_DIR}/worker.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+PLISTEOF
+
+# 서비스 시작
+launchctl load "\${PLIST_PATH}"
+echo "  ✅ 로그인 시 자동 실행 등록 완료"
+
+# 제어 스크립트 생성
+cat > "\${INSTALL_DIR}/ctl.command" << 'CTLEOF'
 #!/bin/bash
-cd "$(dirname "$0")"
-python3 worker.py
-LAUNCHEOF
-chmod +x "\${LAUNCHER}"
+PLIST="$HOME/Library/LaunchAgents/com.crawlstation.worker.plist"
+LOG="$HOME/CrawlWorker/logs/worker.log"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  CrawlStation 워커 제어판"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "  1) 상태 확인"
+echo "  2) 워커 중지"
+echo "  3) 워커 시작"
+echo "  4) 워커 재시작"
+echo "  5) 로그 보기"
+echo "  6) 자동 실행 해제"
+echo ""
+read -p "선택: " choice
+case $choice in
+    1) launchctl list | grep crawlstation && echo "✅ 실행 중" || echo "❌ 중지됨" ;;
+    2) launchctl unload "$PLIST" 2>/dev/null && echo "✅ 중지됨" || echo "이미 중지됨" ;;
+    3) launchctl load "$PLIST" 2>/dev/null && echo "✅ 시작됨" || echo "이미 실행 중" ;;
+    4) launchctl unload "$PLIST" 2>/dev/null; sleep 1; launchctl load "$PLIST" && echo "✅ 재시작 완료" ;;
+    5) echo "--- 최근 로그 ---"; tail -50 "$LOG" 2>/dev/null || echo "로그 없음" ;;
+    6) launchctl unload "$PLIST" 2>/dev/null; rm -f "$PLIST"; echo "✅ 자동 실행 해제됨" ;;
+esac
+echo ""
+read -p "아무 키나 누르면 종료..."
+CTLEOF
+chmod +x "\${INSTALL_DIR}/ctl.command"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  ✅ 설치 완료!"
+echo "  ✅ 설치 완료! 워커가 바로 실행되었습니다."
 echo ""
-echo "  실행 방법:"
-echo "    1. 더블클릭: \${INSTALL_DIR}/start.command"
-echo "    2. 터미널:   cd \${INSTALL_DIR} && python3 worker.py"
+echo "  이후 할 일: 없음 (자동으로 모든 것이 처리됩니다)"
 echo ""
-echo "  → CrawlStation에 자동 등록됩니다: \${STATION_URL}"
+echo "  - 로그인할 때마다 자동 실행"
+echo "  - 비정상 종료 시 자동 재시작"
+echo "  - 새 버전 나오면 자동 업데이트"
+echo "  - CrawlStation에 자동 등록됨"
+echo ""
+echo "  제어: ~/CrawlWorker/ctl.command 더블클릭"
+echo "  로그: ~/CrawlWorker/logs/worker.log"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-
-# 바로 실행할지 물어보기
-read -p "지금 워커를 실행하시겠습니까? (Y/n): " answer
-if [ "\${answer}" != "n" ] && [ "\${answer}" != "N" ]; then
-    cd "\${INSTALL_DIR}"
-    python3 worker.py
-fi
+read -p "아무 키나 누르면 닫힘..."
 `;
 
     return new NextResponse(macScript, {
