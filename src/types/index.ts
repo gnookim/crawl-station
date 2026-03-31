@@ -16,6 +16,7 @@ export interface Worker {
   registered_at: string;
   version: string;
   registered_by: "auto" | "manual";
+  command: "stop" | "restart" | "update" | null;
   created_at: string;
 }
 

@@ -11,6 +11,7 @@ export default function WorkersPage() {
   const [showManualRegister, setShowManualRegister] = useState(false);
   const [newWorkerName, setNewWorkerName] = useState("");
   const [newWorkerId, setNewWorkerId] = useState("");
+  const [commandLoading, setCommandLoading] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -61,9 +62,47 @@ export default function WorkersPage() {
     loadData();
   }
 
+  async function sendCommand(
+    command: "stop" | "restart" | "update",
+    workerIds?: string[]
+  ) {
+    const labels = { stop: "정지", restart: "재시작", update: "업데이트" };
+    const target = workerIds
+      ? `워커 ${workerIds.length}대`
+      : "모든 활성 워커";
+
+    if (!confirm(`${target}에 "${labels[command]}" 명령을 보내시겠습니까?`))
+      return;
+
+    setCommandLoading(workerIds?.[0] || "all");
+    try {
+      const res = await fetch("/api/workers/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          worker_ids: workerIds || [],
+          command,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`명령 실패: ${data.error}`);
+      } else {
+        alert(data.message);
+      }
+    } finally {
+      setCommandLoading(null);
+      loadData();
+    }
+  }
+
   const outdatedCount = workers.filter(
     (w) => latestVersion && w.version !== latestVersion
   ).length;
+
+  const activeWorkers = workers.filter((w) =>
+    ["online", "idle", "crawling"].includes(w.status)
+  );
 
   return (
     <div className="p-6 max-w-6xl">
@@ -81,12 +120,43 @@ export default function WorkersPage() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => setShowManualRegister(!showManualRegister)}
-          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
-          + 수동 등록
-        </button>
+        <div className="flex gap-2">
+          {/* 전체 제어 버튼 */}
+          {activeWorkers.length > 0 && (
+            <div className="flex gap-1">
+              <button
+                onClick={() => sendCommand("update")}
+                disabled={commandLoading !== null}
+                className="px-2.5 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                title="모든 활성 워커에 업데이트 명령"
+              >
+                전체 업데이트
+              </button>
+              <button
+                onClick={() => sendCommand("restart")}
+                disabled={commandLoading !== null}
+                className="px-2.5 py-1.5 text-xs bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors disabled:opacity-50"
+                title="모든 활성 워커 재시작"
+              >
+                전체 재시작
+              </button>
+              <button
+                onClick={() => sendCommand("stop")}
+                disabled={commandLoading !== null}
+                className="px-2.5 py-1.5 text-xs bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors disabled:opacity-50"
+                title="모든 활성 워커 정지"
+              >
+                전체 정지
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => setShowManualRegister(!showManualRegister)}
+            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            + 수동 등록
+          </button>
+        </div>
       </div>
 
       {/* 수동 등록 폼 */}
@@ -152,52 +222,111 @@ export default function WorkersPage() {
                 <th className="text-left px-4 py-2 font-medium">OS</th>
                 <th className="text-left px-4 py-2 font-medium">버전</th>
                 <th className="text-left px-4 py-2 font-medium">상태</th>
-                <th className="text-left px-4 py-2 font-medium">등록</th>
+                <th className="text-left px-4 py-2 font-medium">현재 작업</th>
                 <th className="text-right px-4 py-2 font-medium">처리/에러</th>
-                <th className="text-right px-4 py-2 font-medium">액션</th>
+                <th className="text-right px-4 py-2 font-medium">제어</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {workers.map((w) => (
-                <tr key={w.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2">
-                    <div className="font-medium">{w.name || w.id}</div>
-                    <div className="text-xs text-gray-400">{w.id}</div>
-                  </td>
-                  <td className="px-4 py-2 text-gray-500 text-xs">
-                    {w.os || "-"}
-                  </td>
-                  <td className="px-4 py-2">
-                    <VersionBadge
-                      version={w.version}
-                      latest={latestVersion}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <WorkerStatusBadge status={w.status} />
-                  </td>
-                  <td className="px-4 py-2 text-xs text-gray-400">
-                    {w.registered_by === "auto" ? "자동" : "수동"}
-                    {w.registered_at &&
-                      ` · ${new Date(w.registered_at).toLocaleDateString("ko")}`}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">
-                    <span className="text-green-600">
-                      {w.total_processed}
-                    </span>
-                    {" / "}
-                    <span className="text-red-500">{w.error_count}</span>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <button
-                      onClick={() => deleteWorker(w.id)}
-                      className="text-xs text-red-500 hover:text-red-700"
-                    >
-                      삭제
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {workers.map((w) => {
+                const isActive = ["online", "idle", "crawling"].includes(
+                  w.status
+                );
+                const hasPendingCommand = !!w.command;
+                return (
+                  <tr key={w.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2">
+                      <div className="font-medium">{w.name || w.id}</div>
+                      <div className="text-xs text-gray-400">{w.id}</div>
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 text-xs">
+                      {w.os || "-"}
+                    </td>
+                    <td className="px-4 py-2">
+                      <VersionBadge
+                        version={w.version}
+                        latest={latestVersion}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-1.5">
+                        <WorkerStatusBadge status={w.status} />
+                        {hasPendingCommand && (
+                          <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-xs">
+                            {w.command}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-gray-500">
+                      {w.current_keyword ? (
+                        <span>
+                          {w.current_keyword}
+                          {w.current_type && (
+                            <span className="text-gray-400 ml-1">
+                              ({w.current_type})
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      <span className="text-green-600">
+                        {w.total_processed}
+                      </span>
+                      {" / "}
+                      <span className="text-red-500">{w.error_count}</span>
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {isActive ? (
+                        <div className="flex justify-end gap-1">
+                          {w.version !== latestVersion && latestVersion && (
+                            <button
+                              onClick={() =>
+                                sendCommand("update", [w.id])
+                              }
+                              disabled={commandLoading !== null}
+                              className="px-1.5 py-0.5 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors disabled:opacity-50"
+                              title="업데이트"
+                            >
+                              업데이트
+                            </button>
+                          )}
+                          <button
+                            onClick={() =>
+                              sendCommand("restart", [w.id])
+                            }
+                            disabled={commandLoading !== null}
+                            className="px-1.5 py-0.5 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 transition-colors disabled:opacity-50"
+                            title="재시작"
+                          >
+                            재시작
+                          </button>
+                          <button
+                            onClick={() =>
+                              sendCommand("stop", [w.id])
+                            }
+                            disabled={commandLoading !== null}
+                            className="px-1.5 py-0.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 transition-colors disabled:opacity-50"
+                            title="정지"
+                          >
+                            정지
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => deleteWorker(w.id)}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          삭제
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
