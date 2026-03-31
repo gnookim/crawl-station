@@ -48,12 +48,15 @@ export async function GET(request: NextRequest) {
   // ── Mac .pkg 인스톨러 (GitHub Release에서 리다이렉트) ──
   if (typeParam === "mac") {
     try {
+      const ghHeaders: Record<string, string> = {
+        Accept: "application/vnd.github+json",
+      };
+      if (process.env.GITHUB_TOKEN) {
+        ghHeaders.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+      }
       const ghRes = await fetch(
         "https://api.github.com/repos/gnookim/crawl-station/releases/latest",
-        {
-          headers: { Accept: "application/vnd.github+json" },
-          next: { revalidate: 300 },
-        }
+        { headers: ghHeaders, next: { revalidate: 300 } }
       );
 
       if (ghRes.ok) {
