@@ -8,7 +8,9 @@ const NAV_ITEMS = [
   { href: "/workers", label: "워커 관리", icon: "🖥️" },
   { href: "/queue", label: "작업 큐", icon: "📋" },
   { href: "/releases", label: "릴리즈", icon: "🚀" },
-  { href: "/install", label: "설치 / 연동", icon: "⬇️" },
+  { href: "/install", label: "워커 설치", icon: "⬇️" },
+  { href: "/guide", label: "연동 가이드", icon: "📖" },
+  { href: "/changelog", label: "업데이트 기록", icon: "📝" },
 ];
 
 export function Sidebar() {
