@@ -23,6 +23,7 @@ export default function ReleasesPage() {
   const [changelog, setChangelog] = useState("");
   const [files, setFiles] = useState<Record<string, string>>({});
   const [publishing, setPublishing] = useState(false);
+  const [fetchingGithub, setFetchingGithub] = useState(false);
   const [expandedRelease, setExpandedRelease] = useState<string | null>(null);
   const [activeFileTab, setActiveFileTab] = useState<string>(WORKER_FILES[0]);
 
@@ -44,28 +45,21 @@ export default function ReleasesPage() {
     loadData();
   }, [loadData]);
 
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const uploadedFiles = e.target.files;
-    if (!uploadedFiles) return;
-
-    Array.from(uploadedFiles).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const content = reader.result as string;
-        // Map uploaded file name to known worker file path
-        let filePath = file.name;
-        if (file.webkitRelativePath) {
-          // Handle folder upload: extract relative path from "handlers/blog.py"
-          const parts = file.webkitRelativePath.split("/");
-          if (parts.length >= 2) {
-            filePath = parts.slice(-2).join("/");
-            if (!filePath.includes("/")) filePath = parts[parts.length - 1];
-          }
-        }
-        setFiles((prev) => ({ ...prev, [filePath]: content }));
-      };
-      reader.readAsText(file);
-    });
+  async function fetchFromGithub() {
+    setFetchingGithub(true);
+    try {
+      const res = await fetch("/api/releases/github", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`GitHub 가져오기 실패: ${data.error}`);
+        return;
+      }
+      setFiles(data.files);
+      if (data.version) setVersion(data.version);
+      setShowForm(true);
+    } finally {
+      setFetchingGithub(false);
+    }
   }
 
   function handleFileContent(filePath: string, content: string) {
@@ -98,7 +92,7 @@ export default function ReleasesPage() {
         return;
       }
       alert(
-        `v${version} 릴리즈 완료! 대기 중인 워커 ${data.outdated_workers}대가 다음 배치에서 자동 업데이트됩니다.`
+        `v${version} 릴리즈 완료! 대기 중인 워커 ${data.outdated_workers}대가 자동 업데이트됩니다.`
       );
       setShowForm(false);
       setVersion("");
@@ -124,12 +118,21 @@ export default function ReleasesPage() {
             워커 코드를 배포하면 활성 워커들이 자동으로 업데이트됩니다
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
-          + 새 릴리즈
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={fetchFromGithub}
+            disabled={fetchingGithub}
+            className="px-3 py-1.5 text-sm bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors disabled:opacity-50"
+          >
+            {fetchingGithub ? "가져오는 중..." : "GitHub에서 가져오기"}
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            + 직접 입력
+          </button>
+        </div>
       </div>
 
       {/* 워커 업데이트 현황 */}
@@ -152,7 +155,7 @@ export default function ReleasesPage() {
             ))}
           </div>
           <p className="text-xs text-yellow-600 mt-2">
-            워커는 현재 배치 완료 후 또는 재시작 시 자동으로 업데이트됩니다.
+            워커는 30초 이내 또는 배치 완료 후 자동으로 업데이트됩니다.
           </p>
         </div>
       )}
@@ -160,7 +163,14 @@ export default function ReleasesPage() {
       {/* 새 릴리즈 폼 */}
       {showForm && (
         <div className="bg-white border border-gray-200 rounded-lg p-5 mb-6">
-          <h3 className="text-sm font-semibold mb-4">새 릴리즈 배포</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold">새 릴리즈 배포</h3>
+            {Object.keys(files).length > 0 && (
+              <span className="text-xs text-green-600">
+                {Object.keys(files).length}개 파일 로드됨
+              </span>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
@@ -171,7 +181,7 @@ export default function ReleasesPage() {
                 type="text"
                 value={version}
                 onChange={(e) => setVersion(e.target.value)}
-                placeholder="0.2.0"
+                placeholder="0.3.0"
                 className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -189,25 +199,8 @@ export default function ReleasesPage() {
             </div>
           </div>
 
-          {/* 파일 편집 영역 */}
+          {/* 파일 탭 에디터 */}
           <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs text-gray-500">
-                워커 파일 ({Object.keys(files).length}개 추가됨)
-              </label>
-              <label className="cursor-pointer px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors">
-                파일 업로드
-                <input
-                  type="file"
-                  multiple
-                  accept=".py"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {/* 파일 탭 */}
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
                 {WORKER_FILES.map((fp) => (
@@ -232,7 +225,7 @@ export default function ReleasesPage() {
                 onChange={(e) =>
                   handleFileContent(activeFileTab, e.target.value)
                 }
-                placeholder={`${activeFileTab} 내용을 붙여넣거나 파일을 업로드하세요...`}
+                placeholder={`${activeFileTab} — GitHub에서 가져오기 또는 직접 입력`}
                 className="w-full h-64 px-3 py-2 text-xs font-mono resize-y focus:outline-none"
                 spellCheck={false}
               />
@@ -269,6 +262,8 @@ export default function ReleasesPage() {
               onClick={() => {
                 setShowForm(false);
                 setFiles({});
+                setVersion("");
+                setChangelog("");
               }}
               className="px-4 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors"
             >
@@ -278,8 +273,7 @@ export default function ReleasesPage() {
 
           <div className="mt-3 p-3 bg-blue-50 rounded-md">
             <p className="text-xs text-blue-700">
-              <strong>자동 업데이트 흐름:</strong> 릴리즈 배포 → 워커가 배치
-              완료 후 또는 재시작 시 자동 감지 → 파일 교체 → 자동 재시작
+              <strong>배포 흐름:</strong> GitHub에서 가져오기 → 버전/변경내역 입력 → 릴리즈 배포 → 워커 30초 내 자동 업데이트 + 재시작
             </p>
           </div>
         </div>
