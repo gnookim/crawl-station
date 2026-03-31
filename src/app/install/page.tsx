@@ -56,16 +56,27 @@ function WorkerInstall() {
         <h3 className="text-lg font-bold mb-2">원클릭 인스톨러 다운로드</h3>
         <p className="text-sm text-blue-100 mb-4">
           Supabase 연결 정보가 자동으로 포함되어 있어, 다운로드 후 실행만 하면 됩니다.
+          <br />
+          설치 후 CrawlStation에 자동 등록됩니다.
         </p>
-        <a
-          href="/api/download"
-          download="installer.py"
-          className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm"
-        >
-          installer.py 다운로드
-        </a>
+        <div className="flex gap-3">
+          <a
+            href="/api/download?type=mac"
+            download="CrawlWorker-Install.command"
+            className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm"
+          >
+            Mac 설치 (.command)
+          </a>
+          <a
+            href="/api/download"
+            download="installer.py"
+            className="inline-flex items-center gap-2 bg-blue-500 text-white font-bold px-6 py-2.5 rounded-md hover:bg-blue-400 transition-colors text-sm"
+          >
+            Windows/Linux (installer.py)
+          </a>
+        </div>
         <div className="mt-3 text-xs text-blue-200">
-          Windows/macOS 공통 · Python 3.10+ 필요 · Supabase 연결정보 내장
+          Mac: 더블클릭으로 설치+실행 · Windows: python installer.py · 항상 최신 릴리즈 다운로드
         </div>
       </div>
 
@@ -98,15 +109,22 @@ function WorkerInstall() {
         />
         <Step
           number={2}
-          title="인스톨러 실행 (Windows/macOS 공통)"
+          title="설치 실행"
           content={
             <>
-              <p>
-                위에서 다운로드한 installer.py를 실행하면 자동으로 모든 설치가 완료됩니다.
-              </p>
-              <Code>python installer.py</Code>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded p-3">
+                  <div className="text-xs font-semibold mb-2">Mac</div>
+                  <p className="text-xs text-gray-600 mb-1">다운로드한 <code className="bg-gray-200 px-1 rounded">CrawlWorker-Install.command</code> 더블클릭</p>
+                  <p className="text-xs text-gray-400">&quot;확인되지 않은 개발자&quot; 경고 시: 우클릭 → 열기</p>
+                </div>
+                <div className="bg-gray-50 rounded p-3">
+                  <div className="text-xs font-semibold mb-2">Windows</div>
+                  <Code>python installer.py</Code>
+                </div>
+              </div>
               <div className="mt-2 text-xs text-gray-400">
-                자동으로: pip 패키지 설치 → Chromium 설치 → 워커 파일 다운로드 → .env 생성 (연결정보 자동 입력) → 연결 테스트
+                자동으로: 패키지 설치 → Chromium 설치 → 최신 워커 다운로드 → .env 생성 → CrawlStation 등록
               </div>
             </>
           }
@@ -121,8 +139,9 @@ function WorkerInstall() {
                   <div className="text-xs font-semibold text-gray-500 mb-1">
                     macOS
                   </div>
-                  <Code>{`cd ~/CrawlWorker
-python3 worker.py`}</Code>
+                  <Code>{`# 설치 시 생성된 start.command 더블클릭
+# 또는 터미널:
+cd ~/CrawlWorker && python3 worker.py`}</Code>
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-gray-500 mb-1">
@@ -133,7 +152,7 @@ python worker.py`}</Code>
                 </div>
               </div>
               <p className="mt-2 text-green-600 font-medium text-xs">
-                CrawlStation 대시보드에 자동 등록됩니다.
+                실행 즉시 CrawlStation에 자동 등록됩니다. 업데이트도 자동입니다.
               </p>
             </>
           }
