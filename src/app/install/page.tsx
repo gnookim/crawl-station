@@ -106,10 +106,10 @@ function WorkerInstall() {
         </div>
 
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">문제 있을 때만</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">제어 / 삭제</h4>
           <p className="text-sm text-gray-600">
-            <code className="bg-gray-200 px-1.5 py-0.5 rounded text-xs">~/CrawlWorker/ctl.command</code> 더블클릭 → 제어판
-            <span className="text-gray-400 text-xs ml-2">(상태확인 / 중지 / 재시작 / 로그 / 삭제)</span>
+            Launchpad 또는 Applications에서 <strong>CrawlStation Worker</strong> 앱 실행
+            <span className="text-gray-400 text-xs ml-2">(상태확인 / 시작 / 중지 / 재시작 / 로그 / 완전 삭제)</span>
           </p>
         </div>
 

@@ -17,16 +17,135 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create installer scripts
+      - name: Create installer payload and scripts
         run: |
-          mkdir -p scripts
+          # ── .app 번들 구조 생성 ──
+          APP_DIR="payload/Applications/CrawlStation Worker.app"
+          mkdir -p "${APP_DIR}/Contents/MacOS"
+          mkdir -p "${APP_DIR}/Contents/Resources"
 
+          # Info.plist
+          cat > "${APP_DIR}/Contents/Info.plist" << 'PLIST_EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>CrawlStationWorker</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.crawlstation.worker</string>
+              <key>CFBundleName</key>
+              <string>CrawlStation Worker</string>
+              <key>CFBundleDisplayName</key>
+              <string>CrawlStation Worker</string>
+              <key>CFBundleVersion</key>
+              <string>__VERSION__</string>
+              <key>CFBundleShortVersionString</key>
+              <string>__VERSION__</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>11.0</string>
+              <key>LSUIElement</key>
+              <false/>
+          </dict>
+          </plist>
+          PLIST_EOF
+          sed -i '' "s|__VERSION__|${{ github.event.inputs.version }}|g" "${APP_DIR}/Contents/Info.plist"
+
+          # 앱 아이콘 생성 (간단한 텍스트 기반)
+          # macOS에서 iconutil 사용하여 기본 아이콘 생성
+          mkdir -p icon.iconset
+          for size in 16 32 128 256 512; do
+            sips -z $size $size /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ExecutableBinaryIcon.icns --out "icon.iconset/icon_${size}x${size}.png" 2>/dev/null || true
+            double=$((size * 2))
+            sips -z $double $double /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ExecutableBinaryIcon.icns --out "icon.iconset/icon_${size}x${size}@2x.png" 2>/dev/null || true
+          done
+          iconutil -c icns icon.iconset -o "${APP_DIR}/Contents/Resources/AppIcon.icns" 2>/dev/null || true
+
+          # ── 앱 실행파일 (제어판) ──
+          cat > "${APP_DIR}/Contents/MacOS/CrawlStationWorker" << 'APP_EOF'
+          #!/bin/bash
+          WORKER_DIR="$HOME/CrawlWorker"
+          PLIST="$HOME/Library/LaunchAgents/com.crawlstation.worker.plist"
+          LOG="$WORKER_DIR/logs/worker.log"
+
+          # 상태 확인
+          get_status() {
+              if launchctl list 2>/dev/null | grep -q crawlstation; then
+                  echo "실행 중"
+              else
+                  echo "중지됨"
+              fi
+          }
+
+          # AppleScript GUI 제어판
+          STATUS=$(get_status)
+          CHOICE=$(osascript -e "
+          set statusText to \"워커 상태: ${STATUS}\"
+          set btnList to {\"상태 확인\", \"워커 시작\", \"워커 중지\", \"워커 재시작\", \"로그 보기\", \"완전 삭제 (언인스톨)\"}
+          choose from list btnList with title \"CrawlStation Worker\" with prompt statusText default items {\"상태 확인\"}
+          " 2>/dev/null)
+
+          if [ "$CHOICE" = "false" ] || [ -z "$CHOICE" ]; then
+              exit 0
+          fi
+
+          case "$CHOICE" in
+              "상태 확인")
+                  STATUS=$(get_status)
+                  VER=""
+                  if [ -f "$WORKER_DIR/worker.py" ]; then
+                      VER=$(grep -m1 'VERSION' "$WORKER_DIR/worker.py" 2>/dev/null | grep -o '"[^"]*"' | tr -d '"')
+                  fi
+                  WID=""
+                  if [ -f "$WORKER_DIR/.env" ]; then
+                      WID=$(grep WORKER_ID "$WORKER_DIR/.env" 2>/dev/null | cut -d= -f2)
+                  fi
+                  osascript -e "display dialog \"상태: ${STATUS}\n버전: ${VER:-알 수 없음}\n워커 ID: ${WID:-없음}\n로그: ~/CrawlWorker/logs/worker.log\" with title \"CrawlStation Worker\" buttons {\"확인\"} default button 1"
+                  ;;
+              "워커 시작")
+                  launchctl load "$PLIST" 2>/dev/null
+                  osascript -e 'display notification "워커가 시작되었습니다" with title "CrawlStation"'
+                  ;;
+              "워커 중지")
+                  launchctl unload "$PLIST" 2>/dev/null
+                  osascript -e 'display notification "워커가 중지되었습니다" with title "CrawlStation"'
+                  ;;
+              "워커 재시작")
+                  launchctl unload "$PLIST" 2>/dev/null
+                  sleep 1
+                  launchctl load "$PLIST" 2>/dev/null
+                  osascript -e 'display notification "워커가 재시작되었습니다" with title "CrawlStation"'
+                  ;;
+              "로그 보기")
+                  if [ -f "$LOG" ]; then
+                      open -a Console "$LOG"
+                  else
+                      osascript -e 'display dialog "로그 파일이 없습니다" with title "CrawlStation" buttons {"확인"} default button 1'
+                  fi
+                  ;;
+              "완전 삭제 (언인스톨)")
+                  CONFIRM=$(osascript -e '
+                  display dialog "정말 삭제하시겠습니까?\n\n워커 서비스, 설정, 데이터가 모두 삭제됩니다." with title "CrawlStation 삭제" buttons {"취소", "삭제"} default button "취소" with icon caution
+                  button returned of result
+                  ' 2>/dev/null)
+                  if [ "$CONFIRM" = "삭제" ]; then
+                      launchctl unload "$PLIST" 2>/dev/null
+                      rm -f "$PLIST"
+                      rm -rf "$WORKER_DIR"
+                      rm -rf "/Applications/CrawlStation Worker.app"
+                      osascript -e 'display notification "CrawlStation Worker가 완전히 삭제되었습니다" with title "CrawlStation"'
+                  fi
+                  ;;
+          esac
+          APP_EOF
+          chmod +x "${APP_DIR}/Contents/MacOS/CrawlStationWorker"
+
+          # ── postinstall 스크립트 ──
+          mkdir -p scripts
           cat > scripts/postinstall << 'SCRIPT_EOF'
           #!/bin/bash
-          # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          #  CrawlStation — Mac 워커 설치 (postinstall)
-          # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
           # pkg postinstall은 root로 실행됨 — 실제 사용자 홈 찾기
           REAL_USER="${USER}"
           if [ "$REAL_USER" = "root" ]; then
@@ -44,10 +163,9 @@ jobs:
 
           log() { echo "[CrawlWorker] $1"; }
 
-          # ── 1단계: Python 확인/설치 ──
+          # ── Python 확인/설치 ──
           install_python() {
               log "Python3 확인 중..."
-
               if command -v python3 &> /dev/null; then
                   PY_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)")
                   PY_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
@@ -56,8 +174,6 @@ jobs:
                       return 0
                   fi
               fi
-
-              # Homebrew
               if sudo -u "$REAL_USER" bash -c 'command -v brew' &> /dev/null; then
                   log "Homebrew로 Python 설치..."
                   sudo -u "$REAL_USER" brew install python@3.12 2>/dev/null || \
@@ -68,8 +184,6 @@ jobs:
                       return 0
                   fi
               fi
-
-              # python.org 공식 패키지
               log "Python 공식 인스톨러 다운로드..."
               PKG_URL="https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg"
               PKG_PATH="/tmp/python-installer.pkg"
@@ -78,12 +192,10 @@ jobs:
               rm -f "$PKG_PATH"
               export PATH="/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
               hash -r 2>/dev/null
-
               if command -v python3 &> /dev/null; then
                   log "Python $(python3 --version) 설치 완료"
                   return 0
               fi
-
               log "ERROR: Python 설치 실패"
               exit 1
           }
@@ -91,7 +203,7 @@ jobs:
           install_python
           PYTHON3=$(which python3)
 
-          # ── 2단계: 워커 설치 ──
+          # ── 워커 설치 ──
           sudo -u "$REAL_USER" mkdir -p "${INSTALL_DIR}/handlers" "${LOG_DIR}"
 
           log "패키지 설치..."
@@ -121,10 +233,10 @@ jobs:
               log "워커 ID: ${WORKER_ID}"
           fi
 
-          # ── 3단계: LaunchAgent 등록 ──
+          # ── LaunchAgent 등록 ──
           sudo -u "$REAL_USER" launchctl unload "${PLIST_PATH}" 2>/dev/null || true
-
           sudo -u "$REAL_USER" mkdir -p "${REAL_HOME}/Library/LaunchAgents"
+
           cat > "${PLIST_PATH}" << PLISTEOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -164,42 +276,8 @@ jobs:
 
           sudo -u "$REAL_USER" launchctl load "${PLIST_PATH}"
           log "서비스 시작됨"
-
-          # 제어 스크립트
-          cat > "${INSTALL_DIR}/ctl.command" << 'CTLEOF'
-          #!/bin/bash
-          PLIST="$HOME/Library/LaunchAgents/com.crawlstation.worker.plist"
-          LOG="$HOME/CrawlWorker/logs/worker.log"
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "  CrawlStation 워커 제어판"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-          echo "  1) 상태 확인"
-          echo "  2) 워커 중지"
-          echo "  3) 워커 시작"
-          echo "  4) 워커 재시작"
-          echo "  5) 로그 보기 (최근 50줄)"
-          echo "  6) 자동 실행 해제 + 완전 삭제"
-          echo ""
-          read -p "선택: " choice
-          case $choice in
-              1) launchctl list | grep crawlstation && echo "실행 중" || echo "중지됨" ;;
-              2) launchctl unload "$PLIST" 2>/dev/null && echo "중지됨" || echo "이미 중지됨" ;;
-              3) launchctl load "$PLIST" 2>/dev/null && echo "시작됨" || echo "이미 실행 중" ;;
-              4) launchctl unload "$PLIST" 2>/dev/null; sleep 1; launchctl load "$PLIST" && echo "재시작 완료" ;;
-              5) echo "--- 최근 로그 ---"; tail -50 "$LOG" 2>/dev/null || echo "로그 없음" ;;
-              6) launchctl unload "$PLIST" 2>/dev/null; rm -f "$PLIST"; rm -rf "$HOME/CrawlWorker"; echo "완전 삭제 완료" ;;
-          esac
-          echo ""
-          read -p "아무 키나 누르면 닫힘..."
-          CTLEOF
-          chown "$REAL_USER" "${INSTALL_DIR}/ctl.command"
-          chmod +x "${INSTALL_DIR}/ctl.command"
-
           log "설치 완료!"
           SCRIPT_EOF
-
           chmod +x scripts/postinstall
 
       - name: Inject credentials
@@ -214,20 +292,78 @@ jobs:
 
       - name: Build .pkg
         run: |
+          VERSION="${{ github.event.inputs.version }}"
+
+          # 1. 앱 payload를 component pkg로
           pkgbuild \
-            --nopayload \
+            --root payload \
             --scripts scripts \
             --identifier com.crawlstation.worker \
-            --version ${{ github.event.inputs.version }} \
-            CrawlWorker-${{ github.event.inputs.version }}.pkg
+            --version "${VERSION}" \
+            --install-location / \
+            component.pkg
+
+          # 2. Distribution XML 생성 (설치 UI 커스터마이징)
+          cat > distribution.xml << DIST_EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <installer-gui-script minSpecVersion="2">
+              <title>CrawlStation Worker</title>
+              <welcome language="ko" mime-type="text/html"><![CDATA[
+                  <html><body style="font-family:-apple-system,sans-serif;padding:20px;">
+                  <h2>CrawlStation Worker v${VERSION}</h2>
+                  <p>크롤링 워커를 설치합니다.</p>
+                  <ul>
+                      <li>Python 자동 설치 (없는 경우)</li>
+                      <li>Chromium 브라우저 자동 설치</li>
+                      <li>백그라운드 서비스 자동 등록</li>
+                      <li>Mac 부팅 시 자동 시작</li>
+                  </ul>
+                  <p><b>설치 후:</b> Launchpad 또는 Applications에서<br/>
+                  「CrawlStation Worker」 앱으로 제어할 수 있습니다.</p>
+                  </body></html>
+              ]]></welcome>
+              <conclusion language="ko" mime-type="text/html"><![CDATA[
+                  <html><body style="font-family:-apple-system,sans-serif;padding:20px;">
+                  <h2>설치 완료!</h2>
+                  <p>워커가 지금 백그라운드에서 실행 중입니다.</p>
+                  <ul>
+                      <li>✔ 지금 바로 실행됨 (재부팅 불필요)</li>
+                      <li>✔ Mac 켤 때마다 자동 시작</li>
+                      <li>✔ 오류 발생 시 자동 재시작</li>
+                      <li>✔ 새 버전 자동 업데이트</li>
+                  </ul>
+                  <p><b>제어:</b> Applications → CrawlStation Worker</p>
+                  <p><b>삭제:</b> 앱 실행 → 「완전 삭제」 선택</p>
+                  </body></html>
+              ]]></conclusion>
+              <options customize="never" require-scripts="false"/>
+              <choices-outline>
+                  <line choice="com.crawlstation.worker"/>
+              </choices-outline>
+              <choice id="com.crawlstation.worker" visible="false">
+                  <pkg-ref id="com.crawlstation.worker"/>
+              </choice>
+              <pkg-ref id="com.crawlstation.worker" version="${VERSION}" onConclusion="none">component.pkg</pkg-ref>
+          </installer-gui-script>
+          DIST_EOF
+
+          # 3. productbuild로 최종 pkg 생성
+          productbuild \
+            --distribution distribution.xml \
+            --package-path . \
+            "CrawlWorker-${VERSION}.pkg"
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ github.event.inputs.version }}"
+          # 기존 같은 태그의 릴리즈가 있으면 삭제
+          gh release delete "v${VERSION}" --yes 2>/dev/null || true
+          git push --delete origin "v${VERSION}" 2>/dev/null || true
+
           gh release create "v${VERSION}" \
             --title "CrawlWorker v${VERSION}" \
             --notes "Mac 워커 인스톨러 v${VERSION}" \
             --latest \
-            CrawlWorker-${VERSION}.pkg
+            "CrawlWorker-${VERSION}.pkg"
