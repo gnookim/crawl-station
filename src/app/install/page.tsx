@@ -46,18 +46,14 @@ function WorkerInstall() {
     <>
       <h2 className="text-xl font-bold mb-2">크롤링 워커 설치</h2>
       <p className="text-sm text-gray-500 mb-6">
-        새 PC에 크롤링 워커를 설치하면 CrawlStation에 자동으로 등록됩니다.
-        <br />
-        Windows/macOS 모두 동일한 인스톨러로 설치할 수 있습니다.
+        다운로드 후 더블클릭 한 번이면 끝. 나머지는 전부 자동입니다.
       </p>
 
       {/* 다운로드 버튼 */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 mb-6 text-white">
-        <h3 className="text-lg font-bold mb-2">원클릭 인스톨러 다운로드</h3>
+        <h3 className="text-lg font-bold mb-2">워커 설치 파일 다운로드</h3>
         <p className="text-sm text-blue-100 mb-4">
-          Supabase 연결 정보가 자동으로 포함되어 있어, 다운로드 후 실행만 하면 됩니다.
-          <br />
-          설치 후 CrawlStation에 자동 등록됩니다.
+          Python, 브라우저, 연결정보 등 필요한 모든 것이 자동으로 설치됩니다.
         </p>
         <div className="flex gap-3">
           <a
@@ -65,112 +61,78 @@ function WorkerInstall() {
             download="CrawlWorker-Install.command"
             className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm"
           >
-            Mac 설치 (.command)
+            Mac 다운로드
           </a>
           <a
             href="/api/download"
             download="installer.py"
             className="inline-flex items-center gap-2 bg-blue-500 text-white font-bold px-6 py-2.5 rounded-md hover:bg-blue-400 transition-colors text-sm"
           >
-            Windows/Linux (installer.py)
+            Windows 다운로드
           </a>
         </div>
-        <div className="mt-3 text-xs text-blue-200">
-          Mac: 더블클릭으로 설치+실행 · Windows: python installer.py · 항상 최신 릴리즈 다운로드
-        </div>
       </div>
 
-      {/* 설치 가이드 */}
+      {/* Mac 설치 가이드 */}
       <div className="space-y-4">
-        <Step
-          number={1}
-          title="사전 요구사항"
-          content={
-            <>
-              <p>Python 3.10 이상</p>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <div className="bg-gray-50 rounded p-2 text-xs">
-                  <div className="font-semibold mb-1">macOS</div>
-                  <Code>brew install python@3.12</Code>
-                </div>
-                <div className="bg-gray-50 rounded p-2 text-xs">
-                  <div className="font-semibold mb-1">Windows</div>
-                  <p>
-                    python.org에서 설치
-                    <br />
-                    <span className="text-yellow-600">
-                      &quot;Add to PATH&quot; 체크 필수!
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </>
-          }
-        />
-        <Step
-          number={2}
-          title="설치 실행"
-          content={
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 rounded p-3">
-                  <div className="text-xs font-semibold mb-2">Mac</div>
-                  <p className="text-xs text-gray-600 mb-1">다운로드한 <code className="bg-gray-200 px-1 rounded">CrawlWorker-Install.command</code> 더블클릭</p>
-                  <p className="text-xs text-gray-400">&quot;확인되지 않은 개발자&quot; 경고 시: 우클릭 → 열기</p>
-                </div>
-                <div className="bg-gray-50 rounded p-3">
-                  <div className="text-xs font-semibold mb-2">Windows</div>
-                  <Code>python installer.py</Code>
-                </div>
-              </div>
-              <div className="mt-2 text-xs text-gray-400">
-                자동으로: 패키지 설치 → Chromium 설치 → 최신 워커 다운로드 → .env 생성 → CrawlStation 등록
-              </div>
-            </>
-          }
-        />
-        <Step
-          number={3}
-          title="실행"
-          content={
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 mb-1">
-                    macOS
-                  </div>
-                  <Code>{`# 설치 시 생성된 start.command 더블클릭
-# 또는 터미널:
-cd ~/CrawlWorker && python3 worker.py`}</Code>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 mb-1">
-                    Windows
-                  </div>
-                  <Code>{`cd C:\\CrawlWorker
-python worker.py`}</Code>
-                </div>
-              </div>
-              <p className="mt-2 text-green-600 font-medium text-xs">
-                실행 즉시 CrawlStation에 자동 등록됩니다. 업데이트도 자동입니다.
-              </p>
-            </>
-          }
-        />
-      </div>
+        <h3 className="text-sm font-semibold text-gray-700">Mac</h3>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
+              <span>다운로드</span>
+              <span className="text-gray-300">→</span>
+              <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
+              <span>더블클릭</span>
+              <span className="text-gray-300">→</span>
+              <span className="text-green-600 font-semibold">끝</span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            &quot;확인되지 않은 개발자&quot; 경고 시: 파일 우클릭 → 열기
+          </p>
+        </div>
 
-      {/* 설치 후 확인 */}
-      <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-green-800 mb-2">
-          설치 후 확인
-        </h3>
-        <ul className="text-sm text-green-700 space-y-1 list-disc list-inside">
-          <li>
-            worker.py 실행 후 CrawlStation 대시보드에 워커가 표시되면 성공
-          </li>
-          <li>상태가 &quot;대기&quot;(초록)으로 표시되어야 합니다</li>
-          <li>작업 큐에서 작업을 등록하면 워커가 자동으로 가져갑니다</li>
-        </ul>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-green-800 mb-2">자동으로 처리되는 것</h4>
+          <ul className="text-sm text-green-700 space-y-1">
+            <li>✔ Python 없으면 자동 설치</li>
+            <li>✔ 브라우저(Chromium) 자동 설치</li>
+            <li>✔ 설치 즉시 백그라운드 실행 (재부팅 불필요)</li>
+            <li>✔ Mac 켤 때마다 자동 시작</li>
+            <li>✔ 오류 시 자동 재시작</li>
+            <li>✔ 새 버전 자동 업데이트</li>
+            <li>✔ CrawlStation에 자동 등록</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">문제 있을 때만</h4>
+          <p className="text-sm text-gray-600">
+            <code className="bg-gray-200 px-1.5 py-0.5 rounded text-xs">~/CrawlWorker/ctl.command</code> 더블클릭 → 제어판
+            <span className="text-gray-400 text-xs ml-2">(상태확인 / 중지 / 재시작 / 로그 / 삭제)</span>
+          </p>
+        </div>
+
+        {/* Windows 가이드 */}
+        <h3 className="text-sm font-semibold text-gray-700 mt-6">Windows</h3>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
+              <span>다운로드</span>
+              <span className="text-gray-300">→</span>
+              <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
+              <span><code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">python installer.py</code></span>
+              <span className="text-gray-300">→</span>
+              <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
+              <span><code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">python worker.py</code></span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            Windows는 Python 3.10+이 사전 설치되어 있어야 합니다 (python.org)
+          </p>
+        </div>
       </div>
     </>
   );
