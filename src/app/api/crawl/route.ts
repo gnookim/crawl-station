@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { authenticateApiKey } from "@/lib/auth";
 
 /**
  * CrawlStation 연동 API — 외부 앱에서 크롤링 요청/결과 조회
+ *
+ * 인증: X-API-Key 헤더 필수 (POST), GET은 선택
  *
  * POST /api/crawl — 크롤링 요청 등록
  * body: {
@@ -17,6 +20,15 @@ import { createServerClient } from "@/lib/supabase";
  * GET /api/crawl?keyword=xxx&type=xxx — 키워드+타입으로 결과 조회
  */
 export async function POST(request: NextRequest) {
+  // API 키 인증
+  const auth = await authenticateApiKey(request);
+  if (!auth) {
+    return NextResponse.json(
+      { error: "유효한 API 키가 필요합니다. X-API-Key 헤더를 확인하세요." },
+      { status: 401 }
+    );
+  }
+
   const sb = createServerClient();
   const body = await request.json();
   const {

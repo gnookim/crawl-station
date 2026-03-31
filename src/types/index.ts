@@ -62,6 +62,17 @@ export interface WorkerConfig {
   updated_by: string;
 }
 
+export interface ConnectedApp {
+  id: string;
+  name: string;
+  description: string | null;
+  api_key: string;
+  is_active: boolean;
+  total_requests: number;
+  last_used_at: string | null;
+  created_at: string;
+}
+
 export type CrawlType =
   | "kin_analysis"
   | "blog_crawl"

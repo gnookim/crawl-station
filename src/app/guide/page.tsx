@@ -94,6 +94,23 @@ export default function GuidePage() {
         </div>
       </Section>
 
+      {/* 인증 */}
+      <Section title="인증 (API 키)">
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            크롤링 요청(POST)에는 API 키가 필요합니다. 결과 조회(GET)는 인증 없이 가능합니다.
+          </p>
+          <StepBlock number={1} title="앱 등록" desc="사이드바 '연결된 앱' → '앱 등록' 클릭" />
+          <StepBlock number={2} title="API 키 복사" desc="발급된 cs_xxx... 키를 안전한 곳에 저장" />
+          <StepBlock number={3} title="헤더에 포함" desc="요청 시 X-API-Key: cs_xxx... 헤더 추가" />
+          <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500">
+            <strong>인증 필요:</strong> POST /api/crawl, POST /api/dispatch
+            <br />
+            <strong>인증 불필요:</strong> GET /api/crawl (결과 조회), GET /api/workers
+          </div>
+        </div>
+      </Section>
+
       {/* 연동 정보 */}
       <Section title="연동 정보">
         <ConnectInfo />
@@ -248,10 +265,12 @@ function Code({ children }: { children: React.ReactNode }) {
 function NextJsExample() {
   return (
     <div className="space-y-3">
-      <Code>{`// 1. 크롤링 요청
+      <Code>{`const API_KEY = "cs_발급받은키"; // 연결된 앱 페이지에서 발급
+
+// 1. 크롤링 요청
 const res = await fetch("https://crawl-station.vercel.app/api/crawl", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
   body: JSON.stringify({
     keywords: ["당뇨에 좋은 음식", "탈모 샴푸"],
     type: "blog_crawl"
@@ -276,12 +295,13 @@ function PythonExample() {
       <Code>{`import requests, time
 
 STATION = "https://crawl-station.vercel.app"
+API_KEY = "cs_발급받은키"  # 연결된 앱 페이지에서 발급
 
 # 1. 크롤링 요청
-res = requests.post(f"{STATION}/api/crawl", json={
-    "keywords": ["당뇨에 좋은 음식"],
-    "type": "blog_crawl"
-})
+res = requests.post(f"{STATION}/api/crawl",
+    headers={"X-API-Key": API_KEY},
+    json={"keywords": ["당뇨에 좋은 음식"], "type": "blog_crawl"}
+)
 req_id = res.json()["requests"][0]["id"]
 
 # 2. 결과 대기

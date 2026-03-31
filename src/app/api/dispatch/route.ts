@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { authenticateApiKey } from "@/lib/auth";
 
 /**
  * Dispatch Agent — 작업 분배 API
+ *
+ * 인증: X-API-Key 헤더 필수
  *
  * POST /api/dispatch
  * body: { keywords: string[], type: string, strategy?: "round_robin" | "load_based" | "ip_spread" }
@@ -10,6 +13,14 @@ import { createServerClient } from "@/lib/supabase";
  * 활성 워커에게 작업을 자동 분배합니다.
  */
 export async function POST(request: NextRequest) {
+  const auth = await authenticateApiKey(request);
+  if (!auth) {
+    return NextResponse.json(
+      { error: "유효한 API 키가 필요합니다. X-API-Key 헤더를 확인하세요." },
+      { status: 401 }
+    );
+  }
+
   const sb = createServerClient();
   const body = await request.json();
   const { keywords, type, strategy = "round_robin" } = body;

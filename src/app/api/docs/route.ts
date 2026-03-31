@@ -11,13 +11,28 @@ CrawlStation은 **분산 크롤링 관제 시스템**입니다.
 여러 대의 PC(워커)에 크롤링 작업을 자동 분배하고, 결과를 중앙에서 수집합니다.
 
 - **Base URL**: \`https://crawl-station.vercel.app\`
-- **인증**: 불필요 (API 키 없이 연동 가능)
+- **인증**: API 키 필수 (CrawlStation → 연결된 앱 → 앱 등록에서 발급)
 - **워커**: Mac/Windows PC에 설치하여 백그라운드 실행
+
+## 인증 (API 키)
+
+모든 쓰기 API(POST)에는 API 키가 필요합니다.
+
+1. CrawlStation 웹 → "연결된 앱" → "앱 등록" 클릭
+2. 발급된 API 키를 복사
+3. 요청 시 \`X-API-Key\` 헤더에 포함
+
+\`\`\`
+X-API-Key: cs_abc123...
+\`\`\`
+
+인증 필요: \`POST /api/crawl\`, \`POST /api/dispatch\`
+인증 불필요: \`GET /api/crawl\` (결과 조회), \`GET /api/workers\`
 
 ## 연동 흐름
 
 \`\`\`
-1. POST /api/crawl → 크롤링 요청 등록 (키워드 + 타입)
+1. POST /api/crawl → 크롤링 요청 등록 (키워드 + 타입 + API 키)
 2. 워커가 자동으로 작업 수행 (5초마다 큐 확인)
 3. GET /api/crawl?request_id=xxx → 결과 조회
 \`\`\`
@@ -92,10 +107,12 @@ CrawlStation은 **분산 크롤링 관제 시스템**입니다.
 \`\`\`typescript
 const STATION = "https://crawl-station.vercel.app";
 
+const API_KEY = "cs_발급받은키";
+
 // 크롤링 요청
 const res = await fetch(\`\${STATION}/api/crawl\`, {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
   body: JSON.stringify({ keywords: ["당뇨에 좋은 음식"], type: "blog_crawl" })
 });
 const { requests } = await res.json();
@@ -121,10 +138,13 @@ import requests, time
 
 STATION = "https://crawl-station.vercel.app"
 
+API_KEY = "cs_발급받은키"
+
 # 요청
-res = requests.post(f"{STATION}/api/crawl", json={
-    "keywords": ["당뇨에 좋은 음식"], "type": "blog_crawl"
-})
+res = requests.post(f"{STATION}/api/crawl",
+    headers={"X-API-Key": API_KEY},
+    json={"keywords": ["당뇨에 좋은 음식"], "type": "blog_crawl"}
+)
 req_id = res.json()["requests"][0]["id"]
 
 # 대기
@@ -197,6 +217,13 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - CrawlStation 동작 원리, 크롤링 타입, API 레퍼런스 상세 설명
 - AI 채팅/외부 개발용 MD 파일 다운로드 기능
 - 업데이트 기록 페이지(/changelog) 추가
+
+### 연결된 앱 관리 + API 키 인증
+- /apps 페이지: 앱 등록, API 키 발급/재발급/폐기
+- POST /api/crawl, POST /api/dispatch에 X-API-Key 인증 필수
+- GET 요청(결과 조회, 워커 상태)은 인증 불필요
+- 앱별 요청 수, 마지막 사용 시간 추적
+- 연동 가이드에 API 키 인증 방법 추가
 `;
 
 export async function GET(request: NextRequest) {
