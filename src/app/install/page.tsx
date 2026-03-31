@@ -182,13 +182,12 @@ function IntegrationGuide() {
 │ 기타 앱   │    │              │    │              │
 └──────────┘    └──────────────┘    └──────────────┘
 
-연동 방법 2가지:
-  A. CrawlStation API 사용 (권장)
-  B. Supabase 직접 연결`}</pre>
+연동: CrawlStation URL 하나만 설정하면 됩니다
+      (Supabase 키 불필요)`}</pre>
       </div>
 
-      {/* 연결 정보 */}
-      <ConnectInfo />
+      {/* 연동 정보 */}
+      <AppConnectInfo />
 
       {/* 방법 선택 */}
       <div className="flex gap-1 mt-6 mb-4">
@@ -237,11 +236,11 @@ function IntegrationGuide() {
   );
 }
 
-/* ── 연결 정보 공통 컴포넌트 ─────────────── */
-function ConnectInfo() {
+/* ── 워커 설치용 연결 정보 ─────────────── */
+function WorkerConnectInfo() {
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-blue-800 mb-2">연결 정보</h3>
+      <h3 className="text-sm font-semibold text-blue-800 mb-2">워커 연결 정보</h3>
       <div className="font-mono text-xs space-y-1.5 text-blue-700">
         <div className="flex items-center gap-2">
           <span className="text-blue-400 w-36 shrink-0">SUPABASE_URL</span>
@@ -253,15 +252,33 @@ function ConnectInfo() {
           <span className="text-blue-400 w-36 shrink-0">SUPABASE_KEY</span>
           <span className="text-blue-500">관리자에게 문의</span>
         </div>
+      </div>
+      <p className="text-xs text-blue-500 mt-2">
+        * 인스톨러를 다운로드하면 자동으로 입력되어 있습니다
+      </p>
+    </div>
+  );
+}
+
+/* ── 외부 앱 연동용 연결 정보 ─────────────── */
+function AppConnectInfo() {
+  const stationUrl = typeof window !== "undefined"
+    ? window.location.origin
+    : "https://crawl-station.vercel.app";
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <h3 className="text-sm font-semibold text-blue-800 mb-2">연동 정보</h3>
+      <div className="font-mono text-xs space-y-1.5 text-blue-700">
         <div className="flex items-center gap-2">
-          <span className="text-blue-400 w-36 shrink-0">
-            CRAWLSTATION_URL
-          </span>
+          <span className="text-blue-400 w-36 shrink-0">CRAWLSTATION_URL</span>
           <span className="bg-blue-100 px-2 py-0.5 rounded select-all">
-            http://localhost:3000
+            {stationUrl}
           </span>
         </div>
       </div>
+      <p className="text-xs text-blue-500 mt-2">
+        * 외부 앱에서는 이 URL만 있으면 됩니다 (Supabase 키 불필요)
+      </p>
     </div>
   );
 }
