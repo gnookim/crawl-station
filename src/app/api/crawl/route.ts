@@ -48,14 +48,17 @@ export async function POST(request: NextRequest) {
   }
 
   // 요청 등록
-  const rows = keywords.map((keyword: string) => ({
-    keyword,
-    type,
-    options: Object.keys(options).length > 0 ? options : null,
-    status: "pending",
-    priority,
-    callback_url: callback_url || null,
-  }));
+  const rows = keywords.map((keyword: string) => {
+    const row: Record<string, unknown> = {
+      keyword,
+      type,
+      options: Object.keys(options).length > 0 ? options : null,
+      status: "pending",
+      priority,
+    };
+    if (callback_url) row.callback_url = callback_url;
+    return row;
+  });
 
   const { data, error } = await sb
     .from("crawl_requests")

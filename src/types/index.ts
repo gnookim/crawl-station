@@ -36,6 +36,7 @@ export interface CrawlRequest {
   status: "pending" | "assigned" | "running" | "completed" | "failed";
   assigned_worker: string | null;
   priority: number;
+  callback_url: string | null;
   error_message: string | null;
   created_at: string;
   started_at: string | null;
