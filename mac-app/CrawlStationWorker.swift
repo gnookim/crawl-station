@@ -154,6 +154,21 @@ class WorkerManager: ObservableObject {
 
     func uninstall() {
         DispatchQueue.global(qos: .userInitiated).async { [self] in
+            // Station에서 워커 레코드 삭제
+            if workerID != "-" {
+                let deleteURL = "\(stationURL)/api/workers?id=\(workerID)"
+                if let url = URL(string: deleteURL) {
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "DELETE"
+                    request.timeoutInterval = 5
+                    let semaphore = DispatchSemaphore(value: 0)
+                    URLSession.shared.dataTask(with: request) { _, _, _ in
+                        semaphore.signal()
+                    }.resume()
+                    _ = semaphore.wait(timeout: .now() + 5)
+                }
+            }
+
             _ = shellOutput("/bin/launchctl", ["unload", plistPath])
             Thread.sleep(forTimeInterval: 0.5)
             try? FileManager.default.removeItem(atPath: plistPath)

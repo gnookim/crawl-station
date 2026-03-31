@@ -89,6 +89,23 @@ export default function WorkersPage() {
     loadData(true);
   }
 
+  async function cleanupOfflineWorkers() {
+    const offlineWorkers = workers.filter((w) => !w.is_active);
+    if (offlineWorkers.length === 0) {
+      alert("삭제할 오프라인 워커가 없습니다.");
+      return;
+    }
+    if (
+      !confirm(
+        `오프라인 워커 ${offlineWorkers.length}대를 모두 삭제하시겠습니까?`
+      )
+    )
+      return;
+    const ids = offlineWorkers.map((w) => w.id);
+    await supabase.from("workers").delete().in("id", ids);
+    loadData(true);
+  }
+
   async function sendCommand(
     command: "stop" | "restart" | "update",
     workerIds?: string[]
@@ -128,6 +145,7 @@ export default function WorkersPage() {
   ).length;
 
   const activeWorkers = workers.filter((w) => w.is_active);
+  const offlineWorkers = workers.filter((w) => !w.is_active);
 
   return (
     <div className="p-6 max-w-6xl">
@@ -170,6 +188,15 @@ export default function WorkersPage() {
                 전체 정지
               </button>
             </div>
+          )}
+          {offlineWorkers.length > 0 && (
+            <button
+              onClick={cleanupOfflineWorkers}
+              className="px-2.5 py-1.5 text-xs border border-gray-300 text-gray-500 rounded-md hover:bg-gray-50 transition-colors"
+              title={`오프라인 워커 ${offlineWorkers.length}대 삭제`}
+            >
+              오프라인 정리 ({offlineWorkers.length})
+            </button>
           )}
           <button
             onClick={() => setShowManualRegister(!showManualRegister)}
