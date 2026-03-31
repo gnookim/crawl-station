@@ -17,15 +17,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create installer payload and scripts
+      - name: Compile SwiftUI app
         run: |
-          # ── .app 번들 구조 생성 ──
+          VERSION="${{ github.event.inputs.version }}"
           APP_DIR="payload/Applications/CrawlStation Worker.app"
           mkdir -p "${APP_DIR}/Contents/MacOS"
           mkdir -p "${APP_DIR}/Contents/Resources"
 
           # Info.plist
-          cat > "${APP_DIR}/Contents/Info.plist" << 'PLIST_EOF'
+          cat > "${APP_DIR}/Contents/Info.plist" << PLIST_EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -33,120 +33,123 @@ jobs:
               <key>CFBundleExecutable</key>
               <string>CrawlStationWorker</string>
               <key>CFBundleIdentifier</key>
-              <string>com.crawlstation.worker</string>
+              <string>com.crawlstation.worker.app</string>
               <key>CFBundleName</key>
               <string>CrawlStation Worker</string>
               <key>CFBundleDisplayName</key>
               <string>CrawlStation Worker</string>
               <key>CFBundleVersion</key>
-              <string>__VERSION__</string>
+              <string>${VERSION}</string>
               <key>CFBundleShortVersionString</key>
-              <string>__VERSION__</string>
+              <string>${VERSION}</string>
               <key>CFBundlePackageType</key>
               <string>APPL</string>
+              <key>CFBundleIconFile</key>
+              <string>AppIcon</string>
               <key>LSMinimumSystemVersion</key>
-              <string>11.0</string>
-              <key>LSUIElement</key>
+              <string>13.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>NSSupportsAutomaticTermination</key>
               <false/>
           </dict>
           </plist>
           PLIST_EOF
-          sed -i '' "s|__VERSION__|${{ github.event.inputs.version }}|g" "${APP_DIR}/Contents/Info.plist"
 
-          # 앱 아이콘 생성 (간단한 텍스트 기반)
-          # macOS에서 iconutil 사용하여 기본 아이콘 생성
-          mkdir -p icon.iconset
-          for size in 16 32 128 256 512; do
-            sips -z $size $size /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ExecutableBinaryIcon.icns --out "icon.iconset/icon_${size}x${size}.png" 2>/dev/null || true
-            double=$((size * 2))
-            sips -z $double $double /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ExecutableBinaryIcon.icns --out "icon.iconset/icon_${size}x${size}@2x.png" 2>/dev/null || true
-          done
-          iconutil -c icns icon.iconset -o "${APP_DIR}/Contents/Resources/AppIcon.icns" 2>/dev/null || true
+          # 앱 아이콘 생성 (프로그래밍 방식)
+          cat > /tmp/gen_icon.swift << 'ICON_EOF'
+          import Cocoa
 
-          # ── 앱 실행파일 (제어판) ──
-          cat > "${APP_DIR}/Contents/MacOS/CrawlStationWorker" << 'APP_EOF'
-          #!/bin/bash
-          WORKER_DIR="$HOME/CrawlWorker"
-          PLIST="$HOME/Library/LaunchAgents/com.crawlstation.worker.plist"
-          LOG="$WORKER_DIR/logs/worker.log"
+          let sizes: [(Int, String)] = [
+              (16, "icon_16x16.png"),
+              (32, "icon_16x16@2x.png"),
+              (32, "icon_32x32.png"),
+              (64, "icon_32x32@2x.png"),
+              (128, "icon_128x128.png"),
+              (256, "icon_128x128@2x.png"),
+              (256, "icon_256x256.png"),
+              (512, "icon_256x256@2x.png"),
+              (512, "icon_512x512.png"),
+              (1024, "icon_512x512@2x.png"),
+          ]
 
-          # 상태 확인
-          get_status() {
-              if launchctl list 2>/dev/null | grep -q crawlstation; then
-                  echo "실행 중"
-              else
-                  echo "중지됨"
-              fi
+          let iconsetPath = "/tmp/AppIcon.iconset"
+          try? FileManager.default.createDirectory(atPath: iconsetPath, withIntermediateDirectories: true)
+
+          for (size, name) in sizes {
+              let img = NSImage(size: NSSize(width: size, height: size))
+              img.lockFocus()
+
+              // Background rounded rect
+              let bgPath = NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: size, height: size),
+                                         xRadius: CGFloat(size) * 0.22, yRadius: CGFloat(size) * 0.22)
+              let gradient = NSGradient(colors: [
+                  NSColor(red: 0.2, green: 0.4, blue: 0.9, alpha: 1),
+                  NSColor(red: 0.1, green: 0.3, blue: 0.8, alpha: 1)
+              ])!
+              gradient.draw(in: bgPath, angle: -45)
+
+              // "CW" text
+              let fontSize = CGFloat(size) * 0.38
+              let attrs: [NSAttributedString.Key: Any] = [
+                  .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
+                  .foregroundColor: NSColor.white
+              ]
+              let text = "CW" as NSString
+              let textSize = text.size(withAttributes: attrs)
+              let textRect = NSRect(
+                  x: (CGFloat(size) - textSize.width) / 2,
+                  y: (CGFloat(size) - textSize.height) / 2,
+                  width: textSize.width,
+                  height: textSize.height
+              )
+              text.draw(in: textRect, withAttributes: attrs)
+
+              img.unlockFocus()
+
+              guard let tiff = img.tiffRepresentation,
+                    let rep = NSBitmapImageRep(data: tiff),
+                    let png = rep.representation(using: .png, properties: [:]) else { continue }
+              try? png.write(to: URL(fileURLWithPath: "\(iconsetPath)/\(name)"))
           }
+          ICON_EOF
+          swiftc -framework Cocoa /tmp/gen_icon.swift -o /tmp/gen_icon && /tmp/gen_icon
+          iconutil -c icns /tmp/AppIcon.iconset -o "${APP_DIR}/Contents/Resources/AppIcon.icns"
 
-          # AppleScript GUI 제어판
-          STATUS=$(get_status)
-          CHOICE=$(osascript -e "
-          set statusText to \"워커 상태: ${STATUS}\"
-          set btnList to {\"상태 확인\", \"워커 시작\", \"워커 중지\", \"워커 재시작\", \"로그 보기\", \"완전 삭제 (언인스톨)\"}
-          choose from list btnList with title \"CrawlStation Worker\" with prompt statusText default items {\"상태 확인\"}
-          " 2>/dev/null)
+          # SwiftUI 앱 컴파일
+          swiftc \
+            -O \
+            -whole-module-optimization \
+            -sdk $(xcrun --show-sdk-path) \
+            -target arm64-apple-macos13 \
+            mac-app/CrawlStationWorker.swift \
+            -o "${APP_DIR}/Contents/MacOS/CrawlStationWorker-arm64"
 
-          if [ "$CHOICE" = "false" ] || [ -z "$CHOICE" ]; then
-              exit 0
-          fi
+          swiftc \
+            -O \
+            -whole-module-optimization \
+            -sdk $(xcrun --show-sdk-path) \
+            -target x86_64-apple-macos13 \
+            mac-app/CrawlStationWorker.swift \
+            -o "${APP_DIR}/Contents/MacOS/CrawlStationWorker-x86_64"
 
-          case "$CHOICE" in
-              "상태 확인")
-                  STATUS=$(get_status)
-                  VER=""
-                  if [ -f "$WORKER_DIR/worker.py" ]; then
-                      VER=$(grep -m1 'VERSION' "$WORKER_DIR/worker.py" 2>/dev/null | grep -o '"[^"]*"' | tr -d '"')
-                  fi
-                  WID=""
-                  if [ -f "$WORKER_DIR/.env" ]; then
-                      WID=$(grep WORKER_ID "$WORKER_DIR/.env" 2>/dev/null | cut -d= -f2)
-                  fi
-                  osascript -e "display dialog \"상태: ${STATUS}\n버전: ${VER:-알 수 없음}\n워커 ID: ${WID:-없음}\n로그: ~/CrawlWorker/logs/worker.log\" with title \"CrawlStation Worker\" buttons {\"확인\"} default button 1"
-                  ;;
-              "워커 시작")
-                  launchctl load "$PLIST" 2>/dev/null
-                  osascript -e 'display notification "워커가 시작되었습니다" with title "CrawlStation"'
-                  ;;
-              "워커 중지")
-                  launchctl unload "$PLIST" 2>/dev/null
-                  osascript -e 'display notification "워커가 중지되었습니다" with title "CrawlStation"'
-                  ;;
-              "워커 재시작")
-                  launchctl unload "$PLIST" 2>/dev/null
-                  sleep 1
-                  launchctl load "$PLIST" 2>/dev/null
-                  osascript -e 'display notification "워커가 재시작되었습니다" with title "CrawlStation"'
-                  ;;
-              "로그 보기")
-                  if [ -f "$LOG" ]; then
-                      open -a Console "$LOG"
-                  else
-                      osascript -e 'display dialog "로그 파일이 없습니다" with title "CrawlStation" buttons {"확인"} default button 1'
-                  fi
-                  ;;
-              "완전 삭제 (언인스톨)")
-                  CONFIRM=$(osascript -e '
-                  display dialog "정말 삭제하시겠습니까?\n\n워커 서비스, 설정, 데이터가 모두 삭제됩니다." with title "CrawlStation 삭제" buttons {"취소", "삭제"} default button "취소" with icon caution
-                  button returned of result
-                  ' 2>/dev/null)
-                  if [ "$CONFIRM" = "삭제" ]; then
-                      launchctl unload "$PLIST" 2>/dev/null
-                      rm -f "$PLIST"
-                      rm -rf "$WORKER_DIR"
-                      rm -rf "/Applications/CrawlStation Worker.app"
-                      osascript -e 'display notification "CrawlStation Worker가 완전히 삭제되었습니다" with title "CrawlStation"'
-                  fi
-                  ;;
-          esac
-          APP_EOF
+          # Universal Binary
+          lipo -create \
+            "${APP_DIR}/Contents/MacOS/CrawlStationWorker-arm64" \
+            "${APP_DIR}/Contents/MacOS/CrawlStationWorker-x86_64" \
+            -output "${APP_DIR}/Contents/MacOS/CrawlStationWorker"
+
+          rm "${APP_DIR}/Contents/MacOS/CrawlStationWorker-arm64" \
+             "${APP_DIR}/Contents/MacOS/CrawlStationWorker-x86_64"
+
           chmod +x "${APP_DIR}/Contents/MacOS/CrawlStationWorker"
+          echo "App bundle created at: ${APP_DIR}"
 
-          # ── postinstall 스크립트 ──
+      - name: Create postinstall script
+        run: |
           mkdir -p scripts
           cat > scripts/postinstall << 'SCRIPT_EOF'
           #!/bin/bash
-          # pkg postinstall은 root로 실행됨 — 실제 사용자 홈 찾기
           REAL_USER="${USER}"
           if [ "$REAL_USER" = "root" ]; then
               REAL_USER=$(stat -f "%Su" /dev/console 2>/dev/null || echo "$SUDO_USER")
@@ -163,9 +166,8 @@ jobs:
 
           log() { echo "[CrawlWorker] $1"; }
 
-          # ── Python 확인/설치 ──
+          # Python 확인/설치
           install_python() {
-              log "Python3 확인 중..."
               if command -v python3 &> /dev/null; then
                   PY_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)")
                   PY_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
@@ -179,23 +181,15 @@ jobs:
                   sudo -u "$REAL_USER" brew install python@3.12 2>/dev/null || \
                   sudo -u "$REAL_USER" brew upgrade python@3.12 2>/dev/null
                   export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-                  if command -v python3 &> /dev/null; then
-                      log "Python $(python3 --version) 설치 완료"
-                      return 0
-                  fi
+                  if command -v python3 &> /dev/null; then return 0; fi
               fi
               log "Python 공식 인스톨러 다운로드..."
-              PKG_URL="https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg"
-              PKG_PATH="/tmp/python-installer.pkg"
-              curl -sL "$PKG_URL" -o "$PKG_PATH"
-              installer -pkg "$PKG_PATH" -target / 2>/dev/null
-              rm -f "$PKG_PATH"
+              curl -sL "https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg" -o /tmp/python.pkg
+              installer -pkg /tmp/python.pkg -target / 2>/dev/null
+              rm -f /tmp/python.pkg
               export PATH="/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
               hash -r 2>/dev/null
-              if command -v python3 &> /dev/null; then
-                  log "Python $(python3 --version) 설치 완료"
-                  return 0
-              fi
+              command -v python3 &> /dev/null && return 0
               log "ERROR: Python 설치 실패"
               exit 1
           }
@@ -203,17 +197,14 @@ jobs:
           install_python
           PYTHON3=$(which python3)
 
-          # ── 워커 설치 ──
+          # 워커 설치
           sudo -u "$REAL_USER" mkdir -p "${INSTALL_DIR}/handlers" "${LOG_DIR}"
 
-          log "패키지 설치..."
           sudo -u "$REAL_USER" "$PYTHON3" -m pip install --quiet playwright supabase 2>/dev/null || \
           sudo -u "$REAL_USER" "$PYTHON3" -m pip install --quiet --break-system-packages playwright supabase 2>/dev/null || true
 
-          log "Chromium 설치..."
           sudo -u "$REAL_USER" "$PYTHON3" -m playwright install chromium 2>/dev/null || true
 
-          log "최신 워커 다운로드..."
           FILES="worker.py handlers/__init__.py handlers/base.py handlers/kin.py handlers/blog.py handlers/serp.py"
           for f in $FILES; do
               TARGET="${INSTALL_DIR}/${f}"
@@ -221,7 +212,6 @@ jobs:
               sudo -u "$REAL_USER" curl -sS "${STATION_URL}/api/download?file=${f}" -o "${TARGET}" 2>/dev/null
           done
 
-          # .env 생성 (최초만)
           ENV_FILE="${INSTALL_DIR}/.env"
           if [ ! -f "${ENV_FILE}" ]; then
               WORKER_ID="worker-$("$PYTHON3" -c "import uuid; print(uuid.uuid4().hex[:8])")"
@@ -233,10 +223,9 @@ jobs:
               log "워커 ID: ${WORKER_ID}"
           fi
 
-          # ── LaunchAgent 등록 ──
+          # LaunchAgent
           sudo -u "$REAL_USER" launchctl unload "${PLIST_PATH}" 2>/dev/null || true
           sudo -u "$REAL_USER" mkdir -p "${REAL_HOME}/Library/LaunchAgents"
-
           cat > "${PLIST_PATH}" << PLISTEOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -273,9 +262,7 @@ jobs:
           </plist>
           PLISTEOF
           chown "$REAL_USER" "${PLIST_PATH}"
-
           sudo -u "$REAL_USER" launchctl load "${PLIST_PATH}"
-          log "서비스 시작됨"
           log "설치 완료!"
           SCRIPT_EOF
           chmod +x scripts/postinstall
@@ -294,7 +281,6 @@ jobs:
         run: |
           VERSION="${{ github.event.inputs.version }}"
 
-          # 1. 앱 payload를 component pkg로
           pkgbuild \
             --root payload \
             --scripts scripts \
@@ -303,13 +289,10 @@ jobs:
             --install-location / \
             component.pkg
 
-          # 2. 리소스 파일 생성 (UTF-8 한국어)
           mkdir -p resources
-
           cat > resources/welcome.html << 'HTML_EOF'
           <!DOCTYPE html>
-          <html>
-          <head><meta charset="UTF-8"></head>
+          <html><head><meta charset="UTF-8"></head>
           <body style="font-family:-apple-system,sans-serif;padding:20px;">
           <h2>CrawlStation Worker</h2>
           <p>크롤링 워커를 설치합니다.</p>
@@ -321,14 +304,12 @@ jobs:
           </ul>
           <p><b>설치 후:</b> Launchpad 또는 Applications에서<br/>
           「CrawlStation Worker」 앱으로 제어할 수 있습니다.</p>
-          </body>
-          </html>
+          </body></html>
           HTML_EOF
 
           cat > resources/conclusion.html << 'HTML_EOF'
           <!DOCTYPE html>
-          <html>
-          <head><meta charset="UTF-8"></head>
+          <html><head><meta charset="UTF-8"></head>
           <body style="font-family:-apple-system,sans-serif;padding:20px;">
           <h2>설치 완료!</h2>
           <p>워커가 지금 백그라운드에서 실행 중입니다.</p>
@@ -338,13 +319,11 @@ jobs:
               <li>오류 발생 시 자동 재시작</li>
               <li>새 버전 자동 업데이트</li>
           </ul>
-          <p><b>제어:</b> Applications → CrawlStation Worker</p>
-          <p><b>삭제:</b> 앱 실행 → 「완전 삭제」 선택</p>
-          </body>
-          </html>
+          <p><b>제어:</b> Applications → CrawlStation Worker 앱 실행</p>
+          <p><b>삭제:</b> 앱에서 「삭제」 버튼 클릭</p>
+          </body></html>
           HTML_EOF
 
-          # 3. Distribution XML
           cat > distribution.xml << DIST_EOF
           <?xml version="1.0" encoding="utf-8"?>
           <installer-gui-script minSpecVersion="2">
@@ -362,7 +341,6 @@ jobs:
           </installer-gui-script>
           DIST_EOF
 
-          # 4. productbuild로 최종 pkg 생성
           productbuild \
             --distribution distribution.xml \
             --resources resources \
@@ -374,12 +352,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ github.event.inputs.version }}"
-          # 기존 같은 태그의 릴리즈가 있으면 삭제
           gh release delete "v${VERSION}" --yes 2>/dev/null || true
           git push --delete origin "v${VERSION}" 2>/dev/null || true
-
           gh release create "v${VERSION}" \
             --title "CrawlWorker v${VERSION}" \
-            --notes "Mac 워커 인스톨러 v${VERSION}" \
+            --notes "Mac 워커 인스톨러 v${VERSION} — SwiftUI 네이티브 앱" \
             --latest \
             "CrawlWorker-${VERSION}.pkg"
