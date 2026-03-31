@@ -51,11 +51,26 @@ function WorkerInstall() {
         Windows/macOS 모두 동일한 인스톨러로 설치할 수 있습니다.
       </p>
 
-      {/* 연결 정보 */}
-      <ConnectInfo />
+      {/* 다운로드 버튼 */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 mb-6 text-white">
+        <h3 className="text-lg font-bold mb-2">원클릭 인스톨러 다운로드</h3>
+        <p className="text-sm text-blue-100 mb-4">
+          Supabase 연결 정보가 자동으로 포함되어 있어, 다운로드 후 실행만 하면 됩니다.
+        </p>
+        <a
+          href="/api/download"
+          download="installer.py"
+          className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm"
+        >
+          installer.py 다운로드
+        </a>
+        <div className="mt-3 text-xs text-blue-200">
+          Windows/macOS 공통 · Python 3.10+ 필요 · Supabase 연결정보 내장
+        </div>
+      </div>
 
       {/* 설치 가이드 */}
-      <div className="space-y-4 mt-6">
+      <div className="space-y-4">
         <Step
           number={1}
           title="사전 요구사항"
@@ -87,32 +102,17 @@ function WorkerInstall() {
           content={
             <>
               <p>
-                installer.py 파일을 다운로드 후 실행하면 자동으로 설치됩니다.
+                위에서 다운로드한 installer.py를 실행하면 자동으로 모든 설치가 완료됩니다.
               </p>
               <Code>python installer.py</Code>
               <div className="mt-2 text-xs text-gray-400">
-                자동으로: pip 패키지 설치 → Chromium 설치 → 워커 파일 복사 → .env
-                생성
+                자동으로: pip 패키지 설치 → Chromium 설치 → 워커 파일 다운로드 → .env 생성 (연결정보 자동 입력) → 연결 테스트
               </div>
             </>
           }
         />
         <Step
           number={3}
-          title=".env 파일에 연결 정보 입력"
-          content={
-            <>
-              <p>설치 디렉토리의 .env 파일을 열어 위의 연결 정보를 입력합니다.</p>
-              <Code>{`# macOS: ~/CrawlWorker/.env
-# Windows: C:\\CrawlWorker\\.env
-
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_KEY=eyJ...`}</Code>
-            </>
-          }
-        />
-        <Step
-          number={4}
           title="실행"
           content={
             <>
