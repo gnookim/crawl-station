@@ -119,6 +119,7 @@ jobs:
           # SwiftUI 앱 컴파일
           swiftc \
             -O \
+            -parse-as-library \
             -whole-module-optimization \
             -sdk $(xcrun --show-sdk-path) \
             -target arm64-apple-macos13 \
@@ -127,6 +128,7 @@ jobs:
 
           swiftc \
             -O \
+            -parse-as-library \
             -whole-module-optimization \
             -sdk $(xcrun --show-sdk-path) \
             -target x86_64-apple-macos13 \
