@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Worker, WorkerRelease } from "@/types";
 import { WorkerStatusBadge } from "@/components/ui/status-badge";
@@ -12,14 +12,13 @@ export default function WorkersPage() {
   const [newWorkerName, setNewWorkerName] = useState("");
   const [newWorkerId, setNewWorkerId] = useState("");
   const [commandLoading, setCommandLoading] = useState<string | null>(null);
+  const [refreshInterval, setRefreshInterval] = useState(5);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function loadData() {
+  const loadData = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setIsRefreshing(true);
     const [workersRes, releaseRes] = await Promise.all([
       supabase
         .from("workers")
@@ -31,11 +30,39 @@ export default function WorkersPage() {
         .eq("is_latest", true)
         .limit(1),
     ]);
-    setWorkers((workersRes.data || []) as Worker[]);
+
+    const now = Date.now();
+    const enriched = (workersRes.data || []).map((w) => ({
+      ...w,
+      is_active: w.last_seen
+        ? now - new Date(w.last_seen).getTime() < 15000
+        : false,
+    })) as Worker[];
+
+    setWorkers(enriched);
     if (releaseRes.data?.[0]) {
       setLatestVersion(releaseRes.data[0].version);
     }
-  }
+    setLastUpdated(new Date());
+    if (showSpinner) setTimeout(() => setIsRefreshing(false), 300);
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (refreshInterval > 0) {
+      intervalRef.current = setInterval(
+        () => loadData(),
+        refreshInterval * 1000
+      );
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [refreshInterval, loadData]);
 
   async function registerManually() {
     if (!newWorkerName.trim()) return;
@@ -53,13 +80,13 @@ export default function WorkersPage() {
     setNewWorkerName("");
     setNewWorkerId("");
     setShowManualRegister(false);
-    loadData();
+    loadData(true);
   }
 
   async function deleteWorker(id: string) {
     if (!confirm(`워커 "${id}"를 삭제하시겠습니까?`)) return;
     await supabase.from("workers").delete().eq("id", id);
-    loadData();
+    loadData(true);
   }
 
   async function sendCommand(
@@ -92,7 +119,7 @@ export default function WorkersPage() {
       }
     } finally {
       setCommandLoading(null);
-      loadData();
+      loadData(true);
     }
   }
 
@@ -104,7 +131,7 @@ export default function WorkersPage() {
 
   return (
     <div className="p-6 max-w-6xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold">워커 관리</h2>
           {latestVersion && (
@@ -119,14 +146,12 @@ export default function WorkersPage() {
           )}
         </div>
         <div className="flex gap-2">
-          {/* 전체 제어 버튼 */}
           {activeWorkers.length > 0 && (
             <div className="flex gap-1">
               <button
                 onClick={() => sendCommand("update")}
                 disabled={commandLoading !== null}
                 className="px-2.5 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
-                title="모든 활성 워커에 업데이트 명령"
               >
                 전체 업데이트
               </button>
@@ -134,7 +159,6 @@ export default function WorkersPage() {
                 onClick={() => sendCommand("restart")}
                 disabled={commandLoading !== null}
                 className="px-2.5 py-1.5 text-xs bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors disabled:opacity-50"
-                title="모든 활성 워커 재시작"
               >
                 전체 재시작
               </button>
@@ -142,7 +166,6 @@ export default function WorkersPage() {
                 onClick={() => sendCommand("stop")}
                 disabled={commandLoading !== null}
                 className="px-2.5 py-1.5 text-xs bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors disabled:opacity-50"
-                title="모든 활성 워커 정지"
               >
                 전체 정지
               </button>
@@ -154,6 +177,53 @@ export default function WorkersPage() {
           >
             + 수동 등록
           </button>
+        </div>
+      </div>
+
+      {/* 업데이트 상태바 */}
+      <div className="flex items-center justify-between mb-4 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => loadData(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors disabled:opacity-50"
+          >
+            <svg
+              className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            새로고침
+          </button>
+          {lastUpdated && (
+            <span className="text-xs text-gray-400">
+              마지막 업데이트: {lastUpdated.toLocaleTimeString("ko-KR")}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">자동 갱신:</span>
+          {[3, 5, 10, 30, 0].map((sec) => (
+            <button
+              key={sec}
+              onClick={() => setRefreshInterval(sec)}
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                refreshInterval === sec
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-500 border border-gray-300 hover:bg-gray-100"
+              }`}
+            >
+              {sec === 0 ? "끄기" : `${sec}초`}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -220,6 +290,9 @@ export default function WorkersPage() {
                 <th className="text-left px-4 py-2 font-medium">OS</th>
                 <th className="text-left px-4 py-2 font-medium">버전</th>
                 <th className="text-left px-4 py-2 font-medium">상태</th>
+                <th className="text-left px-4 py-2 font-medium">
+                  마지막 응답
+                </th>
                 <th className="text-left px-4 py-2 font-medium">현재 작업</th>
                 <th className="text-right px-4 py-2 font-medium">처리/에러</th>
                 <th className="text-right px-4 py-2 font-medium">제어</th>
@@ -255,6 +328,9 @@ export default function WorkersPage() {
                         )}
                       </div>
                     </td>
+                    <td className="px-4 py-2 text-xs text-gray-400">
+                      <LastSeenLabel lastSeen={w.last_seen} />
+                    </td>
                     <td className="px-4 py-2 text-xs text-gray-500">
                       {w.current_keyword ? (
                         <span>
@@ -286,7 +362,6 @@ export default function WorkersPage() {
                               }
                               disabled={commandLoading !== null}
                               className="px-1.5 py-0.5 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors disabled:opacity-50"
-                              title="업데이트"
                             >
                               업데이트
                             </button>
@@ -297,7 +372,6 @@ export default function WorkersPage() {
                             }
                             disabled={commandLoading !== null}
                             className="px-1.5 py-0.5 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 transition-colors disabled:opacity-50"
-                            title="재시작"
                           >
                             재시작
                           </button>
@@ -307,7 +381,6 @@ export default function WorkersPage() {
                             }
                             disabled={commandLoading !== null}
                             className="px-1.5 py-0.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 transition-colors disabled:opacity-50"
-                            title="정지"
                           >
                             정지
                           </button>
@@ -332,6 +405,28 @@ export default function WorkersPage() {
   );
 }
 
+function LastSeenLabel({ lastSeen }: { lastSeen: string | null }) {
+  if (!lastSeen) return <span className="text-gray-300">-</span>;
+
+  const diff = Date.now() - new Date(lastSeen).getTime();
+  const seconds = Math.floor(diff / 1000);
+
+  if (seconds < 10) return <span className="text-green-500">방금 전</span>;
+  if (seconds < 60)
+    return <span className="text-green-600">{seconds}초 전</span>;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60)
+    return <span className="text-yellow-600">{minutes}분 전</span>;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24)
+    return <span className="text-orange-600">{hours}시간 전</span>;
+
+  const days = Math.floor(hours / 24);
+  return <span className="text-red-500">{days}일 전</span>;
+}
+
 function VersionBadge({
   version,
   latest,
@@ -340,9 +435,7 @@ function VersionBadge({
   latest: string;
 }) {
   if (!version || version === "0.0.0") {
-    return (
-      <span className="text-xs text-gray-400">-</span>
-    );
+    return <span className="text-xs text-gray-400">-</span>;
   }
 
   const isLatest = version === latest;
