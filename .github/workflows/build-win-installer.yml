@@ -33,9 +33,13 @@ jobs:
           New-Item -ItemType Directory -Path payload\python -Force | Out-Null
           Expand-Archive python-embed.zip -DestinationPath payload\python -Force
 
-          # pip 활성화
-          Get-ChildItem payload\python\*.pth | ForEach-Object {
-            (Get-Content $_.FullName) -replace '#import site', 'import site' | Set-Content $_.FullName
+          # pip 활성화 + 상위 디렉토리(C:\CrawlWorker) import 경로 추가
+          Get-ChildItem payload\python\python*._pth | ForEach-Object {
+            $content = (Get-Content $_.FullName) -replace '#import site', 'import site'
+            $content += '..'
+            Set-Content $_.FullName -Value $content
+            Write-Host ("Updated: " + $_.Name)
+            Get-Content $_.FullName | ForEach-Object { Write-Host ("  " + $_) }
           }
           Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile payload\python\get-pip.py
 
