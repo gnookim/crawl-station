@@ -258,6 +258,14 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - POST /api/diagnose 엔드포인트 추가
 - 위험 명령 블록리스트 + 서버사이드 검증으로 안전성 확보
 - 9단계 설치 과정을 각각 독립 함수로 분리, 실패 추적 강화
+- Inno Setup 창 안에서 설치 로그 실시간 표시 (별도 CMD 창 제거)
+
+### 설치 모니터링 (v0.4.1)
+- /installs 페이지: 설치 진행 상황 실시간 모니터링
+- POST /api/install-status: 인스톨러가 각 단계마다 진행 상태 보고
+- 활성 설치 세션 표시 (호스트명, OS, 진행률, AI 진단 횟수)
+- 단계별 진행 바 + 실패 단계 + 최근 로그 + AI 진단 내용 표시
+- 자동 갱신 (2~10초 간격 선택 가능)
 `;
 
 export async function GET(request: NextRequest) {

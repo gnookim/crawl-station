@@ -97,6 +97,29 @@ def write_done_marker(success):
 
 
 # ═══════════════════════════════════════════════════════
+#  Station 진행 상태 보고
+# ═══════════════════════════════════════════════════════
+
+def report_status(action, **kwargs):
+    """Station /api/install-status에 진행 상태 보고. 실패해도 무시."""
+    payload = {"session_id": SESSION_ID, "action": action}
+    payload.update(kwargs)
+    # 최근 로그 5줄 첨부
+    payload["log_tail"] = "\n".join(INSTALL_LOG[-10:])[:2000]
+    try:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            STATION_URL + "/api/install-status",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass  # 보고 실패는 설치에 영향 없음
+
+
+# ═══════════════════════════════════════════════════════
 #  AI 진단 시스템
 # ═══════════════════════════════════════════════════════
 
@@ -214,10 +237,12 @@ def run_step(step_num, step_name, func, max_retries=3):
     func() → None (성공) or raise StepError (실패)
     """
     progress(step_num, TOTAL, step_name)
+    report_status("step", step_number=step_num, step_name=step_name)
 
     for attempt in range(max_retries + 1):
         try:
             func()
+            report_status("step_done", step_number=step_num, step_name=step_name, success=True)
             return True
         except Exception as e:
             error_info = {
@@ -230,6 +255,7 @@ def run_step(step_num, step_name, func, max_retries=3):
 
             if attempt >= max_retries:
                 log("    -> [FAIL] {} 최종 실패 ({}회 시도)".format(step_name, attempt + 1))
+                report_status("step_done", step_number=step_num, step_name=step_name, success=False)
                 return False
 
             log("    -> 오류: {} — {}".format(type(e).__name__, str(e)[:150]))
@@ -246,6 +272,8 @@ def run_step(step_num, step_name, func, max_retries=3):
             diagnosis = result.get("diagnosis", "")
             if diagnosis:
                 log("    -> 진단: " + diagnosis[:300])
+                report_status("diagnosing", diagnosis=diagnosis,
+                              diagnosis_count=attempt + 1)
 
             severity = result.get("severity", "low")
             if severity == "fatal":
@@ -594,6 +622,14 @@ def main():
     log("  인터넷 연결이 필요하며 5~10분 소요될 수 있습니다.")
     log("")
 
+    # Station에 설치 시작 보고
+    import socket
+    report_status("start",
+                  hostname=socket.gethostname(),
+                  os_version=platform.version(),
+                  os_machine=platform.machine(),
+                  installer_version=VERSION)
+
     # ── 단계 정의 ──
     steps = [
         (1, "기존 설치 확인", step_check_existing),
@@ -617,6 +653,7 @@ def main():
             if num <= 4:
                 log("\n  [ABORT] 필수 단계 실패: " + name)
                 log("  설치를 완료할 수 없습니다.")
+                report_status("complete", success=False)
                 write_done_marker(False)
                 if LOG_FILE:
                     LOG_FILE.close()
@@ -634,6 +671,7 @@ def main():
         log("    수동 조치가 필요할 수 있습니다.")
         log("")
         log("    Station: " + STATION_URL)
+        report_status("complete", success=False)
         write_done_marker(False)
         if LOG_FILE:
             LOG_FILE.close()
@@ -664,6 +702,7 @@ def main():
     log("")
     log("  ======================================================")
 
+    report_status("complete", success=True)
     write_done_marker(True)
     if LOG_FILE:
         LOG_FILE.close()

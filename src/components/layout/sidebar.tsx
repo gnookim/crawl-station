@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/releases", label: "릴리즈", icon: "🚀" },
   { href: "/config", label: "워커 설정", icon: "⚙️" },
   { href: "/install", label: "워커 설치", icon: "⬇️" },
+  { href: "/installs", label: "설치 모니터링", icon: "📡" },
   { href: "/apps", label: "연결된 앱", icon: "🔑" },
   { href: "/guide", label: "연동 가이드", icon: "📖" },
   { href: "/changelog", label: "업데이트 기록", icon: "📝" },
