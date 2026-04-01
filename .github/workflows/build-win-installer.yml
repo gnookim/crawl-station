@@ -80,7 +80,7 @@ jobs:
           Source: "payload\install.py"; DestDir: "{app}"; Flags: ignoreversion
 
           [Run]
-          Filename: "{app}\python\python.exe"; Parameters: """{app}\install.py"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; StatusMsg: "Installing worker components..."
+          Filename: "cmd.exe"; Parameters: "/k ""{app}\python\python.exe"" ""{app}\install.py"""; WorkingDir: "{app}"; Flags: nowait; Description: "워커 컴포넌트 설치"
 
           [Icons]
           Name: "{userdesktop}\CrawlStation Worker"; Filename: "{app}\python\python.exe"; Parameters: """{app}\worker.py"""; WorkingDir: "{app}"; Comment: "Start CrawlStation Worker"
