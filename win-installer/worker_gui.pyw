@@ -492,6 +492,16 @@ class CrawlStationGUI:
         self.btn_uninstall.pack(side="right")
 
     # ------------------------------------------------------------------
+    # Worker Process Helpers
+    # ------------------------------------------------------------------
+
+    def _worker_env(self):
+        """워커 실행 시 환경변수 — PYTHONPATH에 WORKER_DIR 추가"""
+        env = os.environ.copy()
+        env["PYTHONPATH"] = WORKER_DIR + os.pathsep + env.get("PYTHONPATH", "")
+        return env
+
+    # ------------------------------------------------------------------
     # Drawing Helpers
     # ------------------------------------------------------------------
 
@@ -502,6 +512,51 @@ class CrawlStationGUI:
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+
+    def _download_worker_files(self):
+        """누락된 워커 파일(worker.py, handlers/*)을 Station → GitHub 순서로 다운로드"""
+        REQUIRED_FILES = [
+            "worker.py",
+            "handlers/__init__.py",
+            "handlers/base.py",
+            "handlers/kin.py",
+            "handlers/blog.py",
+            "handlers/serp.py",
+        ]
+        STATION_DL = "https://crawl-station.vercel.app/api/download?file={}"
+        GITHUB_RAW = "https://raw.githubusercontent.com/gnookim/naver-crawler/main/{}"
+
+        downloaded = []
+        failed = []
+        for f in REQUIRED_FILES:
+            target = os.path.join(WORKER_DIR, f)
+            if os.path.isfile(target):
+                continue  # 이미 존재
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            ok = False
+            # 1차: Station 다운로드
+            try:
+                urllib.request.urlretrieve(STATION_DL.format(f), target)
+                # 404 HTML 응답 감지 (JSON 에러)
+                with open(target, "r", encoding="utf-8") as chk:
+                    head = chk.read(50)
+                if head.strip().startswith("{") and "error" in head.lower():
+                    os.remove(target)
+                else:
+                    ok = True
+            except Exception:
+                if os.path.isfile(target):
+                    os.remove(target)
+            # 2차: GitHub raw 다운로드
+            if not ok:
+                try:
+                    urllib.request.urlretrieve(GITHUB_RAW.format(f), target)
+                    ok = True
+                except Exception as e:
+                    failed.append(f"{f}: {e}")
+            if ok:
+                downloaded.append(f)
+        return downloaded, failed
 
     def _start_worker(self):
         def _do():
@@ -524,6 +579,16 @@ class CrawlStationGUI:
                 self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
                 return
 
+            # 1.5. 누락된 워커 파일 자동 다운로드 (handlers 등)
+            downloaded, dl_failed = self._download_worker_files()
+            if downloaded:
+                self.root.after(0, lambda: self._log_append(
+                    f"누락 파일 {len(downloaded)}개 다운로드 완료: {', '.join(downloaded)}\n"))
+            if dl_failed:
+                msg = "필수 파일 다운로드 실패:\n\n" + "\n".join(dl_failed)
+                self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
+                return
+
             # 2. 워커 테스트 실행 (3초간 실행하여 에러 확인)
             self.root.after(0, lambda: self._log_append("워커 시작 중...\n"))
             try:
@@ -532,6 +597,7 @@ class CrawlStationGUI:
                     [PYTHON_EXE, WORKER_SCRIPT],
                     cwd=WORKER_DIR,
                     creationflags=CREATE_NO_WINDOW,
+                    env=self._worker_env(),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
@@ -627,13 +693,15 @@ class CrawlStationGUI:
             except Exception:
                 pass
             time.sleep(1.5)
-            # Start
+            # 누락 파일 다운로드 후 Start
+            self._download_worker_files()
             if os.path.isfile(PYTHON_EXE) and os.path.isfile(WORKER_SCRIPT):
                 try:
                     subprocess.Popen(
                         [PYTHON_EXE, WORKER_SCRIPT],
                         cwd=WORKER_DIR,
                         creationflags=0x08000000,
+                        env=self._worker_env(),
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
@@ -683,38 +751,27 @@ class CrawlStationGUI:
             else:
                 results.append("✕ .env 없음: " + ENV_PATH)
 
-            # 3. worker.py 확인
+            # 3. 워커 파일 확인 + 누락 시 자동 다운로드
             if os.path.isfile(WORKER_SCRIPT):
                 results.append("✓ worker.py: 존재")
             else:
-                results.append("✕ worker.py 없음 — 다운로드 시도...")
-                # 자동 다운로드 시도
-                try:
-                    import urllib.request
-                    station = env_data.get("SUPABASE_URL", "").replace("/rest/v1", "").rstrip("/")
-                    if not station:
-                        station = "https://crawl-station.vercel.app"
-                    files = ["worker.py", "handlers/__init__.py", "handlers/base.py",
-                             "handlers/kin.py", "handlers/blog.py", "handlers/serp.py"]
-                    for f in files:
-                        t = os.path.join(WORKER_DIR, f)
-                        os.makedirs(os.path.dirname(t), exist_ok=True)
-                        try:
-                            urllib.request.urlretrieve(
-                                f"https://crawl-station.vercel.app/api/download?file={f}", t)
-                            results.append(f"  ✓ 다운로드: {f}")
-                            fixes_applied += 1
-                        except Exception as e:
-                            results.append(f"  ✕ 다운로드 실패: {f} — {e}")
-                except Exception as e:
-                    results.append(f"  ✕ 다운로드 오류: {e}")
+                results.append("✕ worker.py 없음")
 
-            # 4. handlers 확인
             handlers_dir = os.path.join(WORKER_DIR, "handlers")
             if os.path.isdir(handlers_dir) and os.path.isfile(os.path.join(handlers_dir, "base.py")):
                 results.append("✓ handlers: 존재")
             else:
                 results.append("✕ handlers 없음")
+
+            # 누락 파일 자동 다운로드
+            downloaded, dl_failed = self._download_worker_files()
+            if downloaded:
+                for f in downloaded:
+                    results.append(f"  ✓ 다운로드: {f}")
+                    fixes_applied += 1
+            if dl_failed:
+                for f in dl_failed:
+                    results.append(f"  ✕ 다운로드 실패: {f}")
 
             # 5. supabase 패키지 확인
             try:

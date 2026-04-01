@@ -266,6 +266,14 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 활성 설치 세션 표시 (호스트명, OS, 진행률, AI 진단 횟수)
 - 단계별 진행 바 + 실패 단계 + 최근 로그 + AI 진단 내용 표시
 - 자동 갱신 (2~10초 간격 선택 가능)
+
+## 2026-04-02
+
+### Windows GUI 워커 파일 자동 복구 (v0.4.2)
+- 시작/재시작 시 누락 파일(handlers 등) 자동 감지 + 다운로드
+- Station API → GitHub raw fallback 이중 다운로드 경로
+- 진단 기능에서도 handlers 독립 체크 + 자동 다운로드
+- handlers 모듈 누락으로 워커 시작 실패하던 문제 해결
 `;
 
 export async function GET(request: NextRequest) {
