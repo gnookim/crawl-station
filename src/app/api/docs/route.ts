@@ -236,6 +236,19 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 프록시 지원 (worker_config.proxy_url, 인증 프록시 포함)
 - UA 목록 확장 (Chrome 125, Safari 17.5, Edge, 모바일)
 - desk-web: CrawlStation API 키 인증 연동
+
+### 워커 설정 페이지
+- /config 페이지: 글로벌 + 워커별 설정 관리
+- 프록시 URL 설정 (글로벌/워커별)
+- 네트워크 타입 선택 (WiFi, 테더링 SKT/KT/LGU+, 프록시)
+- 크롤링 속도 설정 (딜레이, 배치 크기, 휴식 시간)
+- 사람 흉내 설정 (타이핑 속도, 오타 확률, 되돌아보기)
+
+### Windows 인스톨러
+- GitHub Actions 워크플로우로 PyInstaller .exe 빌드
+- 설치 시 시작프로그램 자동 등록 (레지스트리)
+- 바탕화면에 시작/중지/삭제 바로가기 생성
+- 다운로드 API에 ?type=win 추가
 `;
 
 export async function GET(request: NextRequest) {

@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/workers", label: "워커 관리", icon: "🖥️" },
   { href: "/queue", label: "작업 큐", icon: "📋" },
   { href: "/releases", label: "릴리즈", icon: "🚀" },
+  { href: "/config", label: "워커 설정", icon: "⚙️" },
   { href: "/install", label: "워커 설치", icon: "⬇️" },
   { href: "/apps", label: "연결된 앱", icon: "🔑" },
   { href: "/guide", label: "연동 가이드", icon: "📖" },

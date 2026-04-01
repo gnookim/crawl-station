@@ -1,0 +1,169 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Installer version (e.g. 0.3.0)"
+        required: true
+        default: "0.3.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Create installer script
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
+          SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}"
+          STATION_URL="${{ secrets.STATION_URL }}"
+          STATION_URL="${STATION_URL:-https://crawl-station.vercel.app}"
+
+          cat > installer.py << PYEOF
+          #!/usr/bin/env python3
+          """CrawlStation 크롤링 워커 — Windows 인스톨러 v${VERSION}"""
+          import subprocess, sys, os, platform, uuid, urllib.request, json
+
+          SUPABASE_URL = "${SUPABASE_URL}"
+          SUPABASE_KEY = "${SUPABASE_KEY}"
+          STATION_URL = "${STATION_URL}"
+          INSTALL_DIR = r"C:\CrawlWorker" if platform.system() == "Windows" else os.path.expanduser("~/CrawlWorker")
+
+          def main():
+              print("\n" + "━" * 48)
+              print("  CrawlStation — 크롤링 워커 설치 v${VERSION}")
+              print("━" * 48 + "\n")
+
+              v = sys.version_info
+              if v.major < 3 or (v.major == 3 and v.minor < 10):
+                  print("❌ Python 3.10+ 필요")
+                  sys.exit(1)
+              print(f"✅ Python {v.major}.{v.minor}.{v.micro}")
+
+              os.makedirs(os.path.join(INSTALL_DIR, "handlers"), exist_ok=True)
+              os.makedirs(os.path.join(INSTALL_DIR, "logs"), exist_ok=True)
+              print(f"📁 {INSTALL_DIR}")
+
+              print("\n📦 패키지 설치...")
+              for pkg in ["playwright", "supabase"]:
+                  cmd = [sys.executable, "-m", "pip", "install", "--quiet", pkg]
+                  r = subprocess.run(cmd, capture_output=True, text=True)
+                  if r.returncode != 0 and "break-system-packages" in r.stderr:
+                      subprocess.run(cmd[:4] + ["--break-system-packages"] + cmd[4:], capture_output=True)
+                  print(f"  ✅ {pkg}")
+
+              print("\n🌐 Chromium 설치... (1~2분)")
+              try:
+                  subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True, capture_output=True)
+                  print("  ✅ 완료")
+              except Exception:
+                  print("  ⚠️ 수동 설치 필요: python -m playwright install chromium")
+
+              print("\n📄 워커 파일 다운로드...")
+              files = ["worker.py", "handlers/__init__.py", "handlers/base.py", "handlers/kin.py", "handlers/blog.py", "handlers/serp.py"]
+              for f in files:
+                  t = os.path.join(INSTALL_DIR, f)
+                  os.makedirs(os.path.dirname(t), exist_ok=True)
+                  try:
+                      urllib.request.urlretrieve(f"{STATION_URL}/api/download?file={f}", t)
+                      print(f"  ✅ {f}")
+                  except Exception as e:
+                      print(f"  ⚠️ {f}: {e}")
+
+              env_path = os.path.join(INSTALL_DIR, ".env")
+              if not os.path.exists(env_path):
+                  wid = f"worker-{uuid.uuid4().hex[:8]}"
+                  with open(env_path, "w") as ef:
+                      ef.write(f"SUPABASE_URL={SUPABASE_URL}\nSUPABASE_KEY={SUPABASE_KEY}\nWORKER_ID={wid}\n")
+                  print(f"\n🔑 .env 생성 (ID: {wid})")
+
+              # Windows 시작프로그램 등록
+              if platform.system() == "Windows":
+                  print("\n⚙️ 시작프로그램 등록...")
+                  try:
+                      import winreg
+                      key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                          r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+                      cmd = f'"{sys.executable}" "{os.path.join(INSTALL_DIR, "worker.py")}"'
+                      winreg.SetValueEx(key, "CrawlStationWorker", 0, winreg.REG_SZ, cmd)
+                      winreg.CloseKey(key)
+                      print("  ✅ 부팅 시 자동 시작 등록됨")
+                  except Exception as e:
+                      print(f"  ⚠️ 자동 시작 등록 실패: {e}")
+
+                  # 바탕화면에 시작 바로가기 생성
+                  try:
+                      desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+                      bat_path = os.path.join(desktop, "CrawlWorker 시작.bat")
+                      with open(bat_path, "w", encoding="utf-8") as bf:
+                          bf.write(f'@echo off\ncd /d "{INSTALL_DIR}"\n"{sys.executable}" worker.py\npause\n')
+                      # 중지 스크립트
+                      stop_path = os.path.join(desktop, "CrawlWorker 중지.bat")
+                      with open(stop_path, "w", encoding="utf-8") as sf:
+                          sf.write('@echo off\ntaskkill /f /im python.exe /fi "WINDOWTITLE eq worker*" 2>nul\ntaskkill /f /im python3.exe /fi "WINDOWTITLE eq worker*" 2>nul\necho 워커가 중지되었습니다.\npause\n')
+                      # 삭제 스크립트
+                      uninstall_path = os.path.join(desktop, "CrawlWorker 삭제.bat")
+                      with open(uninstall_path, "w", encoding="utf-8") as uf:
+                          uf.write(f'@echo off\necho CrawlStation Worker를 삭제합니다.\ntaskkill /f /im python.exe 2>nul\n')
+                          uf.write(f'reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v CrawlStationWorker /f 2>nul\n')
+                          uf.write(f'rmdir /s /q "{INSTALL_DIR}" 2>nul\n')
+                          uf.write(f'del "%~f0" 2>nul\ndel "{bat_path}" 2>nul\ndel "{stop_path}" 2>nul\n')
+                          uf.write('echo 삭제 완료.\npause\n')
+                      print("  ✅ 바탕화면에 시작/중지/삭제 바로가기 생성")
+                  except Exception as e:
+                      print(f"  ⚠️ 바로가기 생성 실패: {e}")
+
+              # 즉시 실행
+              print(f"\n🚀 워커 시작 중...")
+              py = sys.executable
+              if platform.system() == "Windows":
+                  subprocess.Popen([py, os.path.join(INSTALL_DIR, "worker.py")],
+                      cwd=INSTALL_DIR, creationflags=subprocess.CREATE_NEW_CONSOLE)
+              else:
+                  subprocess.Popen([py, os.path.join(INSTALL_DIR, "worker.py")],
+                      cwd=INSTALL_DIR)
+
+              print(f"\n{'━' * 48}")
+              print(f"  ✅ 설치 완료! 워커가 실행 중입니다.")
+              print(f"  → CrawlStation에 자동 등록: {STATION_URL}")
+              if platform.system() == "Windows":
+                  print(f"  → 바탕화면에서 시작/중지/삭제 가능")
+                  print(f"  → PC 부팅 시 자동 시작")
+              print(f"{'━' * 48}\n")
+
+          if __name__ == "__main__":
+              main()
+          PYEOF
+
+      - name: Create PyInstaller exe
+        shell: bash
+        run: |
+          pip install pyinstaller
+          pyinstaller --onefile --name "CrawlWorker-Setup" --icon NONE installer.py
+          ls -la dist/
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          # Release에 Windows exe 추가
+          gh release upload "v${VERSION}" "dist/CrawlWorker-Setup.exe" --clobber 2>/dev/null || \
+          gh release create "v${VERSION}" \
+            --title "CrawlWorker v${VERSION}" \
+            --notes "CrawlWorker v${VERSION} — Mac + Windows" \
+            --latest \
+            "dist/CrawlWorker-Setup.exe"

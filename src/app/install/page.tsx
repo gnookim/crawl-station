@@ -30,11 +30,10 @@ function WorkerInstall() {
             Mac 다운로드 (.pkg)
           </a>
           <a
-            href="/api/download"
-            download="installer.py"
+            href="/api/download?type=win"
             className="inline-flex items-center gap-2 bg-blue-500 text-white font-bold px-6 py-2.5 rounded-md hover:bg-blue-400 transition-colors text-sm"
           >
-            Windows 다운로드
+            Windows 다운로드 (.exe)
           </a>
         </div>
       </div>
@@ -86,17 +85,16 @@ function WorkerInstall() {
           <div className="flex items-start gap-4">
             <div className="flex items-center gap-3 text-sm">
               <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
-              <span>다운로드</span>
+              <span>.exe 다운로드</span>
               <span className="text-gray-300">&rarr;</span>
               <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
-              <span><code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">python installer.py</code></span>
+              <span>실행</span>
               <span className="text-gray-300">&rarr;</span>
-              <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
-              <span><code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">python worker.py</code></span>
+              <span className="text-green-600 font-semibold">끝</span>
             </div>
           </div>
           <p className="text-xs text-gray-400 mt-3">
-            Windows는 Python 3.10+이 사전 설치되어 있어야 합니다 (python.org)
+            Python 3.10+ 사전 설치 필요 (python.org). 설치 후 바탕화면에 시작/중지/삭제 바로가기 생성.
           </p>
         </div>
       </div>

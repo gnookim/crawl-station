@@ -78,7 +78,40 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // ── Python 인스톨러 (Windows/Linux) ──
+  // ── Windows .exe 인스톨러 (GitHub Release에서 리다이렉트) ──
+  if (typeParam === "win") {
+    try {
+      const ghHeaders: Record<string, string> = {
+        Accept: "application/vnd.github+json",
+      };
+      if (process.env.GITHUB_TOKEN) {
+        ghHeaders.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+      }
+      const ghRes = await fetch(
+        "https://api.github.com/repos/gnookim/crawl-station/releases/latest",
+        { headers: ghHeaders, next: { revalidate: 300 } }
+      );
+
+      if (ghRes.ok) {
+        const release = await ghRes.json();
+        const exeAsset = release.assets?.find(
+          (a: { name: string }) => a.name.endsWith(".exe")
+        );
+        if (exeAsset) {
+          return NextResponse.redirect(exeAsset.browser_download_url);
+        }
+      }
+    } catch {
+      // fallback
+    }
+
+    return NextResponse.json(
+      { error: "Windows 인스톨러를 찾을 수 없습니다. GitHub Release를 확인해주세요." },
+      { status: 404 }
+    );
+  }
+
+  // ── Python 인스톨러 (fallback) ──
   const code = [
     "#!/usr/bin/env python3",
     '"""CrawlStation 크롤링 워커 원클릭 인스톨러"""',
