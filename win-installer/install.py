@@ -603,7 +603,7 @@ def step_register_service():
 
 
 def step_verify_gui():
-    """10단계: GUI 앱 검증 (tkinter 동작 확인)"""
+    """10단계: GUI 앱 검증 (tkinter 동작 + DLL 상세 진단)"""
     py = PY_PATH
     gui_path = os.path.join(INSTALL_DIR, "worker_gui.pyw")
 
@@ -611,42 +611,88 @@ def step_verify_gui():
         log("    -> worker_gui.pyw 없음 (건너뜀)")
         return
 
-    # tkinter import 테스트
-    log("    -> tkinter 로드 테스트...")
-    r = subprocess.run(
-        [py, "-c", "import tkinter; print('OK:', tkinter.TkVersion)"],
-        capture_output=True, text=True, timeout=15,
-        env={**os.environ, "TCL_LIBRARY": "", "TK_LIBRARY": ""},
-    )
+    # 상세 진단 스크립트 — 어떤 DLL이 문제인지 정확히 파악
+    diag_script = r'''
+import os, sys, ctypes, glob
 
-    if r.returncode != 0:
-        # DLL 누락일 가능성 — python 디렉토리의 DLL 경로 추가해서 재시도
-        log("    -> 기본 import 실패, DLL 경로 추가 후 재시도...")
-        test_script = (
-            "import os, sys\n"
-            "py_dir = os.path.dirname(sys.executable)\n"
-            "if hasattr(os, 'add_dll_directory'): os.add_dll_directory(py_dir)\n"
-            "tcl_dir = os.path.join(py_dir, 'tcl')\n"
-            "if os.path.exists(tcl_dir):\n"
-            "    for d in os.listdir(tcl_dir):\n"
-            "        if d.startswith('tcl'): os.environ['TCL_LIBRARY'] = os.path.join(tcl_dir, d)\n"
-            "        elif d.startswith('tk'): os.environ['TK_LIBRARY'] = os.path.join(tcl_dir, d)\n"
-            "import tkinter\n"
-            "print('OK:', tkinter.TkVersion)\n"
-        )
-        r2 = subprocess.run([py, "-c", test_script],
-                            capture_output=True, text=True, timeout=15)
-        if r2.returncode != 0:
-            raise StepError(
-                "tkinter 로드 실패 — GUI 앱이 동작하지 않습니다",
-                stdout=r.stdout + "\n" + r2.stdout,
-                stderr=r.stderr + "\n" + r2.stderr,
-            )
-        log("    -> tkinter {} (DLL 경로 추가 필요)".format(r2.stdout.strip()))
+py_dir = os.path.dirname(sys.executable)
+if hasattr(os, 'add_dll_directory'):
+    os.add_dll_directory(py_dir)
+
+# Tcl/Tk 환경변수 설정
+tcl_dir = os.path.join(py_dir, 'tcl')
+if os.path.exists(tcl_dir):
+    for d in os.listdir(tcl_dir):
+        if d.startswith('tcl'): os.environ['TCL_LIBRARY'] = os.path.join(tcl_dir, d)
+        elif d.startswith('tk'): os.environ['TK_LIBRARY'] = os.path.join(tcl_dir, d)
+
+# 1. 필수 파일 존재 확인
+required = ['_tkinter.pyd', 'tcl86t.dll', 'tk86t.dll']
+for f in required:
+    path = os.path.join(py_dir, f)
+    if os.path.exists(path):
+        print('FILE_OK: ' + f + ' (' + str(os.path.getsize(path)) + ' bytes)')
     else:
-        log("    -> tkinter {} OK".format(r.stdout.strip()))
+        print('FILE_MISSING: ' + f)
 
-    log("    -> GUI 앱 검증 완료")
+# 2. 개별 DLL 로드 테스트
+dlls = ['tcl86t.dll', 'tk86t.dll', 'zlib1.dll', 'vcruntime140.dll', 'vcruntime140_1.dll']
+for dll in dlls:
+    path = os.path.join(py_dir, dll)
+    if not os.path.exists(path):
+        # 시스템에서 찾기
+        sys_path = os.path.join(os.environ.get('SYSTEMROOT','C:\\Windows'), 'System32', dll)
+        if os.path.exists(sys_path):
+            print('DLL_SYSTEM: ' + dll + ' (System32에 있음)')
+        else:
+            print('DLL_MISSING: ' + dll)
+        continue
+    try:
+        ctypes.WinDLL(path)
+        print('DLL_OK: ' + dll)
+    except Exception as e:
+        print('DLL_FAIL: ' + dll + ': ' + str(e))
+
+# 3. _tkinter.pyd 로드 테스트
+pyd = os.path.join(py_dir, '_tkinter.pyd')
+if os.path.exists(pyd):
+    try:
+        ctypes.WinDLL(pyd)
+        print('PYD_OK: _tkinter.pyd')
+    except Exception as e:
+        print('PYD_FAIL: _tkinter.pyd: ' + str(e))
+
+# 4. Python 버전 정보
+print('PYTHON_VER: ' + sys.version)
+print('PYTHON_PATH: ' + sys.executable)
+
+# 5. 최종 tkinter import
+try:
+    import tkinter
+    print('RESULT: OK ' + str(tkinter.TkVersion))
+except Exception as e:
+    print('RESULT: FAIL ' + str(e))
+'''
+
+    log("    -> tkinter 상세 진단 중...")
+    r = subprocess.run([py, "-c", diag_script],
+                       capture_output=True, text=True, timeout=30)
+    output = r.stdout + r.stderr
+    log("    -> 진단 결과:")
+    for line in output.strip().split("\n"):
+        log("       " + line)
+
+    if "RESULT: OK" in output:
+        log("    -> GUI 앱 검증 성공")
+        return
+
+    # 실패 — 상세 정보를 StepError에 담아서 AI 진단에 전달
+    raise StepError(
+        "tkinter 로드 실패 — GUI 앱이 동작하지 않습니다.\n"
+        "DLL 진단 결과를 확인하고 누락된 파일을 복사해야 합니다.",
+        stdout=output,
+        stderr=r.stderr,
+    )
 
 
 # ═══════════════════════════════════════════════════════

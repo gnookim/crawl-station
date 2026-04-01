@@ -25,9 +25,11 @@ jobs:
       - name: Prepare payload
         shell: pwsh
         run: |
-          # Python embedded 다운로드
-          Write-Host "Downloading Python embedded..."
-          Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.12.8/python-3.12.8-embed-amd64.zip" -OutFile python-embed.zip
+          # Python embedded 다운로드 (full Python과 동일 버전)
+          $pyVer = (python --version 2>&1) -replace 'Python ',''
+          Write-Host "Full Python version: $pyVer"
+          Write-Host "Downloading matching embedded Python..."
+          Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$pyVer/python-$pyVer-embed-amd64.zip" -OutFile python-embed.zip
           New-Item -ItemType Directory -Path payload\python -Force | Out-Null
           Expand-Archive python-embed.zip -DestinationPath payload\python -Force
 
