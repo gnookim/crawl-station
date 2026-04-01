@@ -154,7 +154,7 @@ jobs:
             begin
               Sleep(500);
               Elapsed := Elapsed + 1;
-              Application.ProcessMessages;
+              WizardForm.Update;
 
               if Elapsed > 1800 then
               begin
