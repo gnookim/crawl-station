@@ -6,7 +6,46 @@ Runs with pythonw.exe (.pyw) so no console window appears.
 Only uses Python stdlib — no third-party packages required.
 """
 
-import tkinter as tk
+# 에러 로깅 — pythonw.exe는 stderr가 없으므로 파일에 기록
+import sys
+import os
+import traceback
+
+def _error_log(msg):
+    try:
+        log_path = os.path.join(r"C:\CrawlWorker", "gui_error.log")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(msg + "\n")
+    except Exception:
+        pass
+
+try:
+    # embedded Python에서 tkinter가 Tcl/Tk를 찾을 수 있도록 경로 설정
+    _py_dir = os.path.dirname(sys.executable)
+    _tcl_dir = os.path.join(_py_dir, "tcl")
+    if os.path.exists(_tcl_dir):
+        # tcl8.6, tk8.6 디렉토리 찾기
+        for d in os.listdir(_tcl_dir):
+            if d.startswith("tcl"):
+                os.environ.setdefault("TCL_LIBRARY", os.path.join(_tcl_dir, d))
+            elif d.startswith("tk"):
+                os.environ.setdefault("TK_LIBRARY", os.path.join(_tcl_dir, d))
+    import tkinter as tk
+except Exception as e:
+    _error_log("tkinter import failed: " + str(e))
+    _error_log(traceback.format_exc())
+    # tkinter 없으면 ctypes로 메시지박스 표시
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "tkinter를 로드할 수 없습니다.\n\n" + str(e) + "\n\n자세한 내용: C:\\CrawlWorker\\gui_error.log",
+            "CrawlStation Worker 오류",
+            0x10  # MB_ICONERROR
+        )
+    except Exception:
+        pass
+    sys.exit(1)
 from tkinter import ttk, messagebox, font as tkfont
 import json
 import os
@@ -786,5 +825,19 @@ class CrawlStationGUI:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    app = CrawlStationGUI()
-    app.run()
+    try:
+        app = CrawlStationGUI()
+        app.run()
+    except Exception as e:
+        _error_log("GUI crashed: " + str(e))
+        _error_log(traceback.format_exc())
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(
+                0,
+                "오류가 발생했습니다.\n\n" + str(e) + "\n\n자세한 내용: C:\\CrawlWorker\\gui_error.log",
+                "CrawlStation Worker 오류",
+                0x10
+            )
+        except Exception:
+            pass
