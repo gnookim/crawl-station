@@ -37,8 +37,9 @@ jobs:
           }
           Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile payload\python\get-pip.py
 
-          # install.py 복사
+          # install.py + run-install.bat 복사
           Copy-Item win-installer\install.py payload\install.py
+          Copy-Item win-installer\run-install.bat payload\run-install.bat
           Write-Host "Payload ready"
 
       - name: Inject credentials
@@ -78,9 +79,10 @@ jobs:
           [Files]
           Source: "payload\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
           Source: "payload\install.py"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "payload\run-install.bat"; DestDir: "{app}"; Flags: ignoreversion
 
           [Run]
-          Filename: "cmd.exe"; Parameters: "/k ""{app}\python\python.exe"" ""{app}\install.py"""; WorkingDir: "{app}"; Flags: nowait; Description: "워커 컴포넌트 설치"
+          Filename: "{app}\run-install.bat"; WorkingDir: "{app}"; Flags: nowait
 
           [Icons]
           Name: "{userdesktop}\CrawlStation Worker"; Filename: "{app}\python\python.exe"; Parameters: """{app}\worker.py"""; WorkingDir: "{app}"; Comment: "Start CrawlStation Worker"
