@@ -48,16 +48,53 @@ def main():
     print("  인터넷 연결이 필요하며 5~10분 소요될 수 있습니다.")
     print()
 
-    TOTAL = 7
+    TOTAL = 8
+
+    # 0. 기존 설치 감지 + 정리
+    progress(1, TOTAL, "기존 설치 확인")
+    old_env = {}
+    env_path = os.path.join(INSTALL_DIR, ".env")
+    if os.path.exists(INSTALL_DIR):
+        print("    -> 기존 설치 발견: " + INSTALL_DIR)
+        # 기존 .env 백업 (워커 ID 유지)
+        if os.path.exists(env_path):
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line and not line.startswith("#"):
+                        k, v = line.split("=", 1)
+                        old_env[k.strip()] = v.strip()
+            print("    -> 기존 Worker ID 백업: " + old_env.get("WORKER_ID", "없음"))
+        # 기존 python 프로세스 종료
+        print("    -> 기존 워커 프로세스 종료...")
+        subprocess.run(["taskkill", "/f", "/im", "python.exe"], capture_output=True)
+        subprocess.run(["taskkill", "/f", "/im", "python3.exe"], capture_output=True)
+        import time
+        time.sleep(2)
+        # 기존 파일 삭제 (python 폴더는 크니까 따로)
+        for item in ["worker.py", "handlers", "logs"]:
+            path = os.path.join(INSTALL_DIR, item)
+            if os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+            elif os.path.exists(path):
+                os.remove(path)
+        # 기존 python 폴더도 삭제 (깨진 패키지 방지)
+        py_dir = os.path.join(INSTALL_DIR, "python")
+        if os.path.exists(py_dir):
+            print("    -> 기존 Python 정리...")
+            shutil.rmtree(py_dir, ignore_errors=True)
+        print("    -> 클린 완료")
+    else:
+        print("    -> 신규 설치")
 
     # 1. 설치 디렉토리
-    progress(1, TOTAL, "설치 디렉토리 생성")
+    progress(2, TOTAL, "설치 디렉토리 생성")
     for d in ["handlers", "logs", "python"]:
         os.makedirs(os.path.join(INSTALL_DIR, d), exist_ok=True)
     print("    -> " + INSTALL_DIR)
 
     # 2. Python embedded 복사
-    progress(2, TOTAL, "Python 3.12 설치")
+    progress(3, TOTAL, "Python 3.12 설치")
     if getattr(sys, 'frozen', False):
         base = sys._MEIPASS
     else:
@@ -78,8 +115,8 @@ def main():
         return
     py = os.path.join(dst, "python.exe")
 
-    # 3. pip 설치
-    progress(3, TOTAL, "pip 설치")
+    # 4. pip 설치
+    progress(4, TOTAL, "pip 설치")
     pip_script = os.path.join(dst, "get-pip.py")
     if os.path.exists(pip_script):
         print("    -> pip 다운로드 + 설치 중...")
@@ -91,8 +128,8 @@ def main():
     else:
         print("    -> pip 설치 실패 (계속 진행)")
 
-    # 4. 패키지 설치
-    progress(4, TOTAL, "크롤링 패키지 설치 (playwright, supabase)")
+    # 5. 패키지 설치
+    progress(5, TOTAL, "크롤링 패키지 설치 (playwright, supabase)")
     print("    -> playwright 설치 중... (1~2분)")
     run_quiet([py, "-m", "pip", "install", "--quiet", "playwright"])
     print("    -> supabase 설치 중...")
@@ -102,8 +139,8 @@ def main():
         capture_output=False)
     print("    -> 패키지 설치 완료")
 
-    # 5. 워커 파일
-    progress(5, TOTAL, "워커 파일 다운로드")
+    # 6. 워커 파일
+    progress(6, TOTAL, "워커 파일 다운로드")
     files = [
         "worker.py", "handlers/__init__.py", "handlers/base.py",
         "handlers/kin.py", "handlers/blog.py", "handlers/serp.py",
@@ -117,25 +154,22 @@ def main():
         except Exception as e:
             print("    -> WARN {}: {}".format(f, e))
 
-    # 6. .env
-    progress(6, TOTAL, "설정 파일 생성")
+    # 7. .env
+    progress(7, TOTAL, "설정 파일 생성")
+    # 기존 워커 ID 복원 또는 새로 생성
+    wid = old_env.get("WORKER_ID", "")
     env_path = os.path.join(INSTALL_DIR, ".env")
-    wid = ""
-    if not os.path.exists(env_path):
+    if not wid:
         wid = "worker-" + uuid.uuid4().hex[:8]
-        with open(env_path, "w") as f:
-            f.write("SUPABASE_URL={}\nSUPABASE_KEY={}\nWORKER_ID={}\n".format(
-                SUPABASE_URL, SUPABASE_KEY, wid))
-        print("    -> Worker ID: " + wid)
+        print("    -> 새 Worker ID: " + wid)
     else:
-        with open(env_path) as f:
-            for line in f:
-                if line.startswith("WORKER_ID="):
-                    wid = line.split("=", 1)[1].strip()
-        print("    -> 기존 설정 유지 (ID: {})".format(wid))
+        print("    -> 기존 Worker ID 복원: " + wid)
+    with open(env_path, "w") as f:
+        f.write("SUPABASE_URL={}\nSUPABASE_KEY={}\nWORKER_ID={}\n".format(
+            SUPABASE_URL, SUPABASE_KEY, wid))
 
-    # 7. 서비스 등록
-    progress(7, TOTAL, "서비스 등록")
+    # 8. 서비스 등록
+    progress(8, TOTAL, "서비스 등록")
     try:
         import winreg
         key = winreg.OpenKey(
