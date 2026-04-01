@@ -29,6 +29,39 @@ def run_quiet(cmd):
     return r.returncode == 0
 
 
+def check_network():
+    """네트워크 연결 확인 + 자동 대기"""
+    import time
+    for attempt in range(3):
+        try:
+            urllib.request.urlopen("https://crawl-station.vercel.app/api/workers", timeout=10)
+            return True
+        except Exception:
+            if attempt < 2:
+                print("    -> 네트워크 연결 실패. {}초 후 재시도... ({}/3)".format(
+                    5 * (attempt + 1), attempt + 1))
+                time.sleep(5 * (attempt + 1))
+            else:
+                print("    -> [ERROR] 인터넷 연결을 확인해주세요.")
+                return False
+
+
+def check_disk_space():
+    """디스크 공간 확인 (최소 1GB)"""
+    try:
+        import ctypes
+        free = ctypes.c_ulonglong(0)
+        ctypes.windll.kernel32.GetDiskFreeSpaceExW(
+            "C:\\", None, None, ctypes.pointer(free))
+        gb = free.value / (1024 ** 3)
+        if gb < 1:
+            print("    -> [WARN] 디스크 공간 부족: {:.1f}GB (최소 1GB 필요)".format(gb))
+            return False
+        return True
+    except Exception:
+        return True
+
+
 def progress(step, total, msg):
     bar_len = 30
     filled = int(bar_len * step / total)
@@ -48,7 +81,7 @@ def main():
     print("  인터넷 연결이 필요하며 5~10분 소요될 수 있습니다.")
     print()
 
-    TOTAL = 8
+    TOTAL = 9
 
     # 0. 기존 설치 감지 + 정리
     progress(1, TOTAL, "기존 설치 확인")
@@ -65,12 +98,25 @@ def main():
                         k, v = line.split("=", 1)
                         old_env[k.strip()] = v.strip()
             print("    -> 기존 Worker ID 백업: " + old_env.get("WORKER_ID", "없음"))
-        # 기존 python 프로세스 종료
+        # 기존 워커 프로세스만 종료 (자기 자신 제외)
         print("    -> 기존 워커 프로세스 종료...")
-        subprocess.run(["taskkill", "/f", "/im", "python.exe"], capture_output=True)
-        subprocess.run(["taskkill", "/f", "/im", "python3.exe"], capture_output=True)
+        my_pid = os.getpid()
+        try:
+            # worker.py를 실행 중인 python 프로세스만 찾아서 종료
+            result = subprocess.run(
+                ["wmic", "process", "where",
+                 "name='python.exe' and commandline like '%worker.py%'",
+                 "get", "processid"],
+                capture_output=True, text=True, timeout=10)
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if line.isdigit() and int(line) != my_pid:
+                    subprocess.run(["taskkill", "/f", "/pid", line], capture_output=True)
+                    print("    -> PID {} 종료".format(line))
+        except Exception:
+            pass
         import time
-        time.sleep(2)
+        time.sleep(1)
         # 기존 파일 삭제 (python 폴더는 크니까 따로)
         for item in ["worker.py", "handlers", "logs"]:
             path = os.path.join(INSTALL_DIR, item)
@@ -78,11 +124,11 @@ def main():
                 shutil.rmtree(path, ignore_errors=True)
             elif os.path.exists(path):
                 os.remove(path)
-        # 기존 python 폴더도 삭제 (깨진 패키지 방지)
-        py_dir = os.path.join(INSTALL_DIR, "python")
-        if os.path.exists(py_dir):
-            print("    -> 기존 Python 정리...")
-            shutil.rmtree(py_dir, ignore_errors=True)
+        # Lib/site-packages만 삭제 (깨진 패키지 방지, python.exe는 유지)
+        site_pkgs = os.path.join(INSTALL_DIR, "python", "Lib", "site-packages")
+        if os.path.exists(site_pkgs):
+            print("    -> 기존 패키지 정리...")
+            shutil.rmtree(site_pkgs, ignore_errors=True)
         print("    -> 클린 완료")
     else:
         print("    -> 신규 설치")
@@ -115,8 +161,18 @@ def main():
         return
     py = os.path.join(dst, "python.exe")
 
-    # 4. pip 설치
-    progress(4, TOTAL, "pip 설치")
+    # 네트워크 + 디스크 사전 체크
+    progress(4, TOTAL, "환경 확인")
+    if not check_network():
+        print()
+        input("  인터넷 연결 후 다시 실행해주세요. 아무 키나 누르면 종료...")
+        return
+    print("    -> 네트워크 OK")
+    check_disk_space()
+    print("    -> 환경 확인 완료")
+
+    # 5. pip 설치
+    progress(5, TOTAL, "pip 설치")
     pip_script = os.path.join(dst, "get-pip.py")
     if os.path.exists(pip_script):
         print("    -> pip 다운로드 + 설치 중...")
@@ -128,8 +184,8 @@ def main():
     else:
         print("    -> pip 설치 실패 (계속 진행)")
 
-    # 5. 패키지 설치
-    progress(5, TOTAL, "크롤링 패키지 설치 (playwright, supabase)")
+    # 6. 패키지 설치
+    progress(6, TOTAL, "크롤링 패키지 설치 (playwright, supabase)")
     print("    -> playwright 설치 중... (1~2분)")
     run_quiet([py, "-m", "pip", "install", "--quiet", "playwright"])
     print("    -> supabase 설치 중...")
@@ -139,8 +195,8 @@ def main():
         capture_output=False)
     print("    -> 패키지 설치 완료")
 
-    # 6. 워커 파일
-    progress(6, TOTAL, "워커 파일 다운로드")
+    # 7. 워커 파일
+    progress(7, TOTAL, "워커 파일 다운로드")
     files = [
         "worker.py", "handlers/__init__.py", "handlers/base.py",
         "handlers/kin.py", "handlers/blog.py", "handlers/serp.py",
@@ -154,8 +210,8 @@ def main():
         except Exception as e:
             print("    -> WARN {}: {}".format(f, e))
 
-    # 7. .env
-    progress(7, TOTAL, "설정 파일 생성")
+    # 8. .env
+    progress(8, TOTAL, "설정 파일 생성")
     # 기존 워커 ID 복원 또는 새로 생성
     wid = old_env.get("WORKER_ID", "")
     env_path = os.path.join(INSTALL_DIR, ".env")
@@ -168,8 +224,8 @@ def main():
         f.write("SUPABASE_URL={}\nSUPABASE_KEY={}\nWORKER_ID={}\n".format(
             SUPABASE_URL, SUPABASE_KEY, wid))
 
-    # 8. 서비스 등록
-    progress(8, TOTAL, "서비스 등록")
+    # 9. 서비스 등록
+    progress(9, TOTAL, "서비스 등록")
     try:
         import winreg
         key = winreg.OpenKey(
