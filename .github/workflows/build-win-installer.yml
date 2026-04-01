@@ -22,21 +22,26 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download Python embeddable
+      - name: Prepare payload
         shell: pwsh
         run: |
+          # Python embedded 다운로드
+          Write-Host "Downloading Python embedded..."
           Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.12.8/python-3.12.8-embed-amd64.zip" -OutFile python-embed.zip
           New-Item -ItemType Directory -Path payload\python -Force | Out-Null
           Expand-Archive python-embed.zip -DestinationPath payload\python -Force
+
           # pip 활성화
           Get-ChildItem payload\python\*.pth | ForEach-Object {
             (Get-Content $_.FullName) -replace '#import site', 'import site' | Set-Content $_.FullName
           }
-          # get-pip 다운로드
           Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile payload\python\get-pip.py
-          Write-Host "Python embedded ready"
 
-      - name: Inject credentials into installer
+          # install.py 복사
+          Copy-Item win-installer\install.py payload\install.py
+          Write-Host "Payload ready"
+
+      - name: Inject credentials
         shell: bash
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -44,21 +49,65 @@ jobs:
           STATION_URL: ${{ secrets.STATION_URL }}
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          cp win-installer/install.py payload/install.py
           sed -i "s|__VERSION__|${VERSION}|g" payload/install.py
           sed -i "s|__SUPABASE_URL__|${SUPABASE_URL}|g" payload/install.py
           sed -i "s|__SUPABASE_KEY__|${SUPABASE_KEY}|g" payload/install.py
           sed -i "s|__STATION_URL__|${STATION_URL:-https://crawl-station.vercel.app}|g" payload/install.py
-          echo "Credentials injected"
 
-      - name: Build exe with PyInstaller
+      - name: Create Inno Setup script
+        shell: pwsh
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          $iss = @"
+          [Setup]
+          AppName=CrawlStation Worker
+          AppVersion=$env:VERSION
+          AppPublisher=CrawlStation
+          DefaultDirName=C:\CrawlWorker
+          DisableProgramGroupPage=yes
+          OutputDir=dist
+          OutputBaseFilename=CrawlWorker-Setup
+          Compression=lzma2/ultra64
+          SolidCompression=yes
+          PrivilegesRequired=lowest
+          SetupIconFile=
+          UninstallDisplayName=CrawlStation Worker
+          CreateUninstallRegKey=yes
+
+          [Files]
+          Source: "payload\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
+          Source: "payload\install.py"; DestDir: "{app}"; Flags: ignoreversion
+
+          [Run]
+          Filename: "{app}\python\python.exe"; Parameters: """{app}\install.py"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; StatusMsg: "Installing worker components..."
+
+          [Icons]
+          Name: "{userdesktop}\CrawlStation Worker"; Filename: "{app}\python\python.exe"; Parameters: """{app}\worker.py"""; WorkingDir: "{app}"; Comment: "Start CrawlStation Worker"
+
+          [Registry]
+          Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "CrawlStationWorker"; ValueData: """{app}\python\python.exe"" ""{app}\worker.py"""; Flags: uninsdeletevalue
+
+          [UninstallRun]
+          Filename: "taskkill"; Parameters: "/f /im python.exe"; Flags: runhidden
+          Filename: "curl"; Parameters: "-s -X DELETE ""https://crawl-station.vercel.app/api/workers?id=unknown"""; Flags: runhidden
+
+          [UninstallDelete]
+          Type: filesandordirs; Name: "{app}"
+          Type: files; Name: "{userdesktop}\CrawlStation Worker.lnk"
+          "@
+
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Set-Content -Path "setup.iss" -Value $iss -Encoding UTF8
+          Write-Host "Inno Setup script created"
+
+      - name: Build installer with Inno Setup
         shell: pwsh
         run: |
-          pip install pyinstaller --quiet
-          pyinstaller --onedir --name "CrawlWorker-Setup" --add-data "payload\python;python" payload\install.py
-          Compress-Archive -Path "dist\CrawlWorker-Setup\*" -DestinationPath "CrawlWorker-Setup-Windows.zip"
-          $size = (Get-Item "CrawlWorker-Setup-Windows.zip").Length / 1MB
-          Write-Host ("Built: CrawlWorker-Setup-Windows.zip ({0:N1} MB)" -f $size)
+          # Inno Setup is pre-installed on windows-latest
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
+          $size = (Get-Item "dist\CrawlWorker-Setup.exe").Length / 1MB
+          Write-Host ("Built: CrawlWorker-Setup.exe ({0:N1} MB)" -f $size)
 
       - name: Upload to GitHub Release
         env:
@@ -66,9 +115,9 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ github.event.inputs.version }}"
-          gh release upload "v${VERSION}" "CrawlWorker-Setup-Windows.zip" --clobber 2>/dev/null || \
+          gh release upload "v${VERSION}" "dist/CrawlWorker-Setup.exe" --clobber 2>/dev/null || \
           gh release create "v${VERSION}" \
             --title "CrawlWorker v${VERSION}" \
             --notes "CrawlWorker v${VERSION}" \
             --latest \
-            "CrawlWorker-Setup-Windows.zip"
+            "dist/CrawlWorker-Setup.exe"

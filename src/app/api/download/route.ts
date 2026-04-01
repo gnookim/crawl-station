@@ -95,8 +95,7 @@ export async function GET(request: NextRequest) {
       if (ghRes.ok) {
         const release = await ghRes.json();
         const exeAsset = release.assets?.find(
-          (a: { name: string }) =>
-            a.name.includes("Windows") || a.name.endsWith(".exe")
+          (a: { name: string }) => a.name.endsWith(".exe")
         );
         if (exeAsset) {
           return NextResponse.redirect(exeAsset.browser_download_url);

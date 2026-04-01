@@ -20,7 +20,10 @@
       "Bash(grep -n \"def __init__\" /Users/gnookim/Desktop/Claude_Agent/naver-crawler/handlers/*.py)",
       "Bash(curl -s \"https://uovisddipuiniissawde.supabase.co/rest/v1/worker_config?select=*&limit=3\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\")",
       "Bash(python3 -m json.tool)",
-      "Bash(python3 -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\(''''message'''',''''error''''\\)\\)\")"
+      "Bash(python3 -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\(''''message'''',''''error''''\\)\\)\")",
+      "Bash(supabase/migrations/20260401_add_network_columns.sql:*)",
+      "Bash(supabase migration:*)",
+      "Bash(curl -s \"https://uovisddipuiniissawde.supabase.co/rest/v1/worker_config?id=eq.global&select=proxy_url,network_type,tethering_carrier,tethering_auto_reconnect\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\")"
     ]
   }
 }
