@@ -1,5 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
+interface ReleaseInfo {
+  version: string;
+  hasMac: boolean;
+  hasWin: boolean;
+  published: string;
+}
+
 export default function InstallPage() {
   return (
     <div className="p-6 max-w-4xl">
@@ -9,6 +18,24 @@ export default function InstallPage() {
 }
 
 function WorkerInstall() {
+  const [release, setRelease] = useState<ReleaseInfo | null>(null);
+
+  useEffect(() => {
+    fetch("https://api.github.com/repos/gnookim/crawl-station/releases/latest")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.tag_name) {
+          setRelease({
+            version: data.tag_name.replace(/^v/, ""),
+            hasMac: data.assets?.some((a: { name: string }) => a.name.endsWith(".pkg")) ?? false,
+            hasWin: data.assets?.some((a: { name: string }) => a.name.endsWith(".exe")) ?? false,
+            published: data.published_at || "",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <>
       <h2 className="text-xl font-bold mb-2">크롤링 워커 설치</h2>
@@ -18,22 +45,39 @@ function WorkerInstall() {
 
       {/* 다운로드 버튼 */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 mb-6 text-white">
-        <h3 className="text-lg font-bold mb-2">워커 설치 파일 다운로드</h3>
-        <p className="text-sm text-blue-100 mb-4">
+        <div className="flex items-center gap-3 mb-2">
+          <h3 className="text-lg font-bold">워커 설치 파일 다운로드</h3>
+          {release && (
+            <span className="px-2 py-0.5 bg-blue-500 rounded text-xs font-mono">
+              v{release.version}
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-blue-100 mb-1">
           Python, 브라우저, 연결정보 등 필요한 모든 것이 자동으로 설치됩니다.
         </p>
+        {release?.published && (
+          <p className="text-xs text-blue-200 mb-4">
+            릴리즈: {new Date(release.published).toLocaleDateString("ko-KR")}
+          </p>
+        )}
+        {!release?.published && <div className="mb-4" />}
         <div className="flex gap-3">
           <a
             href="/api/download?type=mac"
-            className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm"
+            className={`inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm ${
+              release && !release.hasMac ? "opacity-50 pointer-events-none" : ""
+            }`}
           >
             Mac 다운로드 (.pkg)
           </a>
           <a
             href="/api/download?type=win"
-            className="inline-flex items-center gap-2 bg-blue-500 text-white font-bold px-6 py-2.5 rounded-md hover:bg-blue-400 transition-colors text-sm"
+            className={`inline-flex items-center gap-2 bg-blue-500 text-white font-bold px-6 py-2.5 rounded-md hover:bg-blue-400 transition-colors text-sm ${
+              release && !release.hasWin ? "opacity-50 pointer-events-none" : ""
+            }`}
           >
-            Windows 다운로드
+            Windows 다운로드 (.exe)
           </a>
         </div>
       </div>
