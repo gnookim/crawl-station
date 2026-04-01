@@ -60,7 +60,10 @@ jobs:
 
           # Tcl/Tk scripts
           Copy-Item -Recurse "$fullPy\tcl" "$embed\tcl"
-          Write-Host "tkinter copied to embedded Python"
+
+          # pythonw.exe (GUI 실행용 — embedded에는 미포함)
+          Copy-Item "$fullPy\pythonw.exe" "$embed\pythonw.exe"
+          Write-Host "tkinter + pythonw.exe copied to embedded Python"
 
       - name: Generate app icon
         shell: pwsh
