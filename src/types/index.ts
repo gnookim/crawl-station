@@ -45,6 +45,10 @@ export interface CrawlRequest {
   completed_at: string | null;
 }
 
+export type NetworkType = "wifi" | "tethering" | "proxy_static" | "proxy_rotate";
+export type TetheringCarrier = "skt" | "kt" | "lgu" | "other";
+export type TetheringReconnectInterval = "per_batch" | "3min" | "5min" | "10min";
+
 export interface WorkerConfig {
   id: string;
   ua_pool: string[];
@@ -58,6 +62,12 @@ export interface WorkerConfig {
   keyword_delay_max: number;
   typo_probability: number;
   scroll_back_probability: number;
+  proxy_url: string;
+  network_type: NetworkType;
+  proxy_rotate: boolean;
+  tethering_carrier: TetheringCarrier;
+  tethering_auto_reconnect: boolean;
+  tethering_reconnect_interval: TetheringReconnectInterval;
   updated_at: string;
   updated_by: string;
 }
