@@ -127,28 +127,73 @@ jobs:
 
           procedure RunWorkerInstall;
           var
-            LogFile, DoneFile: string;
+            LogFile, DoneFile, PyPath, ScriptPath, BatPath: string;
             Lines: TArrayOfString;
             LastCount, i, ResultCode, Elapsed: Integer;
+            ExecOK: Boolean;
           begin
+            PyPath := ExpandConstant('{app}\python\python.exe');
+            ScriptPath := ExpandConstant('{app}\install.py');
             LogFile := ExpandConstant('{app}\install.log');
             DoneFile := ExpandConstant('{app}\install.done');
+            BatPath := ExpandConstant('{app}\run-inno.bat');
             LastCount := 0;
             Elapsed := 0;
 
             DeleteFile(LogFile);
             DeleteFile(DoneFile);
+            DeleteFile(BatPath);
 
             WizardForm.NextButton.Enabled := False;
             WizardForm.BackButton.Enabled := False;
             WizardForm.CancelButton.Enabled := False;
 
             StatusLabel.Caption := '설치 진행 중...';
+            InstallMemo.Lines.Add('Python: ' + PyPath);
+            InstallMemo.Lines.Add('Script: ' + ScriptPath);
+            InstallMemo.Lines.Add('');
 
-            Exec(ExpandConstant('{app}\python\python.exe'),
-                 ExpandConstant('"{app}\install.py" --inno'),
-                 ExpandConstant('{app}'),
-                 SW_HIDE, ewNoWait, ResultCode);
+            if not FileExists(PyPath) then
+            begin
+              InstallMemo.Lines.Add('[ERROR] python.exe not found!');
+              StatusLabel.Caption := 'Python을 찾을 수 없습니다';
+              WizardForm.NextButton.Enabled := True;
+              Exit;
+            end;
+
+            if not FileExists(ScriptPath) then
+            begin
+              InstallMemo.Lines.Add('[ERROR] install.py not found!');
+              StatusLabel.Caption := 'install.py를 찾을 수 없습니다';
+              WizardForm.NextButton.Enabled := True;
+              Exit;
+            end;
+
+            SaveStringToFile(BatPath,
+              '@echo off' + #13#10 +
+              '"' + PyPath + '" "' + ScriptPath + '" --inno' + #13#10,
+              False);
+
+            InstallMemo.Lines.Add('Starting installer...');
+            InstallMemo.Lines.Add('');
+
+            ExecOK := Exec(BatPath, '', ExpandConstant('{app}'),
+                           SW_HIDE, ewNoWait, ResultCode);
+
+            if not ExecOK then
+            begin
+              InstallMemo.Lines.Add('[ERROR] Failed to start (code: ' + IntToStr(ResultCode) + ')');
+              InstallMemo.Lines.Add('Trying direct exec...');
+              ExecOK := Exec(PyPath, '"' + ScriptPath + '" --inno',
+                             ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode);
+              if not ExecOK then
+              begin
+                InstallMemo.Lines.Add('[ERROR] Direct exec also failed (code: ' + IntToStr(ResultCode) + ')');
+                StatusLabel.Caption := '인스톨러 시작 실패';
+                WizardForm.NextButton.Enabled := True;
+                Exit;
+              end;
+            end;
 
             while not FileExists(DoneFile) do
             begin
@@ -161,6 +206,9 @@ jobs:
                 StatusLabel.Caption := '설치 시간 초과 (15분)';
                 Break;
               end;
+
+              if (Elapsed = 20) and (not FileExists(LogFile)) then
+                InstallMemo.Lines.Add('Waiting for log file...');
 
               if FileExists(LogFile) then
               begin
@@ -195,7 +243,9 @@ jobs:
                 else
                   StatusLabel.Caption := '설치 중 일부 문제 발생';
               end;
-            end;
+            end
+            else
+              StatusLabel.Caption := '설치 시간 초과 또는 오류';
 
             WizardForm.NextButton.Enabled := True;
             WizardForm.CancelButton.Enabled := True;
