@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       }
       const ghRes = await fetch(
         "https://api.github.com/repos/gnookim/crawl-station/releases/latest",
-        { headers: ghHeaders, next: { revalidate: 300 } }
+        { headers: ghHeaders, cache: "no-store" }
       );
 
       if (ghRes.ok) {
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
       }
       const ghRes = await fetch(
         "https://api.github.com/repos/gnookim/crawl-station/releases/latest",
-        { headers: ghHeaders, next: { revalidate: 300 } }
+        { headers: ghHeaders, cache: "no-store" }
       );
 
       if (ghRes.ok) {
