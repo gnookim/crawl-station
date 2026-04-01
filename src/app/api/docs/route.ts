@@ -224,6 +224,18 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - GET 요청(결과 조회, 워커 상태)은 인증 불필요
 - 앱별 요청 수, 마지막 사용 시간 추적
 - 연동 가이드에 API 키 인증 방법 추가
+
+### 워커 v0.3.0 — 자연스러운 크롤링 + 프록시
+- 세션 워밍업 (네이버 메인/뉴스/쇼핑 등 사전 방문)
+- 타이핑 속도 변화 (단어 경계에서 느려짐) + 오타 개선
+- 랜덤 결과 클릭 후 돌아오기 (자연스러운 행동)
+- 읽는 척 멈추기 (스크롤 중 1~3초 pause)
+- canvas/WebGL fingerprint 노이즈
+- hardwareConcurrency, deviceMemory 랜덤화
+- 모바일 UA + 뷰포트 가끔 섞기
+- 프록시 지원 (worker_config.proxy_url, 인증 프록시 포함)
+- UA 목록 확장 (Chrome 125, Safari 17.5, Edge, 모바일)
+- desk-web: CrawlStation API 키 인증 연동
 `;
 
 export async function GET(request: NextRequest) {
