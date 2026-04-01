@@ -218,7 +218,8 @@ jobs:
           ENV_FILE="${INSTALL_DIR}/.env"
           if [ ! -f "${ENV_FILE}" ]; then
               WORKER_ID="worker-$("$PYTHON3" -c "import uuid; print(uuid.uuid4().hex[:8])")"
-              sudo -u "$REAL_USER" bash -c "printf 'SUPABASE_URL=${SUPABASE_URL}\nSUPABASE_KEY=${SUPABASE_KEY}\nWORKER_ID=${WORKER_ID}\n' > '${ENV_FILE}'"
+              printf "SUPABASE_URL=%s\nSUPABASE_KEY=%s\nWORKER_ID=%s\n" "${SUPABASE_URL}" "${SUPABASE_KEY}" "${WORKER_ID}" > "${ENV_FILE}"
+              chown "$REAL_USER" "${ENV_FILE}"
               log "워커 ID: ${WORKER_ID}"
           fi
 
