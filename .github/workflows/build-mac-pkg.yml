@@ -352,10 +352,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ github.event.inputs.version }}"
-          gh release delete "v${VERSION}" --yes 2>/dev/null || true
-          git push --delete origin "v${VERSION}" 2>/dev/null || true
+          # 기존 릴리즈에 추가 업로드 (없으면 새로 생성)
+          gh release upload "v${VERSION}" "CrawlWorker-${VERSION}.pkg" --clobber 2>/dev/null || \
           gh release create "v${VERSION}" \
             --title "CrawlWorker v${VERSION}" \
-            --notes "Mac 워커 인스톨러 v${VERSION} — SwiftUI 네이티브 앱" \
+            --notes "CrawlWorker v${VERSION}" \
             --latest \
             "CrawlWorker-${VERSION}.pkg"
