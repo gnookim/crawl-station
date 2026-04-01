@@ -251,7 +251,7 @@ jobs:
               end;
             end;
 
-            if stepNum <= 8 then
+            if stepNum <= 10 then
               ProgressBar.Position := stepNum;
           end;
 

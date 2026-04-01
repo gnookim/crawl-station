@@ -408,16 +408,6 @@ def step_copy_python():
 
     PY_PATH = os.path.join(dst, "python.exe")
 
-    # .pth 파일에 설치 디렉토리 추가 (handlers 등 import를 위해)
-    import glob as _glob
-    for pth_file in _glob.glob(os.path.join(dst, "python*.pth")) + _glob.glob(os.path.join(dst, "python*._pth")):
-        with open(pth_file, "r") as f:
-            content = f.read()
-        if INSTALL_DIR not in content:
-            with open(pth_file, "a") as f:
-                f.write("\n" + INSTALL_DIR + "\n")
-            log("    -> .pth에 {} 추가".format(INSTALL_DIR))
-
     # 검증
     if not os.path.exists(PY_PATH):
         raise StepError("python.exe가 존재하지 않습니다: " + PY_PATH)
