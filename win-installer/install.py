@@ -2,6 +2,8 @@
 CrawlStation Worker — Windows Installer (AI 자가 진단)
 Python embedded + 패키지 + Chromium + 서비스 자동 등록
 설치 실패 시 Station AI가 자동 진단 + 수정 + 재시도
+
+--inno 모드: Inno Setup 창 안에서 실행 (로그 파일 출력, input 스킵, done 마커)
 """
 import os, sys, shutil, uuid, subprocess, platform, json, traceback, time
 try:
@@ -22,6 +24,8 @@ SESSION_ID = uuid.uuid4().hex
 INSTALL_LOG = []
 PREVIOUS_FIXES = []
 PY_PATH = ""  # step 3 이후 설정됨
+INNO_MODE = "--inno" in sys.argv
+LOG_FILE = None  # inno 모드에서 로그 파일 핸들
 
 
 # ═══════════════════════════════════════════════════════
@@ -37,9 +41,15 @@ class StepError(Exception):
 
 
 def log(msg):
-    """콘솔 출력 + 로그 기록"""
+    """콘솔 출력 + 로그 기록 (inno 모드에서는 파일에도 기록)"""
     print(msg)
     INSTALL_LOG.append(msg)
+    if LOG_FILE:
+        try:
+            LOG_FILE.write(msg + "\n")
+            LOG_FILE.flush()
+        except Exception:
+            pass
 
 
 def progress(step, total, msg):
@@ -68,6 +78,22 @@ def run_captured(cmd, desc="", timeout=300):
             stderr=r.stderr or "",
         )
     return r
+
+
+def wait_prompt(msg="  아무 키나 누르면 종료합니다..."):
+    """inno 모드에서는 input 스킵"""
+    if not INNO_MODE:
+        input(msg)
+
+
+def write_done_marker(success):
+    """inno 모드용 완료 마커 파일 생성"""
+    if INNO_MODE:
+        try:
+            with open(os.path.join(INSTALL_DIR, "install.done"), "w") as f:
+                f.write("0" if success else "1")
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════
@@ -388,7 +414,7 @@ def step_pip_install():
     if os.path.exists(pip_script):
         log("    -> pip 설치 중...")
         r = subprocess.run([py, pip_script, "--quiet"],
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, text=True, timeout=180)
         if r.returncode != 0:
             raise StepError("pip 설치 실패", stdout=r.stdout, stderr=r.stderr)
 
@@ -410,7 +436,7 @@ def step_packages():
     # playwright
     log("    -> playwright 설치 중... (1~2분)")
     r = subprocess.run([py, "-m", "pip", "install", "--quiet", "playwright"],
-                       capture_output=True, text=True, timeout=300)
+                       capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
         raise StepError("playwright 설치 실패", stdout=r.stdout, stderr=r.stderr)
     log("    -> playwright OK")
@@ -418,7 +444,7 @@ def step_packages():
     # supabase
     log("    -> supabase 설치 중...")
     r = subprocess.run([py, "-m", "pip", "install", "--quiet", "supabase"],
-                       capture_output=True, text=True, timeout=300)
+                       capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
         raise StepError("supabase 설치 실패", stdout=r.stdout, stderr=r.stderr)
     log("    -> supabase OK")
@@ -539,8 +565,24 @@ def step_register_service():
 # ═══════════════════════════════════════════════════════
 
 def main():
-    os.system("title CrawlStation Worker Installer v{} (AI)".format(VERSION))
-    os.system("color 0A")
+    global LOG_FILE
+
+    # inno 모드: 로그 파일 열기
+    if INNO_MODE:
+        os.makedirs(INSTALL_DIR, exist_ok=True)
+        log_path = os.path.join(INSTALL_DIR, "install.log")
+        # 기존 로그/마커 삭제
+        for f in [log_path, os.path.join(INSTALL_DIR, "install.done")]:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
+        LOG_FILE = open(log_path, "w", encoding="utf-8", buffering=1)
+    else:
+        os.system("title CrawlStation Worker Installer v{} (AI)".format(VERSION))
+        os.system("color 0A")
+
     log("")
     log("  ======================================================")
     log("    CrawlStation Worker v{} — Windows Installer".format(VERSION))
@@ -575,8 +617,10 @@ def main():
             if num <= 4:
                 log("\n  [ABORT] 필수 단계 실패: " + name)
                 log("  설치를 완료할 수 없습니다.")
-                log("")
-                input("  아무 키나 누르면 종료합니다...")
+                write_done_marker(False)
+                if LOG_FILE:
+                    LOG_FILE.close()
+                wait_prompt()
                 return
 
     # ── 결과 ──
@@ -590,8 +634,10 @@ def main():
         log("    수동 조치가 필요할 수 있습니다.")
         log("")
         log("    Station: " + STATION_URL)
-        log("")
-        input("  아무 키나 누르면 종료합니다...")
+        write_done_marker(False)
+        if LOG_FILE:
+            LOG_FILE.close()
+        wait_prompt()
         return
 
     # 워커 즉시 실행
@@ -617,8 +663,11 @@ def main():
     log("    - 제어판에서도 삭제 가능")
     log("")
     log("  ======================================================")
-    log("")
-    input("  아무 키나 누르면 이 창을 닫습니다...")
+
+    write_done_marker(True)
+    if LOG_FILE:
+        LOG_FILE.close()
+    wait_prompt("  아무 키나 누르면 이 창을 닫습니다...")
 
 
 if __name__ == "__main__":

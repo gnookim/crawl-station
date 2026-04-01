@@ -60,10 +60,11 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          $iss = @"
+          $version = $env:VERSION
+          $iss = @'
           [Setup]
           AppName=CrawlStation Worker
-          AppVersion=$env:VERSION
+          AppVersion=__ISS_VERSION__
           AppPublisher=CrawlStation
           DefaultDirName=C:\CrawlWorker
           DisableProgramGroupPage=yes
@@ -79,25 +80,136 @@ jobs:
           [Files]
           Source: "payload\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
           Source: "payload\install.py"; DestDir: "{app}"; Flags: ignoreversion
-          Source: "payload\run-install.bat"; DestDir: "{app}"; Flags: ignoreversion
-
-          [Run]
-          Filename: "{app}\run-install.bat"; WorkingDir: "{app}"; Flags: nowait
-
-          [Icons]
-          Name: "{userdesktop}\CrawlStation Worker"; Filename: "{app}\python\python.exe"; Parameters: """{app}\worker.py"""; WorkingDir: "{app}"; Comment: "Start CrawlStation Worker"
-
-          [Registry]
-          Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "CrawlStationWorker"; ValueData: """{app}\python\python.exe"" ""{app}\worker.py"""; Flags: uninsdeletevalue
 
           [UninstallRun]
           Filename: "taskkill"; Parameters: "/f /im python.exe"; Flags: runhidden
-          Filename: "curl"; Parameters: "-s -X DELETE ""https://crawl-station.vercel.app/api/workers?id=unknown"""; Flags: runhidden
 
           [UninstallDelete]
           Type: filesandordirs; Name: "{app}"
-          Type: files; Name: "{userdesktop}\CrawlStation Worker.lnk"
-          "@
+
+          [Code]
+          var
+            InstallPage: TWizardPage;
+            InstallMemo: TNewMemo;
+            StatusLabel: TNewStaticText;
+            InstallDone: Boolean;
+
+          procedure InitializeWizard;
+          begin
+            InstallPage := CreateCustomPage(wpInstalling,
+              'CrawlStation Worker 설치',
+              'Python, Chromium, 크롤링 패키지를 설치합니다. 5~10분 소요될 수 있습니다.');
+
+            StatusLabel := TNewStaticText.Create(InstallPage);
+            StatusLabel.Parent := InstallPage.Surface;
+            StatusLabel.Left := 0;
+            StatusLabel.Top := 0;
+            StatusLabel.Width := InstallPage.SurfaceWidth;
+            StatusLabel.Caption := '설치 준비 중...';
+            StatusLabel.Font.Style := [fsBold];
+
+            InstallMemo := TNewMemo.Create(InstallPage);
+            InstallMemo.Parent := InstallPage.Surface;
+            InstallMemo.Left := 0;
+            InstallMemo.Top := 24;
+            InstallMemo.Width := InstallPage.SurfaceWidth;
+            InstallMemo.Height := InstallPage.SurfaceHeight - 24;
+            InstallMemo.ReadOnly := True;
+            InstallMemo.ScrollBars := ssVertical;
+            InstallMemo.Font.Name := 'Consolas';
+            InstallMemo.Font.Size := 9;
+            InstallMemo.Color := $001E1E1E;
+            InstallMemo.Font.Color := $0000FF00;
+            InstallMemo.WordWrap := False;
+
+            InstallDone := False;
+          end;
+
+          procedure RunWorkerInstall;
+          var
+            LogFile, DoneFile: string;
+            Lines: TArrayOfString;
+            LastCount, i, ResultCode, Elapsed: Integer;
+          begin
+            LogFile := ExpandConstant('{app}\install.log');
+            DoneFile := ExpandConstant('{app}\install.done');
+            LastCount := 0;
+            Elapsed := 0;
+
+            DeleteFile(LogFile);
+            DeleteFile(DoneFile);
+
+            WizardForm.NextButton.Enabled := False;
+            WizardForm.BackButton.Enabled := False;
+            WizardForm.CancelButton.Enabled := False;
+
+            StatusLabel.Caption := '설치 진행 중...';
+
+            Exec(ExpandConstant('{app}\python\python.exe'),
+                 ExpandConstant('"{app}\install.py" --inno'),
+                 ExpandConstant('{app}'),
+                 SW_HIDE, ewNoWait, ResultCode);
+
+            while not FileExists(DoneFile) do
+            begin
+              Sleep(500);
+              Elapsed := Elapsed + 1;
+              Application.ProcessMessages;
+
+              if Elapsed > 1800 then
+              begin
+                StatusLabel.Caption := '설치 시간 초과 (15분)';
+                Break;
+              end;
+
+              if FileExists(LogFile) then
+              begin
+                if LoadStringsFromFile(LogFile, Lines) then
+                begin
+                  if GetArrayLength(Lines) > LastCount then
+                  begin
+                    for i := LastCount to GetArrayLength(Lines) - 1 do
+                      InstallMemo.Lines.Add(Lines[i]);
+                    LastCount := GetArrayLength(Lines);
+                    SendMessage(InstallMemo.Handle, 277, 7, 0);
+                  end;
+                end;
+              end;
+            end;
+
+            if FileExists(LogFile) then
+            begin
+              if LoadStringsFromFile(LogFile, Lines) then
+              begin
+                for i := LastCount to GetArrayLength(Lines) - 1 do
+                  InstallMemo.Lines.Add(Lines[i]);
+              end;
+            end;
+
+            if FileExists(DoneFile) then
+            begin
+              if LoadStringsFromFile(DoneFile, Lines) then
+              begin
+                if (GetArrayLength(Lines) > 0) and (Lines[0] = '0') then
+                  StatusLabel.Caption := '설치 완료!'
+                else
+                  StatusLabel.Caption := '설치 중 일부 문제 발생';
+              end;
+            end;
+
+            WizardForm.NextButton.Enabled := True;
+            WizardForm.CancelButton.Enabled := True;
+            InstallDone := True;
+          end;
+
+          procedure CurPageChanged(CurPageID: Integer);
+          begin
+            if (CurPageID = InstallPage.ID) and (not InstallDone) then
+              RunWorkerInstall;
+          end;
+          '@
+
+          $iss = $iss.Replace('__ISS_VERSION__', $version)
 
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           Set-Content -Path "setup.iss" -Value $iss -Encoding UTF8

@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 
 interface ReleaseInfo {
   version: string;
-  hasMac: boolean;
-  hasWin: boolean;
   published: string;
 }
 
@@ -27,8 +25,6 @@ function WorkerInstall() {
         if (data.tag_name) {
           setRelease({
             version: data.tag_name.replace(/^v/, ""),
-            hasMac: data.assets?.some((a: { name: string }) => a.name.endsWith(".pkg")) ?? false,
-            hasWin: data.assets?.some((a: { name: string }) => a.name.endsWith(".exe")) ?? false,
             published: data.published_at || "",
           });
         }
@@ -65,17 +61,13 @@ function WorkerInstall() {
         <div className="flex gap-3">
           <a
             href="/api/download?type=mac"
-            className={`inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm ${
-              release && !release.hasMac ? "opacity-50 pointer-events-none" : ""
-            }`}
+            className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm"
           >
             Mac 다운로드 (.pkg)
           </a>
           <a
             href="/api/download?type=win"
-            className={`inline-flex items-center gap-2 bg-blue-500 text-white font-bold px-6 py-2.5 rounded-md hover:bg-blue-400 transition-colors text-sm ${
-              release && !release.hasWin ? "opacity-50 pointer-events-none" : ""
-            }`}
+            className="inline-flex items-center gap-2 bg-blue-500 text-white font-bold px-6 py-2.5 rounded-md hover:bg-blue-400 transition-colors text-sm"
           >
             Windows 다운로드 (.exe)
           </a>
