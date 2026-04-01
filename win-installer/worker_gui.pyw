@@ -597,11 +597,11 @@ class CrawlStationGUI:
                 self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
                 return
 
-            # 2. 워커 테스트 실행 (3초간 실행하여 에러 확인)
+            # 2. 워커 테스트 실행 (3초간 PIPE로 에러 확인 → 성공 시 로그파일로 재시작)
             self.root.after(0, lambda: self._log_append("워커 시작 중...\n"))
             try:
                 CREATE_NO_WINDOW = 0x08000000
-                proc = subprocess.Popen(
+                test_proc = subprocess.Popen(
                     [PYTHON_EXE, WORKER_SCRIPT],
                     cwd=WORKER_DIR,
                     creationflags=CREATE_NO_WINDOW,
@@ -611,24 +611,39 @@ class CrawlStationGUI:
                 )
                 # 3초 대기 후 프로세스가 살아있는지 확인
                 time.sleep(3)
-                if proc.poll() is not None:
+                if test_proc.poll() is not None:
                     # 프로세스가 종료됨 — 에러 확인
-                    stdout = proc.stdout.read().decode("utf-8", errors="replace")[-1000:]
-                    stderr = proc.stderr.read().decode("utf-8", errors="replace")[-1000:]
+                    stdout = test_proc.stdout.read().decode("utf-8", errors="replace")[-1000:]
+                    stderr = test_proc.stderr.read().decode("utf-8", errors="replace")[-1000:]
                     error_msg = stderr or stdout or "(출력 없음)"
                     msg = f"워커가 즉시 종료되었습니다.\n\n{error_msg}"
                     self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
                     self.root.after(0, lambda: self._log_append(f"[에러] {error_msg}\n"))
                     return
                 else:
-                    # 살아있음 — stdout/stderr 파이프 해제 (백그라운드 실행)
-                    proc.stdout.close()
-                    proc.stderr.close()
-                    self.root.after(0, lambda: self._log_append("워커가 시작되었습니다.\n"))
+                    # 테스트 통과 — 테스트 프로세스 종료 후 로그파일 출력으로 재시작
+                    test_proc.kill()
+                    test_proc.wait()
             except Exception as e:
                 msg = f"워커 실행 실패:\n\n{str(e)}"
                 self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
                 return
+
+            # 3. 본 실행 (stdout/stderr → 로그파일, 파이프 없음)
+            try:
+                os.makedirs(LOG_DIR, exist_ok=True)
+                log_fh = open(LOG_FILE, "a", encoding="utf-8")
+                subprocess.Popen(
+                    [PYTHON_EXE, WORKER_SCRIPT],
+                    cwd=WORKER_DIR,
+                    creationflags=CREATE_NO_WINDOW,
+                    env=self._worker_env(),
+                    stdout=log_fh,
+                    stderr=log_fh,
+                )
+                self.root.after(0, lambda: self._log_append("워커가 시작되었습니다.\n"))
+            except Exception as e:
+                self.root.after(0, lambda: self._log_append(f"[에러] 본 실행 실패: {e}\n"))
 
             time.sleep(2)
             self._refresh_data()
