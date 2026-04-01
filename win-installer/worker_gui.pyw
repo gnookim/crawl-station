@@ -20,16 +20,19 @@ def _error_log(msg):
         pass
 
 try:
-    # embedded Python에서 tkinter가 Tcl/Tk를 찾을 수 있도록 경로 설정
+    # embedded Python에서 _tkinter.pyd가 tcl/tk DLL을 찾을 수 있도록 경로 추가
     _py_dir = os.path.dirname(sys.executable)
+    if hasattr(os, "add_dll_directory"):
+        os.add_dll_directory(_py_dir)
+
+    # Tcl/Tk 라이브러리 스크립트 경로 설정
     _tcl_dir = os.path.join(_py_dir, "tcl")
     if os.path.exists(_tcl_dir):
-        # tcl8.6, tk8.6 디렉토리 찾기
         for d in os.listdir(_tcl_dir):
             if d.startswith("tcl"):
-                os.environ.setdefault("TCL_LIBRARY", os.path.join(_tcl_dir, d))
+                os.environ["TCL_LIBRARY"] = os.path.join(_tcl_dir, d)
             elif d.startswith("tk"):
-                os.environ.setdefault("TK_LIBRARY", os.path.join(_tcl_dir, d))
+                os.environ["TK_LIBRARY"] = os.path.join(_tcl_dir, d)
     import tkinter as tk
 except Exception as e:
     _error_log("tkinter import failed: " + str(e))
