@@ -17,7 +17,7 @@ SUPABASE_URL = "__SUPABASE_URL__"
 SUPABASE_KEY = "__SUPABASE_KEY__"
 STATION_URL = "__STATION_URL__"
 INSTALL_DIR = r"C:\CrawlWorker"
-TOTAL = 9
+TOTAL = 10
 
 # ── 전역 상태 ──
 SESSION_ID = uuid.uuid4().hex
@@ -602,6 +602,53 @@ def step_register_service():
         raise StepError("바로가기 생성 실패: " + str(e))
 
 
+def step_verify_gui():
+    """10단계: GUI 앱 검증 (tkinter 동작 확인)"""
+    py = PY_PATH
+    gui_path = os.path.join(INSTALL_DIR, "worker_gui.pyw")
+
+    if not os.path.exists(gui_path):
+        log("    -> worker_gui.pyw 없음 (건너뜀)")
+        return
+
+    # tkinter import 테스트
+    log("    -> tkinter 로드 테스트...")
+    r = subprocess.run(
+        [py, "-c", "import tkinter; print('OK:', tkinter.TkVersion)"],
+        capture_output=True, text=True, timeout=15,
+        env={**os.environ, "TCL_LIBRARY": "", "TK_LIBRARY": ""},
+    )
+
+    if r.returncode != 0:
+        # DLL 누락일 가능성 — python 디렉토리의 DLL 경로 추가해서 재시도
+        log("    -> 기본 import 실패, DLL 경로 추가 후 재시도...")
+        test_script = (
+            "import os, sys\n"
+            "py_dir = os.path.dirname(sys.executable)\n"
+            "if hasattr(os, 'add_dll_directory'): os.add_dll_directory(py_dir)\n"
+            "tcl_dir = os.path.join(py_dir, 'tcl')\n"
+            "if os.path.exists(tcl_dir):\n"
+            "    for d in os.listdir(tcl_dir):\n"
+            "        if d.startswith('tcl'): os.environ['TCL_LIBRARY'] = os.path.join(tcl_dir, d)\n"
+            "        elif d.startswith('tk'): os.environ['TK_LIBRARY'] = os.path.join(tcl_dir, d)\n"
+            "import tkinter\n"
+            "print('OK:', tkinter.TkVersion)\n"
+        )
+        r2 = subprocess.run([py, "-c", test_script],
+                            capture_output=True, text=True, timeout=15)
+        if r2.returncode != 0:
+            raise StepError(
+                "tkinter 로드 실패 — GUI 앱이 동작하지 않습니다",
+                stdout=r.stdout + "\n" + r2.stdout,
+                stderr=r.stderr + "\n" + r2.stderr,
+            )
+        log("    -> tkinter {} (DLL 경로 추가 필요)".format(r2.stdout.strip()))
+    else:
+        log("    -> tkinter {} OK".format(r.stdout.strip()))
+
+    log("    -> GUI 앱 검증 완료")
+
+
 # ═══════════════════════════════════════════════════════
 #  메인
 # ═══════════════════════════════════════════════════════
@@ -655,6 +702,7 @@ def main():
         (7, "워커 파일 다운로드", step_download_files),
         (8, "설정 파일 생성", step_create_env),
         (9, "서비스 등록", step_register_service),
+        (10, "GUI 앱 검증", step_verify_gui),
     ]
 
     failed_steps = []

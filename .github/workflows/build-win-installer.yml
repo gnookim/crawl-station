@@ -53,10 +53,11 @@ jobs:
           New-Item -ItemType Directory -Path "$embed\tkinter" -Force | Out-Null
           Copy-Item -Recurse "$fullPy\Lib\tkinter\*" "$embed\tkinter\"
 
-          # C extension and DLLs
+          # C extension and ALL DLLs from full Python (zlib1.dll 등 누락 방지)
           Copy-Item "$fullPy\DLLs\_tkinter.pyd" "$embed\"
-          Copy-Item "$fullPy\DLLs\tcl86t.dll" "$embed\"
-          Copy-Item "$fullPy\DLLs\tk86t.dll" "$embed\"
+          Copy-Item "$fullPy\DLLs\*.dll" "$embed\" -ErrorAction SilentlyContinue
+          Write-Host "DLLs copied:"
+          Get-ChildItem "$embed\*.dll" | ForEach-Object { Write-Host "  $_" }
 
           # Tcl/Tk scripts
           Copy-Item -Recurse "$fullPy\tcl" "$embed\tcl"
@@ -143,7 +144,7 @@ jobs:
           [Code]
           var
             InstallPage: TWizardPage;
-            StepLabels: array[0..8] of TNewStaticText;
+            StepLabels: array[0..9] of TNewStaticText;
             ProgressBar: TNewProgressBar;
             StatusLabel: TNewStaticText;
             InstallDone: Boolean;
@@ -154,12 +155,13 @@ jobs:
               0: Result := '기존 설치 확인';
               1: Result := '설치 디렉토리 생성';
               2: Result := 'Python 3.12 설치';
-              3: Result := 'pip 설치';
-              4: Result := '크롤링 패키지 설치';
-              5: Result := 'Chromium 다운로드';
-              6: Result := '워커 설정 파일 생성';
-              7: Result := '자동 시작 등록';
-              8: Result := '설치 완료 확인';
+              3: Result := '환경 확인';
+              4: Result := 'pip 설치';
+              5: Result := '크롤링 패키지 설치';
+              6: Result := '워커 파일 다운로드';
+              7: Result := '설정 파일 생성';
+              8: Result := '서비스 등록';
+              9: Result := 'GUI 앱 검증';
             else
               Result := '단계 ' + IntToStr(i);
             end;
@@ -175,7 +177,7 @@ jobs:
               'Python, Chromium, 크롤링 패키지를 설치합니다. 5~10분 소요될 수 있습니다.');
 
             yPos := 8;
-            for i := 0 to 8 do
+            for i := 0 to 9 do
             begin
               lbl := TNewStaticText.Create(InstallPage);
               lbl.Parent := InstallPage.Surface;
@@ -198,7 +200,7 @@ jobs:
             ProgressBar.Width := InstallPage.SurfaceWidth - 24;
             ProgressBar.Height := 20;
             ProgressBar.Min := 0;
-            ProgressBar.Max := 9;
+            ProgressBar.Max := 10;
             ProgressBar.Position := 0;
 
             yPos := yPos + 30;
@@ -220,7 +222,7 @@ jobs:
             i: Integer;
             prefix: string;
           begin
-            for i := 0 to 8 do
+            for i := 0 to 9 do
             begin
               if i < stepNum then
               begin
@@ -345,22 +347,36 @@ jobs:
               begin
                 if (GetArrayLength(Lines) > 0) and (Lines[0] = '0') then
                 begin
-                  UpdateStepUI(9, 'done');
-                  ProgressBar.Position := 9;
-                  StatusLabel.Caption := '설치 완료!';
+                  UpdateStepUI(10, 'done');
+                  ProgressBar.Position := 10;
+                  StatusLabel.Caption := '설치 완료! 워커가 실행 중입니다.';
+                  StatusLabel.Font.Color := $00008000;
                 end
                 else
                 begin
                   StatusLabel.Caption := '설치 중 일부 문제 발생';
+                  StatusLabel.Font.Color := $000000FF;
                 end;
               end;
             end
             else
+            begin
               StatusLabel.Caption := '설치 시간 초과 또는 오류';
+              StatusLabel.Font.Color := $000000FF;
+            end;
 
             WizardForm.NextButton.Enabled := True;
-            WizardForm.CancelButton.Enabled := True;
+            WizardForm.NextButton.Caption := '완료';
+            WizardForm.CancelButton.Enabled := False;
             InstallDone := True;
+          end;
+
+          function ShouldSkipPage(PageID: Integer): Boolean;
+          begin
+            if (PageID = wpFinished) and InstallDone then
+              Result := True
+            else
+              Result := False;
           end;
 
           procedure CurPageChanged(CurPageID: Integer);
