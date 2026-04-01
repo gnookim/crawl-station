@@ -219,7 +219,7 @@ class CrawlStationGUI:
         self.root.configure(bg=COL_BG)
 
         # Try to set icon if available
-        ico_path = os.path.join(WORKER_DIR, "icon.ico")
+        ico_path = os.path.join(WORKER_DIR, "app.ico")
         if os.path.isfile(ico_path):
             try:
                 self.root.iconbitmap(ico_path)
@@ -249,12 +249,12 @@ class CrawlStationGUI:
         self.current_task = "-"
         self.log_lines = []
 
-        # Build UI
+        # Build UI (control bar BEFORE log so buttons don't get pushed off)
         self._build_header()
         self._build_status_cards()
         self._build_stats_section()
-        self._build_log_section()
         self._build_control_bar()
+        self._build_log_section()
 
         # Initial refresh
         self._schedule_refresh()
@@ -307,7 +307,7 @@ class CrawlStationGUI:
                                     bg=COL_BG, highlightthickness=0)
         self.status_dot.pack(side="left", padx=(0, 4))
         self._draw_dot(self.status_dot, COL_GRAY)
-        self.lbl_status = tk.Label(badge, text="Stopped",
+        self.lbl_status = tk.Label(badge, text="중지됨",
                                    font=("Segoe UI", 9),
                                    bg=COL_BG, fg=COL_GRAY)
         self.lbl_status.pack(side="left")
@@ -321,10 +321,10 @@ class CrawlStationGUI:
         container.pack(fill="x")
 
         cards_data = [
-            ("Station", "-", COL_GREEN),
-            ("Version", "-", COL_BLUE),
+            ("연결", "-", COL_GREEN),
+            ("버전", "-", COL_BLUE),
             ("URL", "-", COL_PURPLE),
-            ("Last Seen", "-", COL_GRAY),
+            ("마지막 응답", "-", COL_GRAY),
         ]
         self.card_labels = {}
 
@@ -355,7 +355,7 @@ class CrawlStationGUI:
         # Processed
         f1 = tk.Frame(stats_frame, bg=COL_BG)
         f1.pack(side="left", expand=True, fill="x")
-        tk.Label(f1, text="Processed", font=("Segoe UI", 8),
+        tk.Label(f1, text="처리", font=("Segoe UI", 8),
                  bg=COL_BG, fg=COL_TEXT_SECONDARY).pack(anchor="w")
         self.lbl_processed = tk.Label(f1, text="0",
                                       font=("Segoe UI", 11, "bold"),
@@ -365,7 +365,7 @@ class CrawlStationGUI:
         # Errors
         f2 = tk.Frame(stats_frame, bg=COL_BG)
         f2.pack(side="left", expand=True, fill="x")
-        tk.Label(f2, text="Errors", font=("Segoe UI", 8),
+        tk.Label(f2, text="에러", font=("Segoe UI", 8),
                  bg=COL_BG, fg=COL_TEXT_SECONDARY).pack(anchor="w")
         self.lbl_errors = tk.Label(f2, text="0",
                                    font=("Segoe UI", 11, "bold"),
@@ -375,7 +375,7 @@ class CrawlStationGUI:
         # Current Task
         f3 = tk.Frame(stats_frame, bg=COL_BG)
         f3.pack(side="left", expand=True, fill="x")
-        tk.Label(f3, text="Current Task", font=("Segoe UI", 8),
+        tk.Label(f3, text="현재 작업", font=("Segoe UI", 8),
                  bg=COL_BG, fg=COL_TEXT_SECONDARY).pack(anchor="w")
         self.lbl_task = tk.Label(f3, text="-",
                                  font=("Consolas", 9),
@@ -388,7 +388,7 @@ class CrawlStationGUI:
     def _build_log_section(self):
         log_header = tk.Frame(self.root, bg=COL_BG, padx=16, pady=4)
         log_header.pack(fill="x")
-        tk.Label(log_header, text="Logs", font=("Segoe UI", 9, "bold"),
+        tk.Label(log_header, text="로그", font=("Segoe UI", 9, "bold"),
                  bg=COL_BG, fg=COL_TEXT).pack(side="left")
 
         # Refresh button
@@ -399,7 +399,7 @@ class CrawlStationGUI:
         refresh_btn.bind("<Button-1>", lambda e: self._trigger_refresh())
 
         # Open log file button
-        open_btn = tk.Label(log_header, text="Open File",
+        open_btn = tk.Label(log_header, text="파일 열기",
                             font=("Segoe UI", 8, "underline"), bg=COL_BG,
                             fg=COL_BLUE, cursor="hand2")
         open_btn.pack(side="right", padx=(0, 10))
@@ -440,7 +440,7 @@ class CrawlStationGUI:
         btn_frame.pack(side="left")
 
         self.btn_start = tk.Button(
-            btn_frame, text="\u25B6  Start",
+            btn_frame, text="\u25B6  시작",
             font=("Segoe UI", 9, "bold"),
             bg=COL_GREEN, fg="white", relief="flat",
             activebackground="#2DB84D", activeforeground="white",
@@ -450,7 +450,7 @@ class CrawlStationGUI:
         self.btn_start.pack(side="left", padx=(0, 6))
 
         self.btn_stop = tk.Button(
-            btn_frame, text="\u25A0  Stop",
+            btn_frame, text="\u25A0  중지",
             font=("Segoe UI", 9, "bold"),
             bg=COL_ORANGE, fg="white", relief="flat",
             activebackground="#E08600", activeforeground="white",
@@ -460,7 +460,7 @@ class CrawlStationGUI:
         self.btn_stop.pack(side="left", padx=(0, 6))
 
         self.btn_restart = tk.Button(
-            btn_frame, text="\u21BB Restart",
+            btn_frame, text="\u21BB 재시작",
             font=("Segoe UI", 9),
             bg=COL_BLUE, fg="white", relief="flat",
             activebackground="#005BBB", activeforeground="white",
@@ -469,9 +469,9 @@ class CrawlStationGUI:
         )
         self.btn_restart.pack(side="left")
 
-        # Uninstall on the right
+        # 삭제 버튼 (오른쪽)
         self.btn_uninstall = tk.Button(
-            bar, text="Uninstall",
+            bar, text="삭제",
             font=("Segoe UI", 9), fg=COL_RED,
             bg=COL_BG, relief="flat",
             activeforeground=COL_RED,
@@ -593,9 +593,9 @@ class CrawlStationGUI:
 
     def _uninstall(self):
         if not messagebox.askyesno(
-            "Uninstall CrawlStation Worker",
-            "The worker service, settings, and all data will be deleted.\n"
-            "Are you sure you want to uninstall?",
+            "CrawlStation Worker 삭제",
+            "워커 서비스, 설정, 모든 데이터가 삭제됩니다.\n"
+            "정말 삭제하시겠습니까?",
             icon="warning",
         ):
             return
@@ -755,18 +755,18 @@ class CrawlStationGUI:
         # Status dot + label
         if running:
             self._draw_dot(self.status_dot, COL_GREEN)
-            self.lbl_status.configure(text="Running", fg=COL_GREEN)
+            self.lbl_status.configure(text="실행 중", fg=COL_GREEN)
         else:
             self._draw_dot(self.status_dot, COL_GRAY)
-            self.lbl_status.configure(text="Stopped", fg=COL_GRAY)
+            self.lbl_status.configure(text="중지됨", fg=COL_GRAY)
 
         # Status cards
         if station_connected:
-            self.card_labels["Station"].configure(text="Connected", fg=COL_GREEN)
+            self.card_labels["연결"].configure(text="연결됨", fg=COL_GREEN)
         else:
-            self.card_labels["Station"].configure(text="Offline", fg=COL_ORANGE)
+            self.card_labels["연결"].configure(text="오프라인", fg=COL_ORANGE)
 
-        self.card_labels["Version"].configure(text=f"v{version}")
+        self.card_labels["버전"].configure(text=f"v{version}")
 
         # Truncate URL for display
         display_url = station_url
@@ -778,7 +778,7 @@ class CrawlStationGUI:
         display_last = last_seen
         if len(display_last) > 18:
             display_last = display_last[:18] + "..."
-        self.card_labels["Last Seen"].configure(text=display_last)
+        self.card_labels["마지막 응답"].configure(text=display_last)
 
         # Stats
         self.lbl_processed.configure(text=str(processed))
