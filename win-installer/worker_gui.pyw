@@ -432,6 +432,35 @@ class CrawlStationGUI:
         sep = tk.Frame(self.root, height=1, bg=COL_BORDER)
         sep.pack(fill="x")
 
+    def _make_button(self, parent, text, bg, fg="white", font_style=("Segoe UI", 9, "bold"),
+                     active_bg=None, command=None):
+        """호버/클릭 효과가 있는 버튼 생성"""
+        if active_bg is None:
+            # 약간 어두운 색
+            active_bg = bg
+        btn = tk.Button(
+            parent, text=text,
+            font=font_style,
+            bg=bg, fg=fg, relief="raised", bd=1,
+            activebackground=active_bg, activeforeground=fg,
+            padx=14, pady=5, cursor="hand2",
+            command=command,
+        )
+        _bg = bg
+        _abg = active_bg
+
+        def on_enter(e):
+            if btn["state"] != "disabled":
+                btn.configure(bg=_abg)
+
+        def on_leave(e):
+            if btn["state"] != "disabled":
+                btn.configure(bg=_bg)
+
+        btn.bind("<Enter>", on_enter)
+        btn.bind("<Leave>", on_leave)
+        return btn
+
     def _build_control_bar(self):
         bar = tk.Frame(self.root, bg=COL_BG, padx=16, pady=10)
         bar.pack(fill="x")
@@ -439,45 +468,24 @@ class CrawlStationGUI:
         btn_frame = tk.Frame(bar, bg=COL_BG)
         btn_frame.pack(side="left")
 
-        self.btn_start = tk.Button(
-            btn_frame, text="\u25B6  시작",
-            font=("Segoe UI", 9, "bold"),
-            bg=COL_GREEN, fg="white", relief="flat",
-            activebackground="#2DB84D", activeforeground="white",
-            padx=14, pady=4, cursor="hand2",
-            command=self._start_worker,
-        )
+        self.btn_start = self._make_button(
+            btn_frame, "\u25B6  시작", COL_GREEN, active_bg="#2DB84D",
+            command=self._start_worker)
         self.btn_start.pack(side="left", padx=(0, 6))
 
-        self.btn_stop = tk.Button(
-            btn_frame, text="\u25A0  중지",
-            font=("Segoe UI", 9, "bold"),
-            bg=COL_ORANGE, fg="white", relief="flat",
-            activebackground="#E08600", activeforeground="white",
-            padx=14, pady=4, cursor="hand2",
-            command=self._stop_worker,
-        )
+        self.btn_stop = self._make_button(
+            btn_frame, "\u25A0  중지", COL_ORANGE, active_bg="#E08600",
+            command=self._stop_worker)
         self.btn_stop.pack(side="left", padx=(0, 6))
 
-        self.btn_restart = tk.Button(
-            btn_frame, text="\u21BB 재시작",
-            font=("Segoe UI", 9),
-            bg=COL_BLUE, fg="white", relief="flat",
-            activebackground="#005BBB", activeforeground="white",
-            padx=14, pady=4, cursor="hand2",
-            command=self._restart_worker,
-        )
+        self.btn_restart = self._make_button(
+            btn_frame, "\u21BB 재시작", COL_BLUE, active_bg="#005BBB",
+            font_style=("Segoe UI", 9), command=self._restart_worker)
         self.btn_restart.pack(side="left")
 
-        # 진단 버튼
-        self.btn_diagnose = tk.Button(
-            btn_frame, text="진단",
-            font=("Segoe UI", 9),
-            bg="#6B7280", fg="white", relief="flat",
-            activebackground="#4B5563", activeforeground="white",
-            padx=14, pady=4, cursor="hand2",
-            command=self._run_diagnostics,
-        )
+        self.btn_diagnose = self._make_button(
+            btn_frame, "진단", "#6B7280", active_bg="#4B5563",
+            font_style=("Segoe UI", 9), command=self._run_diagnostics)
         self.btn_diagnose.pack(side="left", padx=(6, 0))
 
         # 삭제 버튼 (오른쪽)
