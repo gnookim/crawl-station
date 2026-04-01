@@ -37,10 +37,53 @@ jobs:
           }
           Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile payload\python\get-pip.py
 
-          # install.py + run-install.bat 복사
+          # install.py + run-install.bat + worker_gui.pyw 복사
           Copy-Item win-installer\install.py payload\install.py
           Copy-Item win-installer\run-install.bat payload\run-install.bat
+          Copy-Item win-installer\worker_gui.pyw payload\worker_gui.pyw
           Write-Host "Payload ready"
+
+      - name: Copy tkinter to embedded Python
+        shell: pwsh
+        run: |
+          $fullPy = $env:pythonLocation
+          $embed = "payload\python"
+
+          # tkinter Python package
+          New-Item -ItemType Directory -Path "$embed\tkinter" -Force | Out-Null
+          Copy-Item -Recurse "$fullPy\Lib\tkinter\*" "$embed\tkinter\"
+
+          # C extension and DLLs
+          Copy-Item "$fullPy\DLLs\_tkinter.pyd" "$embed\"
+          Copy-Item "$fullPy\DLLs\tcl86t.dll" "$embed\"
+          Copy-Item "$fullPy\DLLs\tk86t.dll" "$embed\"
+
+          # Tcl/Tk scripts
+          Copy-Item -Recurse "$fullPy\tcl" "$embed\tcl"
+          Write-Host "tkinter copied to embedded Python"
+
+      - name: Generate app icon
+        shell: pwsh
+        run: |
+          pip install Pillow
+          python -c "
+          from PIL import Image, ImageDraw, ImageFont
+          sizes = [16,32,48,64,128,256]
+          imgs = []
+          for s in sizes:
+              img = Image.new('RGBA', (s,s), (37,99,235,255))
+              d = ImageDraw.Draw(img)
+              try:
+                  font = ImageFont.truetype('arial.ttf', int(s*0.5))
+              except:
+                  font = ImageFont.load_default()
+              bbox = d.textbbox((0,0), 'CW', font=font)
+              tw, th = bbox[2]-bbox[0], bbox[3]-bbox[1]
+              d.text(((s-tw)//2, (s-th)//2 - int(s*0.05)), 'CW', fill='white', font=font)
+              imgs.append(img)
+          imgs[0].save('payload\\app.ico', format='ICO', sizes=[(s,s) for s in sizes], append_images=imgs[1:])
+          "
+          Write-Host "App icon generated"
 
       - name: Inject credentials
         shell: bash
@@ -73,16 +116,23 @@ jobs:
           Compression=lzma2/ultra64
           SolidCompression=yes
           PrivilegesRequired=lowest
-          SetupIconFile=
+          SetupIconFile=payload\app.ico
           UninstallDisplayName=CrawlStation Worker
           CreateUninstallRegKey=yes
 
           [Files]
           Source: "payload\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
           Source: "payload\install.py"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "payload\worker_gui.pyw"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "payload\app.ico"; DestDir: "{app}"; Flags: ignoreversion
+
+          [Icons]
+          Name: "{group}\CrawlStation Worker"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\worker_gui.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\app.ico"
+          Name: "{userdesktop}\CrawlStation Worker"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\worker_gui.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\app.ico"
 
           [UninstallRun]
           Filename: "taskkill"; Parameters: "/f /im python.exe"; Flags: runhidden
+          Filename: "taskkill"; Parameters: "/f /im pythonw.exe"; Flags: runhidden
 
           [UninstallDelete]
           Type: filesandordirs; Name: "{app}"
@@ -90,57 +140,130 @@ jobs:
           [Code]
           var
             InstallPage: TWizardPage;
-            InstallMemo: TNewMemo;
+            StepLabels: array[0..8] of TNewStaticText;
+            ProgressBar: TNewProgressBar;
             StatusLabel: TNewStaticText;
             InstallDone: Boolean;
 
+          function GetStepName(i: Integer): string;
+          begin
+            case i of
+              0: Result := '기존 설치 확인';
+              1: Result := '설치 디렉토리 생성';
+              2: Result := 'Python 3.12 설치';
+              3: Result := 'pip 설치';
+              4: Result := '크롤링 패키지 설치';
+              5: Result := 'Chromium 다운로드';
+              6: Result := '워커 설정 파일 생성';
+              7: Result := '자동 시작 등록';
+              8: Result := '설치 완료 확인';
+            else
+              Result := '단계 ' + IntToStr(i);
+            end;
+          end;
+
           procedure InitializeWizard;
+          var
+            i, yPos: Integer;
+            lbl: TNewStaticText;
           begin
             InstallPage := CreateCustomPage(wpInstalling,
               'CrawlStation Worker 설치',
               'Python, Chromium, 크롤링 패키지를 설치합니다. 5~10분 소요될 수 있습니다.');
 
+            yPos := 8;
+            for i := 0 to 8 do
+            begin
+              lbl := TNewStaticText.Create(InstallPage);
+              lbl.Parent := InstallPage.Surface;
+              lbl.Left := 12;
+              lbl.Top := yPos;
+              lbl.Width := InstallPage.SurfaceWidth - 24;
+              lbl.Caption := '     ' + GetStepName(i);
+              lbl.Font.Size := 10;
+              lbl.Font.Color := $00808080;
+              StepLabels[i] := lbl;
+              yPos := yPos + 22;
+            end;
+
+            yPos := yPos + 12;
+
+            ProgressBar := TNewProgressBar.Create(InstallPage);
+            ProgressBar.Parent := InstallPage.Surface;
+            ProgressBar.Left := 12;
+            ProgressBar.Top := yPos;
+            ProgressBar.Width := InstallPage.SurfaceWidth - 24;
+            ProgressBar.Height := 20;
+            ProgressBar.Min := 0;
+            ProgressBar.Max := 9;
+            ProgressBar.Position := 0;
+
+            yPos := yPos + 30;
+
             StatusLabel := TNewStaticText.Create(InstallPage);
             StatusLabel.Parent := InstallPage.Surface;
-            StatusLabel.Left := 0;
-            StatusLabel.Top := 0;
-            StatusLabel.Width := InstallPage.SurfaceWidth;
+            StatusLabel.Left := 12;
+            StatusLabel.Top := yPos;
+            StatusLabel.Width := InstallPage.SurfaceWidth - 24;
             StatusLabel.Caption := '설치 준비 중...';
+            StatusLabel.Font.Size := 9;
             StatusLabel.Font.Style := [fsBold];
-
-            InstallMemo := TNewMemo.Create(InstallPage);
-            InstallMemo.Parent := InstallPage.Surface;
-            InstallMemo.Left := 0;
-            InstallMemo.Top := 24;
-            InstallMemo.Width := InstallPage.SurfaceWidth;
-            InstallMemo.Height := InstallPage.SurfaceHeight - 24;
-            InstallMemo.ReadOnly := True;
-            InstallMemo.ScrollBars := ssVertical;
-            InstallMemo.Font.Name := 'Consolas';
-            InstallMemo.Font.Size := 9;
-            InstallMemo.Color := $001E1E1E;
-            InstallMemo.Font.Color := $0000FF00;
-            InstallMemo.WordWrap := False;
 
             InstallDone := False;
           end;
 
+          procedure UpdateStepUI(stepNum: Integer; status: string);
+          var
+            i: Integer;
+            prefix: string;
+          begin
+            for i := 0 to 8 do
+            begin
+              if i < stepNum then
+              begin
+                StepLabels[i].Caption := '  ✓  ' + GetStepName(i);
+                StepLabels[i].Font.Color := $00008000;
+              end
+              else if i = stepNum then
+              begin
+                if status = 'fail' then
+                begin
+                  StepLabels[i].Caption := '  ✕  ' + GetStepName(i);
+                  StepLabels[i].Font.Color := $000000FF;
+                end
+                else
+                begin
+                  StepLabels[i].Caption := '  ►  ' + GetStepName(i) + '...';
+                  StepLabels[i].Font.Color := $00FF0000;
+                end;
+              end
+              else
+              begin
+                StepLabels[i].Caption := '     ' + GetStepName(i);
+                StepLabels[i].Font.Color := $00808080;
+              end;
+            end;
+
+            if stepNum <= 8 then
+              ProgressBar.Position := stepNum;
+          end;
+
           procedure RunWorkerInstall;
           var
-            LogFile, DoneFile, PyPath, ScriptPath, BatPath: string;
+            ProgressFile, DoneFile, PyPath, ScriptPath, BatPath: string;
             Lines: TArrayOfString;
-            LastCount, i, ResultCode, Elapsed: Integer;
+            StepNum, ResultCode, Elapsed: Integer;
+            StepName, StepStatus: string;
             ExecOK: Boolean;
           begin
             PyPath := ExpandConstant('{app}\python\python.exe');
             ScriptPath := ExpandConstant('{app}\install.py');
-            LogFile := ExpandConstant('{app}\install.log');
+            ProgressFile := 'C:\CrawlWorker\install.progress';
             DoneFile := ExpandConstant('{app}\install.done');
             BatPath := ExpandConstant('{app}\run-inno.bat');
-            LastCount := 0;
             Elapsed := 0;
 
-            DeleteFile(LogFile);
+            DeleteFile(ProgressFile);
             DeleteFile(DoneFile);
             DeleteFile(BatPath);
 
@@ -149,13 +272,9 @@ jobs:
             WizardForm.CancelButton.Enabled := False;
 
             StatusLabel.Caption := '설치 진행 중...';
-            InstallMemo.Lines.Add('Python: ' + PyPath);
-            InstallMemo.Lines.Add('Script: ' + ScriptPath);
-            InstallMemo.Lines.Add('');
 
             if not FileExists(PyPath) then
             begin
-              InstallMemo.Lines.Add('[ERROR] python.exe not found!');
               StatusLabel.Caption := 'Python을 찾을 수 없습니다';
               WizardForm.NextButton.Enabled := True;
               Exit;
@@ -163,7 +282,6 @@ jobs:
 
             if not FileExists(ScriptPath) then
             begin
-              InstallMemo.Lines.Add('[ERROR] install.py not found!');
               StatusLabel.Caption := 'install.py를 찾을 수 없습니다';
               WizardForm.NextButton.Enabled := True;
               Exit;
@@ -174,22 +292,17 @@ jobs:
               '"' + PyPath + '" "' + ScriptPath + '" --inno' + #13#10,
               False);
 
-            InstallMemo.Lines.Add('Starting installer...');
-            InstallMemo.Lines.Add('');
-
             ExecOK := Exec(BatPath, '', ExpandConstant('{app}'),
                            SW_HIDE, ewNoWait, ResultCode);
 
             if not ExecOK then
             begin
-              InstallMemo.Lines.Add('[ERROR] Failed to start (code: ' + IntToStr(ResultCode) + ')');
-              InstallMemo.Lines.Add('Trying direct exec...');
+              StatusLabel.Caption := '인스톨러 시작 실패 (code: ' + IntToStr(ResultCode) + ')';
               ExecOK := Exec(PyPath, '"' + ScriptPath + '" --inno',
                              ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode);
               if not ExecOK then
               begin
-                InstallMemo.Lines.Add('[ERROR] Direct exec also failed (code: ' + IntToStr(ResultCode) + ')');
-                StatusLabel.Caption := '인스톨러 시작 실패';
+                StatusLabel.Caption := '직접 실행도 실패 (code: ' + IntToStr(ResultCode) + ')';
                 WizardForm.NextButton.Enabled := True;
                 Exit;
               end;
@@ -207,30 +320,19 @@ jobs:
                 Break;
               end;
 
-              if (Elapsed = 20) and (not FileExists(LogFile)) then
-                InstallMemo.Lines.Add('Waiting for log file...');
-
-              if FileExists(LogFile) then
+              if FileExists(ProgressFile) then
               begin
-                if LoadStringsFromFile(LogFile, Lines) then
+                if LoadStringsFromFile(ProgressFile, Lines) then
                 begin
-                  if GetArrayLength(Lines) > LastCount then
+                  if GetArrayLength(Lines) >= 3 then
                   begin
-                    for i := LastCount to GetArrayLength(Lines) - 1 do
-                      InstallMemo.Lines.Add(Lines[i]);
-                    LastCount := GetArrayLength(Lines);
-                    SendMessage(InstallMemo.Handle, 277, 7, 0);
+                    StepNum := StrToIntDef(Lines[0], 0);
+                    StepName := Lines[1];
+                    StepStatus := Lines[2];
+                    UpdateStepUI(StepNum, StepStatus);
+                    StatusLabel.Caption := StepName;
                   end;
                 end;
-              end;
-            end;
-
-            if FileExists(LogFile) then
-            begin
-              if LoadStringsFromFile(LogFile, Lines) then
-              begin
-                for i := LastCount to GetArrayLength(Lines) - 1 do
-                  InstallMemo.Lines.Add(Lines[i]);
               end;
             end;
 
@@ -239,9 +341,15 @@ jobs:
               if LoadStringsFromFile(DoneFile, Lines) then
               begin
                 if (GetArrayLength(Lines) > 0) and (Lines[0] = '0') then
-                  StatusLabel.Caption := '설치 완료!'
+                begin
+                  UpdateStepUI(9, 'done');
+                  ProgressBar.Position := 9;
+                  StatusLabel.Caption := '설치 완료!';
+                end
                 else
+                begin
                   StatusLabel.Caption := '설치 중 일부 문제 발생';
+                end;
               end;
             end
             else

@@ -100,6 +100,16 @@ def write_done_marker(success):
 #  Station 진행 상태 보고
 # ═══════════════════════════════════════════════════════
 
+def update_progress_file(step, name, status):
+    """Inno Setup이 읽을 수 있는 진행 파일 작성"""
+    try:
+        path = os.path.join(INSTALL_DIR, "install.progress")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("{}\n{}\n{}".format(step, name, status))
+    except Exception:
+        pass
+
+
 def report_status(action, **kwargs):
     """Station /api/install-status에 진행 상태 보고. 실패해도 무시."""
     payload = {"session_id": SESSION_ID, "action": action}
@@ -237,11 +247,13 @@ def run_step(step_num, step_name, func, max_retries=3):
     func() → None (성공) or raise StepError (실패)
     """
     progress(step_num, TOTAL, step_name)
+    update_progress_file(step_num, step_name, "running")
     report_status("step", step_number=step_num, step_name=step_name)
 
     for attempt in range(max_retries + 1):
         try:
             func()
+            update_progress_file(step_num, step_name, "done")
             report_status("step_done", step_number=step_num, step_name=step_name, success=True)
             return True
         except Exception as e:
@@ -255,6 +267,7 @@ def run_step(step_num, step_name, func, max_retries=3):
 
             if attempt >= max_retries:
                 log("    -> [FAIL] {} 최종 실패 ({}회 시도)".format(step_name, attempt + 1))
+                update_progress_file(step_num, step_name, "failed")
                 report_status("step_done", step_number=step_num, step_name=step_name, success=False)
                 return False
 
@@ -272,6 +285,7 @@ def run_step(step_num, step_name, func, max_retries=3):
             diagnosis = result.get("diagnosis", "")
             if diagnosis:
                 log("    -> 진단: " + diagnosis[:300])
+                update_progress_file(step_num, step_name, "diagnosing")
                 report_status("diagnosing", diagnosis=diagnosis,
                               diagnosis_count=attempt + 1)
 
@@ -702,6 +716,7 @@ def main():
     log("")
     log("  ======================================================")
 
+    update_progress_file(10, "설치 완료", "complete")
     report_status("complete", success=True)
     write_done_marker(True)
     if LOG_FILE:
