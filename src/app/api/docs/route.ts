@@ -27,7 +27,7 @@ X-API-Key: cs_abc123...
 \`\`\`
 
 인증 필요: \`POST /api/crawl\`, \`POST /api/dispatch\`
-인증 불필요: \`GET /api/crawl\` (결과 조회), \`GET /api/workers\`
+인증 불필요: \`GET /api/crawl\` (결과 조회), \`GET /api/workers\`, \`POST /api/diagnose\` (인스톨러 AI 진단)
 
 ## 연동 흐름
 
@@ -249,6 +249,15 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 설치 시 시작프로그램 자동 등록 (레지스트리)
 - 바탕화면에 시작/중지/삭제 바로가기 생성
 - 다운로드 API에 ?type=win 추가
+
+### AI 자가 진단 인스톨러 (v0.4.0)
+- Windows 인스톨러에 AI 자가 진단 시스템 탑재
+- 설치 중 오류 발생 시 Station의 Claude AI가 자동 진단
+- 환경 스냅샷 수집 (OS, Python, 디스크, 네트워크, PATH 등)
+- AI가 수정 명령을 반환하면 자동 실행 후 재시도 (단계별 최대 3회)
+- POST /api/diagnose 엔드포인트 추가
+- 위험 명령 블록리스트 + 서버사이드 검증으로 안전성 확보
+- 9단계 설치 과정을 각각 독립 함수로 분리, 실패 추적 강화
 `;
 
 export async function GET(request: NextRequest) {

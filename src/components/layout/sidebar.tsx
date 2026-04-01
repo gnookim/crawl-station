@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/apps", label: "연결된 앱", icon: "🔑" },
   { href: "/guide", label: "연동 가이드", icon: "📖" },
   { href: "/changelog", label: "업데이트 기록", icon: "📝" },
+  { href: "/settings", label: "시스템 설정", icon: "🔧" },
 ];
 
 export function Sidebar() {

@@ -1,8 +1,9 @@
 """
-CrawlStation Worker — Windows Installer
+CrawlStation Worker — Windows Installer (AI 자가 진단)
 Python embedded + 패키지 + Chromium + 서비스 자동 등록
+설치 실패 시 Station AI가 자동 진단 + 수정 + 재시도
 """
-import os, sys, shutil, uuid, subprocess, platform
+import os, sys, shutil, uuid, subprocess, platform, json, traceback, time
 try:
     import urllib.request
 except:
@@ -14,218 +15,485 @@ SUPABASE_URL = "__SUPABASE_URL__"
 SUPABASE_KEY = "__SUPABASE_KEY__"
 STATION_URL = "__STATION_URL__"
 INSTALL_DIR = r"C:\CrawlWorker"
+TOTAL = 9
+
+# ── 전역 상태 ──
+SESSION_ID = uuid.uuid4().hex
+INSTALL_LOG = []
+PREVIOUS_FIXES = []
+PY_PATH = ""  # step 3 이후 설정됨
 
 
-def run_visible(cmd, desc=""):
-    """콘솔에 출력이 보이도록 실행"""
-    if desc:
-        print("    " + desc)
-    r = subprocess.run(cmd, capture_output=False)
-    return r.returncode == 0
+# ═══════════════════════════════════════════════════════
+#  유틸리티
+# ═══════════════════════════════════════════════════════
+
+class StepError(Exception):
+    """설치 단계 실패 — stdout/stderr 첨부"""
+    def __init__(self, msg, stdout="", stderr=""):
+        super().__init__(msg)
+        self._stdout = stdout
+        self._stderr = stderr
 
 
-def run_quiet(cmd):
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    return r.returncode == 0
-
-
-def check_network():
-    """네트워크 연결 확인 + 자동 대기"""
-    import time
-    for attempt in range(3):
-        try:
-            urllib.request.urlopen("https://crawl-station.vercel.app/api/workers", timeout=10)
-            return True
-        except Exception:
-            if attempt < 2:
-                print("    -> 네트워크 연결 실패. {}초 후 재시도... ({}/3)".format(
-                    5 * (attempt + 1), attempt + 1))
-                time.sleep(5 * (attempt + 1))
-            else:
-                print("    -> [ERROR] 인터넷 연결을 확인해주세요.")
-                return False
-
-
-def check_disk_space():
-    """디스크 공간 확인 (최소 1GB)"""
-    try:
-        import ctypes
-        free = ctypes.c_ulonglong(0)
-        ctypes.windll.kernel32.GetDiskFreeSpaceExW(
-            "C:\\", None, None, ctypes.pointer(free))
-        gb = free.value / (1024 ** 3)
-        if gb < 1:
-            print("    -> [WARN] 디스크 공간 부족: {:.1f}GB (최소 1GB 필요)".format(gb))
-            return False
-        return True
-    except Exception:
-        return True
+def log(msg):
+    """콘솔 출력 + 로그 기록"""
+    print(msg)
+    INSTALL_LOG.append(msg)
 
 
 def progress(step, total, msg):
     bar_len = 30
     filled = int(bar_len * step / total)
     bar = "#" * filled + "-" * (bar_len - filled)
-    print("\n  [{}/{}] [{}] {}".format(step, total, bar, msg))
+    log("\n  [{}/{}] [{}] {}".format(step, total, bar, msg))
 
 
-def main():
-    os.system("title CrawlStation Worker Installer v{}".format(VERSION))
-    os.system("color 0A")
-    print()
-    print("  ======================================================")
-    print("    CrawlStation Worker v{} - Windows Installer".format(VERSION))
-    print("  ======================================================")
-    print()
-    print("  Python, Chromium, 워커 파일을 자동 설치합니다.")
-    print("  인터넷 연결이 필요하며 5~10분 소요될 수 있습니다.")
-    print()
+def run_captured(cmd, desc="", timeout=300):
+    """명령 실행 + 출력 캡처. 실패 시 StepError raise."""
+    if desc:
+        log("    " + desc)
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        raise StepError(
+            "명령 시간 초과 ({}초): {}".format(timeout, cmd if isinstance(cmd, str) else " ".join(cmd)),
+            stdout=getattr(e, "stdout", "") or "",
+            stderr=getattr(e, "stderr", "") or "",
+        )
+    if r.returncode != 0:
+        raise StepError(
+            "명령 실패 (코드 {}): {}".format(r.returncode, cmd if isinstance(cmd, str) else " ".join(cmd)),
+            stdout=r.stdout or "",
+            stderr=r.stderr or "",
+        )
+    return r
 
-    TOTAL = 9
 
-    # 0. 기존 설치 감지 + 정리
-    progress(1, TOTAL, "기존 설치 확인")
-    old_env = {}
-    env_path = os.path.join(INSTALL_DIR, ".env")
-    if os.path.exists(INSTALL_DIR):
-        print("    -> 기존 설치 발견: " + INSTALL_DIR)
-        # 기존 .env 백업 (워커 ID 유지)
-        if os.path.exists(env_path):
-            with open(env_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if "=" in line and not line.startswith("#"):
-                        k, v = line.split("=", 1)
-                        old_env[k.strip()] = v.strip()
-            print("    -> 기존 Worker ID 백업: " + old_env.get("WORKER_ID", "없음"))
-        # 기존 워커 프로세스만 종료 (자기 자신 제외)
-        print("    -> 기존 워커 프로세스 종료...")
-        my_pid = os.getpid()
+# ═══════════════════════════════════════════════════════
+#  AI 진단 시스템
+# ═══════════════════════════════════════════════════════
+
+def collect_environment():
+    """환경 스냅샷 수집 (stdlib만 사용)"""
+    env = {
+        "os_version": platform.version(),
+        "os_machine": platform.machine(),
+        "python_path": PY_PATH or sys.executable,
+        "python_version": platform.python_version(),
+        "pip_version": None,
+        "disk_free_gb": None,
+        "network_ok": False,
+        "install_dir": INSTALL_DIR,
+        "install_dir_contents": [],
+        "path_env": os.environ.get("PATH", "")[:1000],
+        "running_python_pids": [],
+    }
+
+    # pip 버전
+    py = PY_PATH or sys.executable
+    try:
+        r = subprocess.run([py, "-m", "pip", "--version"],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode == 0 and r.stdout:
+            env["pip_version"] = r.stdout.strip().split(" ")[1]
+    except Exception:
+        pass
+
+    # 디스크 공간
+    try:
+        import ctypes
+        free = ctypes.c_ulonglong(0)
+        ctypes.windll.kernel32.GetDiskFreeSpaceExW(
+            "C:\\", None, None, ctypes.pointer(free))
+        env["disk_free_gb"] = round(free.value / (1024 ** 3), 1)
+    except Exception:
+        pass
+
+    # 네트워크
+    try:
+        urllib.request.urlopen(STATION_URL + "/api/workers", timeout=5)
+        env["network_ok"] = True
+    except Exception:
+        pass
+
+    # 설치 디렉토리 내용
+    try:
+        env["install_dir_contents"] = os.listdir(INSTALL_DIR)
+    except Exception:
+        pass
+
+    # 실행 중인 python PID
+    try:
+        r = subprocess.run(
+            ["tasklist", "/fi", "imagename eq python.exe", "/fo", "csv", "/nh"],
+            capture_output=True, text=True, timeout=10)
+        for line in r.stdout.splitlines():
+            if "python" in line.lower():
+                parts = line.split(",")
+                if len(parts) >= 2:
+                    env["running_python_pids"].append(parts[1].strip('"'))
+    except Exception:
+        pass
+
+    return env
+
+
+def call_diagnose(step_num, step_name, retry_count, error_info):
+    """Station /api/diagnose 호출. 실패 시 None 반환."""
+    payload = {
+        "session_id": SESSION_ID,
+        "step_number": step_num,
+        "step_name": step_name,
+        "retry_count": retry_count,
+        "error": error_info,
+        "environment": collect_environment(),
+        "log_so_far": "\n".join(INSTALL_LOG[-100:])[:5000],
+        "installer_version": VERSION,
+        "previous_fixes": PREVIOUS_FIXES[-10:],
+    }
+    try:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            STATION_URL + "/api/diagnose",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        log("    -> AI 진단 서버 연결 실패: " + str(e))
+        return None
+
+
+def execute_fixes(fix_commands):
+    """AI가 반환한 수정 명령 실행"""
+    for cmd in fix_commands:
+        log("    -> 수정 명령: " + cmd[:100])
+        PREVIOUS_FIXES.append(cmd)
         try:
-            # worker.py를 실행 중인 python 프로세스만 찾아서 종료
-            result = subprocess.run(
-                ["wmic", "process", "where",
-                 "name='python.exe' and commandline like '%worker.py%'",
-                 "get", "processid"],
-                capture_output=True, text=True, timeout=10)
-            for line in result.stdout.splitlines():
-                line = line.strip()
-                if line.isdigit() and int(line) != my_pid:
-                    subprocess.run(["taskkill", "/f", "/pid", line], capture_output=True)
-                    print("    -> PID {} 종료".format(line))
-        except Exception:
-            pass
-        import time
-        time.sleep(1)
-        # 기존 파일 삭제 (python 폴더는 크니까 따로)
-        for item in ["worker.py", "handlers", "logs"]:
-            path = os.path.join(INSTALL_DIR, item)
-            if os.path.isdir(path):
-                shutil.rmtree(path, ignore_errors=True)
-            elif os.path.exists(path):
-                os.remove(path)
-        # Lib/site-packages만 삭제 (깨진 패키지 방지, python.exe는 유지)
-        site_pkgs = os.path.join(INSTALL_DIR, "python", "Lib", "site-packages")
-        if os.path.exists(site_pkgs):
-            print("    -> 기존 패키지 정리...")
-            shutil.rmtree(site_pkgs, ignore_errors=True)
-        print("    -> 클린 완료")
-    else:
-        print("    -> 신규 설치")
+            r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
+            if r.returncode != 0:
+                log("    -> 명령 실패: " + (r.stderr or r.stdout)[:200])
+            else:
+                log("    -> OK")
+        except Exception as e:
+            log("    -> 명령 오류: " + str(e))
 
-    # 1. 설치 디렉토리
-    progress(2, TOTAL, "설치 디렉토리 생성")
+
+def run_step(step_num, step_name, func, max_retries=3):
+    """
+    단계 실행 + AI 진단 재시도 루프
+    func() → None (성공) or raise StepError (실패)
+    """
+    progress(step_num, TOTAL, step_name)
+
+    for attempt in range(max_retries + 1):
+        try:
+            func()
+            return True
+        except Exception as e:
+            error_info = {
+                "type": type(e).__name__,
+                "message": str(e)[:500],
+                "traceback": traceback.format_exc()[:2000],
+                "stdout": getattr(e, "_stdout", "")[:2000] if hasattr(e, "_stdout") else "",
+                "stderr": getattr(e, "_stderr", "")[:2000] if hasattr(e, "_stderr") else "",
+            }
+
+            if attempt >= max_retries:
+                log("    -> [FAIL] {} 최종 실패 ({}회 시도)".format(step_name, attempt + 1))
+                return False
+
+            log("    -> 오류: {} — {}".format(type(e).__name__, str(e)[:150]))
+            log("    -> AI 진단 요청 중...")
+
+            result = call_diagnose(step_num, step_name, attempt, error_info)
+
+            if result is None:
+                log("    -> AI 진단 불가. 5초 후 단순 재시도...")
+                time.sleep(5)
+                continue
+
+            # 진단 결과 표시
+            diagnosis = result.get("diagnosis", "")
+            if diagnosis:
+                log("    -> 진단: " + diagnosis[:300])
+
+            severity = result.get("severity", "low")
+            if severity == "fatal":
+                log("    -> [FATAL] 복구 불가능한 문제입니다.")
+                return False
+
+            # 수정 명령 실행
+            fix_commands = result.get("fix_commands", [])
+            if fix_commands:
+                log("    -> 수정 적용 중... ({}개 명령)".format(len(fix_commands)))
+                execute_fixes(fix_commands)
+
+            if result.get("should_retry", True):
+                log("    -> 재시도 ({}/{})...".format(attempt + 1, max_retries))
+                time.sleep(2)
+            else:
+                log("    -> AI가 재시도 불필요로 판단")
+                return False
+
+    return False
+
+
+# ═══════════════════════════════════════════════════════
+#  설치 단계 함수 (각각 실패 시 StepError raise)
+# ═══════════════════════════════════════════════════════
+
+# 기존 설치 정보를 단계간 공유
+_old_env = {}
+
+
+def step_check_existing():
+    """1단계: 기존 설치 확인 + 정리"""
+    global _old_env
+
+    env_path = os.path.join(INSTALL_DIR, ".env")
+    if not os.path.exists(INSTALL_DIR):
+        log("    -> 신규 설치")
+        return
+
+    log("    -> 기존 설치 발견: " + INSTALL_DIR)
+
+    # 기존 .env 백업 (워커 ID 유지)
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    _old_env[k.strip()] = v.strip()
+        log("    -> 기존 Worker ID 백업: " + _old_env.get("WORKER_ID", "없음"))
+
+    # 기존 워커 프로세스 종료 (자기 자신 제외)
+    log("    -> 기존 워커 프로세스 종료...")
+    my_pid = os.getpid()
+    try:
+        result = subprocess.run(
+            ["tasklist", "/fi", "imagename eq python.exe", "/fo", "csv", "/nh"],
+            capture_output=True, text=True, timeout=10)
+        for line in result.stdout.splitlines():
+            if "worker.py" in line.lower() or "python" in line.lower():
+                parts = line.split(",")
+                if len(parts) >= 2:
+                    pid = parts[1].strip('"')
+                    if pid.isdigit() and int(pid) != my_pid:
+                        subprocess.run(["taskkill", "/f", "/pid", pid],
+                                       capture_output=True, timeout=10)
+                        log("    -> PID {} 종료".format(pid))
+    except Exception:
+        pass
+
+    time.sleep(1)
+
+    # 기존 파일 삭제
+    for item in ["worker.py", "handlers", "logs"]:
+        path = os.path.join(INSTALL_DIR, item)
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        elif os.path.exists(path):
+            os.remove(path)
+
+    # site-packages만 삭제 (깨진 패키지 방지)
+    site_pkgs = os.path.join(INSTALL_DIR, "python", "Lib", "site-packages")
+    if os.path.exists(site_pkgs):
+        log("    -> 기존 패키지 정리...")
+        shutil.rmtree(site_pkgs, ignore_errors=True)
+
+    log("    -> 클린 완료")
+
+
+def step_create_dirs():
+    """2단계: 설치 디렉토리 생성"""
     for d in ["handlers", "logs", "python"]:
         os.makedirs(os.path.join(INSTALL_DIR, d), exist_ok=True)
-    print("    -> " + INSTALL_DIR)
+    log("    -> " + INSTALL_DIR)
 
-    # 2. Python embedded 복사
-    progress(3, TOTAL, "Python 3.12 설치")
-    if getattr(sys, 'frozen', False):
+
+def step_copy_python():
+    """3단계: Python embedded 복사"""
+    global PY_PATH
+
+    if getattr(sys, "frozen", False):
         base = sys._MEIPASS
     else:
         base = os.path.dirname(os.path.abspath(__file__))
+
     src = os.path.join(base, "python")
     dst = os.path.join(INSTALL_DIR, "python")
-    if os.path.exists(src):
-        if not os.path.exists(os.path.join(dst, "python.exe")):
-            print("    -> Python 복사 중...")
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-            print("    -> 완료")
+
+    if not os.path.exists(src):
+        raise StepError("Python 소스를 찾을 수 없습니다: " + src)
+
+    if not os.path.exists(os.path.join(dst, "python.exe")):
+        log("    -> Python 복사 중...")
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+        log("    -> 완료")
+    else:
+        log("    -> 이미 설치됨")
+
+    PY_PATH = os.path.join(dst, "python.exe")
+
+    # 검증
+    if not os.path.exists(PY_PATH):
+        raise StepError("python.exe가 존재하지 않습니다: " + PY_PATH)
+
+
+def step_env_check():
+    """4단계: 네트워크 + 디스크 확인"""
+    # 네트워크
+    for attempt in range(3):
+        try:
+            urllib.request.urlopen(STATION_URL + "/api/workers", timeout=10)
+            log("    -> 네트워크 OK")
+            break
+        except Exception:
+            if attempt < 2:
+                wait = 5 * (attempt + 1)
+                log("    -> 네트워크 실패. {}초 후 재시도... ({}/3)".format(wait, attempt + 1))
+                time.sleep(wait)
+            else:
+                raise StepError("인터넷 연결 실패 (3회 시도)",
+                                stderr="Station URL: " + STATION_URL)
+
+    # 디스크
+    try:
+        import ctypes
+        free = ctypes.c_ulonglong(0)
+        ctypes.windll.kernel32.GetDiskFreeSpaceExW(
+            "C:\\", None, None, ctypes.pointer(free))
+        gb = free.value / (1024 ** 3)
+        if gb < 1.5:
+            log("    -> [WARN] 디스크 공간 부족: {:.1f}GB (권장 1.5GB 이상)".format(gb))
         else:
-            print("    -> 이미 설치됨")
-    else:
-        print("    -> ERROR: Python을 찾을 수 없습니다!")
-        print()
-        input("  아무 키나 누르면 종료합니다...")
-        return
-    py = os.path.join(dst, "python.exe")
+            log("    -> 디스크 {:.1f}GB 여유".format(gb))
+    except Exception:
+        log("    -> 디스크 확인 생략")
 
-    # 네트워크 + 디스크 사전 체크
-    progress(4, TOTAL, "환경 확인")
-    if not check_network():
-        print()
-        input("  인터넷 연결 후 다시 실행해주세요. 아무 키나 누르면 종료...")
-        return
-    print("    -> 네트워크 OK")
-    check_disk_space()
-    print("    -> 환경 확인 완료")
+    log("    -> 환경 확인 완료")
 
-    # 5. pip 설치
-    progress(5, TOTAL, "pip 설치")
+
+def step_pip_install():
+    """5단계: pip 설치"""
+    py = PY_PATH
+    dst = os.path.dirname(py)
     pip_script = os.path.join(dst, "get-pip.py")
+
     if os.path.exists(pip_script):
-        print("    -> pip 다운로드 + 설치 중...")
-        run_quiet([py, pip_script, "--quiet"])
-    result = subprocess.run([py, "-m", "pip", "--version"], capture_output=True, text=True)
-    if result.returncode == 0:
-        ver = result.stdout.strip().split(" ")[1] if result.stdout else "unknown"
-        print("    -> pip {} 설치됨".format(ver))
-    else:
-        print("    -> pip 설치 실패 (계속 진행)")
+        log("    -> pip 설치 중...")
+        r = subprocess.run([py, pip_script, "--quiet"],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            raise StepError("pip 설치 실패", stdout=r.stdout, stderr=r.stderr)
 
-    # 6. 패키지 설치
-    progress(6, TOTAL, "크롤링 패키지 설치 (playwright, supabase)")
-    print("    -> playwright 설치 중... (1~2분)")
-    run_quiet([py, "-m", "pip", "install", "--quiet", "playwright"])
-    print("    -> supabase 설치 중...")
-    run_quiet([py, "-m", "pip", "install", "--quiet", "supabase"])
-    print("    -> Chromium 브라우저 다운로드 중... (2~5분)")
-    subprocess.run([py, "-m", "playwright", "install", "chromium"],
-        capture_output=False)
-    print("    -> 패키지 설치 완료")
+    # 검증
+    r = subprocess.run([py, "-m", "pip", "--version"],
+                       capture_output=True, text=True, timeout=10)
+    if r.returncode != 0:
+        raise StepError("pip 검증 실패 — pip이 동작하지 않습니다",
+                        stdout=r.stdout, stderr=r.stderr)
 
-    # 7. 워커 파일
-    progress(7, TOTAL, "워커 파일 다운로드")
+    ver = r.stdout.strip().split(" ")[1] if r.stdout else "unknown"
+    log("    -> pip {} 설치됨".format(ver))
+
+
+def step_packages():
+    """6단계: 크롤링 패키지 설치 (playwright, supabase, Chromium)"""
+    py = PY_PATH
+
+    # playwright
+    log("    -> playwright 설치 중... (1~2분)")
+    r = subprocess.run([py, "-m", "pip", "install", "--quiet", "playwright"],
+                       capture_output=True, text=True, timeout=300)
+    if r.returncode != 0:
+        raise StepError("playwright 설치 실패", stdout=r.stdout, stderr=r.stderr)
+    log("    -> playwright OK")
+
+    # supabase
+    log("    -> supabase 설치 중...")
+    r = subprocess.run([py, "-m", "pip", "install", "--quiet", "supabase"],
+                       capture_output=True, text=True, timeout=300)
+    if r.returncode != 0:
+        raise StepError("supabase 설치 실패", stdout=r.stdout, stderr=r.stderr)
+    log("    -> supabase OK")
+
+    # Chromium
+    log("    -> Chromium 브라우저 다운로드 중... (2~5분)")
+    r = subprocess.run([py, "-m", "playwright", "install", "chromium"],
+                       capture_output=True, text=True, timeout=600)
+    if r.returncode != 0:
+        raise StepError("Chromium 설치 실패", stdout=r.stdout, stderr=r.stderr)
+    log("    -> Chromium OK")
+
+    log("    -> 패키지 설치 완료")
+
+
+def step_download_files():
+    """7단계: 워커 파일 다운로드"""
     files = [
         "worker.py", "handlers/__init__.py", "handlers/base.py",
         "handlers/kin.py", "handlers/blog.py", "handlers/serp.py",
     ]
+    failed = []
     for f in files:
         t = os.path.join(INSTALL_DIR, f)
         os.makedirs(os.path.dirname(t), exist_ok=True)
         try:
-            urllib.request.urlretrieve("{}/api/download?file={}".format(STATION_URL, f), t)
-            print("    -> " + f)
+            urllib.request.urlretrieve(
+                "{}/api/download?file={}".format(STATION_URL, f), t)
+            log("    -> " + f)
         except Exception as e:
-            print("    -> WARN {}: {}".format(f, e))
+            failed.append("{}: {}".format(f, str(e)))
 
-    # 8. .env
-    progress(8, TOTAL, "설정 파일 생성")
-    # 기존 워커 ID 복원 또는 새로 생성
-    wid = old_env.get("WORKER_ID", "")
+    if failed:
+        raise StepError(
+            "워커 파일 다운로드 실패: {}개".format(len(failed)),
+            stderr="\n".join(failed),
+        )
+
+
+def step_create_env():
+    """8단계: .env 설정 파일 생성"""
+    wid = _old_env.get("WORKER_ID", "")
     env_path = os.path.join(INSTALL_DIR, ".env")
+
     if not wid:
         wid = "worker-" + uuid.uuid4().hex[:8]
-        print("    -> 새 Worker ID: " + wid)
+        log("    -> 새 Worker ID: " + wid)
     else:
-        print("    -> 기존 Worker ID 복원: " + wid)
+        log("    -> 기존 Worker ID 복원: " + wid)
+
     with open(env_path, "w") as f:
         f.write("SUPABASE_URL={}\nSUPABASE_KEY={}\nWORKER_ID={}\n".format(
             SUPABASE_URL, SUPABASE_KEY, wid))
 
-    # 9. 서비스 등록
-    progress(9, TOTAL, "서비스 등록")
+    # 검증
+    if not os.path.exists(env_path):
+        raise StepError(".env 파일 생성 실패")
+
+    log("    -> .env 생성 완료")
+
+
+def step_register_service():
+    """9단계: 서비스 등록 + 바로가기 생성"""
+    py = PY_PATH
+    wid = _old_env.get("WORKER_ID", "worker-unknown")
+
+    # .env에서 실제 worker ID 읽기
+    env_path = os.path.join(INSTALL_DIR, ".env")
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                if line.startswith("WORKER_ID="):
+                    wid = line.strip().split("=", 1)[1]
+
+    # 레지스트리 자동 실행 등록
     try:
         import winreg
         key = winreg.OpenKey(
@@ -238,48 +506,118 @@ def main():
             '"{}" "{}"'.format(py, os.path.join(INSTALL_DIR, "worker.py")),
         )
         winreg.CloseKey(key)
-        print("    -> PC 시작 시 자동 실행 등록됨")
+        log("    -> PC 시작 시 자동 실행 등록됨")
     except Exception as e:
-        print("    -> 자동 실행 등록 실패: " + str(e))
+        raise StepError("자동 실행 등록 실패: " + str(e))
 
     # 바탕화면 바로가기
     desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-    with open(os.path.join(desktop, "CrawlWorker.bat"), "w", encoding="utf-8") as f:
-        f.write('@echo off\ncd /d "{}"\n"{}" worker.py\n'.format(INSTALL_DIR, py))
-    with open(os.path.join(desktop, "CrawlWorker Stop.bat"), "w", encoding="utf-8") as f:
-        f.write('@echo off\ntaskkill /f /im python.exe 2>nul\necho Stopped.\npause\n')
-    uninstall_bat = os.path.join(desktop, "CrawlWorker Uninstall.bat")
-    with open(uninstall_bat, "w", encoding="utf-8") as f:
-        f.write('@echo off\ntaskkill /f /im python.exe 2>nul\n')
-        f.write('reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v CrawlStationWorker /f 2>nul\n')
-        f.write('curl -s -X DELETE "{}/api/workers?id={}" >nul 2>&1\n'.format(STATION_URL, wid))
-        f.write('rmdir /s /q "{}" 2>nul\n'.format(INSTALL_DIR))
-        f.write('del "%USERPROFILE%\\Desktop\\CrawlWorker.bat" 2>nul\n')
-        f.write('del "%USERPROFILE%\\Desktop\\CrawlWorker Stop.bat" 2>nul\n')
-        f.write('echo Uninstalled.\npause\ndel "%~f0" 2>nul\n')
-    print("    -> 바탕화면 바로가기 생성 (시작/중지/삭제)")
+    try:
+        with open(os.path.join(desktop, "CrawlWorker.bat"), "w", encoding="utf-8") as f:
+            f.write('@echo off\ncd /d "{}"\n"{}" worker.py\n'.format(INSTALL_DIR, py))
 
-    # 즉시 실행
-    subprocess.Popen(
-        [py, os.path.join(INSTALL_DIR, "worker.py")],
-        cwd=INSTALL_DIR,
-        creationflags=0x00000010,
-    )
+        with open(os.path.join(desktop, "CrawlWorker Stop.bat"), "w", encoding="utf-8") as f:
+            f.write('@echo off\ntaskkill /f /im python.exe 2>nul\necho Stopped.\npause\n')
 
-    print()
-    print("  ======================================================")
-    print("    설치 완료!")
-    print("  ======================================================")
-    print()
-    print("    워커가 백그라운드에서 실행 중입니다.")
-    print()
-    print("    - PC 부팅 시 자동 시작")
-    print("    - 바탕화면: CrawlWorker / Stop / Uninstall")
-    print("    - Station: " + STATION_URL)
-    print("    - 제어판에서도 삭제 가능")
-    print()
-    print("  ======================================================")
-    print()
+        with open(os.path.join(desktop, "CrawlWorker Uninstall.bat"), "w", encoding="utf-8") as f:
+            f.write('@echo off\ntaskkill /f /im python.exe 2>nul\n')
+            f.write('reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" '
+                    '/v CrawlStationWorker /f 2>nul\n')
+            f.write('curl -s -X DELETE "{}/api/workers?id={}" >nul 2>&1\n'.format(STATION_URL, wid))
+            f.write('rmdir /s /q "{}" 2>nul\n'.format(INSTALL_DIR))
+            f.write('del "%USERPROFILE%\\Desktop\\CrawlWorker.bat" 2>nul\n')
+            f.write('del "%USERPROFILE%\\Desktop\\CrawlWorker Stop.bat" 2>nul\n')
+            f.write('echo Uninstalled.\npause\ndel "%~f0" 2>nul\n')
+
+        log("    -> 바탕화면 바로가기 생성 (시작/중지/삭제)")
+    except Exception as e:
+        raise StepError("바로가기 생성 실패: " + str(e))
+
+
+# ═══════════════════════════════════════════════════════
+#  메인
+# ═══════════════════════════════════════════════════════
+
+def main():
+    os.system("title CrawlStation Worker Installer v{} (AI)".format(VERSION))
+    os.system("color 0A")
+    log("")
+    log("  ======================================================")
+    log("    CrawlStation Worker v{} — Windows Installer".format(VERSION))
+    log("    AI 자가 진단 시스템 탑재")
+    log("  ======================================================")
+    log("")
+    log("  Python, Chromium, 워커 파일을 자동 설치합니다.")
+    log("  설치 중 문제 발생 시 AI가 자동으로 진단 + 수정합니다.")
+    log("  인터넷 연결이 필요하며 5~10분 소요될 수 있습니다.")
+    log("")
+
+    # ── 단계 정의 ──
+    steps = [
+        (1, "기존 설치 확인", step_check_existing),
+        (2, "설치 디렉토리 생성", step_create_dirs),
+        (3, "Python 3.12 설치", step_copy_python),
+        (4, "환경 확인", step_env_check),
+        (5, "pip 설치", step_pip_install),
+        (6, "크롤링 패키지 설치", step_packages),
+        (7, "워커 파일 다운로드", step_download_files),
+        (8, "설정 파일 생성", step_create_env),
+        (9, "서비스 등록", step_register_service),
+    ]
+
+    failed_steps = []
+
+    for num, name, func in steps:
+        success = run_step(num, name, func)
+        if not success:
+            failed_steps.append(name)
+            # 1~4단계는 필수 — 실패 시 중단
+            if num <= 4:
+                log("\n  [ABORT] 필수 단계 실패: " + name)
+                log("  설치를 완료할 수 없습니다.")
+                log("")
+                input("  아무 키나 누르면 종료합니다...")
+                return
+
+    # ── 결과 ──
+    if failed_steps:
+        log("")
+        log("  ======================================================")
+        log("    설치 부분 완료 (일부 단계 실패)")
+        log("  ======================================================")
+        log("")
+        log("    실패한 단계: " + ", ".join(failed_steps))
+        log("    수동 조치가 필요할 수 있습니다.")
+        log("")
+        log("    Station: " + STATION_URL)
+        log("")
+        input("  아무 키나 누르면 종료합니다...")
+        return
+
+    # 워커 즉시 실행
+    try:
+        subprocess.Popen(
+            [PY_PATH, os.path.join(INSTALL_DIR, "worker.py")],
+            cwd=INSTALL_DIR,
+            creationflags=0x00000010,
+        )
+    except Exception as e:
+        log("    -> 워커 실행 실패: " + str(e))
+
+    log("")
+    log("  ======================================================")
+    log("    설치 완료!")
+    log("  ======================================================")
+    log("")
+    log("    워커가 백그라운드에서 실행 중입니다.")
+    log("")
+    log("    - PC 부팅 시 자동 시작")
+    log("    - 바탕화면: CrawlWorker / Stop / Uninstall")
+    log("    - Station: " + STATION_URL)
+    log("    - 제어판에서도 삭제 가능")
+    log("")
+    log("  ======================================================")
+    log("")
     input("  아무 키나 누르면 이 창을 닫습니다...")
 
 
