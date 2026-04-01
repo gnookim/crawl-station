@@ -106,7 +106,7 @@ export default function GuidePage() {
           <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500">
             <strong>인증 필요:</strong> POST /api/crawl, POST /api/dispatch
             <br />
-            <strong>인증 불필요:</strong> GET /api/crawl (결과 조회), GET /api/workers
+            <strong>인증 불필요:</strong> GET /api/crawl (결과 조회), GET /api/workers, POST /api/diagnose (인스톨러 AI 진단)
           </div>
         </div>
       </Section>
@@ -372,6 +372,13 @@ function ApiReference() {
         description="작업 자동 분배"
         body={`{ "keywords": [...], "type": "blog_serp", "strategy": "round_robin" }`}
         response={`{ "distribution": { "worker-001": 5, "worker-002": 5 } }`}
+      />
+      <ApiEndpoint
+        method="POST"
+        path="/api/diagnose"
+        description="인스톨러 AI 진단 (인증 불필요)"
+        body={`{ "session_id": "...", "step_number": 5, "step_name": "pip 설치", "error": { "type": "...", "message": "..." }, "environment": { ... } }`}
+        response={`{ "diagnosis": "진단 내용", "fix_commands": ["cmd1"], "should_retry": true, "severity": "low" }`}
       />
     </div>
   );

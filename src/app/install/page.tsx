@@ -97,6 +97,20 @@ function WorkerInstall() {
             Python 자동 설치. 설치 후 자동 실행 + PC 부팅 시 자동 시작. 제어판에서 삭제 가능.
           </p>
         </div>
+
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-purple-800 mb-2">AI 자가 진단 설치 (v0.4.0)</h4>
+          <p className="text-sm text-purple-700 mb-2">
+            설치 중 오류 발생 시 Claude AI가 자동으로 문제를 진단하고 수정합니다.
+          </p>
+          <ul className="text-xs text-purple-600 space-y-1">
+            <li>9단계 설치 과정을 단계별로 실행 + 검증</li>
+            <li>오류 발생 시 환경 정보를 자동 수집하여 AI에 전송</li>
+            <li>AI가 수정 명령을 반환하면 자동 실행 후 재시도</li>
+            <li>단계별 최대 3회 자동 복구 시도</li>
+            <li>시스템 설정에서 Anthropic API 키 등록 필요</li>
+          </ul>
+        </div>
       </div>
     </>
   );
