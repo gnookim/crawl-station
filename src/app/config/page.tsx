@@ -217,214 +217,132 @@ export default function ConfigPage() {
       {/* ═══════ 워커별 네트워크 설정 ═══════ */}
       <Section
         title="워커 네트워크 설정"
-        desc="각 워커의 네트워크 유형과 프록시를 개별 설정합니다. IP 분산을 위해 워커마다 다른 네트워크를 사용하세요."
+        desc="워커마다 다른 네트워크를 사용하면 IP가 분산됩니다."
       >
         {workers.length === 0 ? (
-          <p className="text-sm text-gray-400">
-            등록된 워커가 없습니다. 워커를 먼저 설치하세요.
-          </p>
+          <p className="text-sm text-gray-400">등록된 워커가 없습니다.</p>
         ) : (
-          <div className="space-y-4">
-            {workers.map((w) => {
-              const cfg = workerConfigs[w.id] || DEFAULT_NET_CONFIG;
-              const isSaving = savingWorkers[w.id];
-              const isSaved = savedWorkers[w.id];
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium">워커</th>
+                  <th className="text-left px-4 py-2 font-medium">네트워크</th>
+                  <th className="text-left px-4 py-2 font-medium">설정</th>
+                  <th className="text-right px-4 py-2 font-medium w-16"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {workers.map((w) => {
+                  const cfg = workerConfigs[w.id] || DEFAULT_NET_CONFIG;
+                  const isSaving = savingWorkers[w.id];
+                  const isSaved = savedWorkers[w.id];
 
-              return (
-                <div
-                  key={w.id}
-                  className="border border-gray-200 rounded-lg p-4 bg-white"
-                >
-                  {/* worker header */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          w.status === "online" || w.status === "idle" || w.status === "crawling"
-                            ? "bg-green-500"
-                            : "bg-gray-300"
-                        }`}
-                      />
-                      <span className="text-sm font-semibold text-gray-800">
-                        {w.name || w.id}
-                      </span>
-                      {w.ip_address && (
-                        <span className="text-xs text-gray-400 font-mono">
-                          {w.ip_address}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => saveWorkerConfig(w.id)}
-                      disabled={isSaving}
-                      className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                        isSaved
-                          ? "bg-green-600 text-white"
-                          : "bg-blue-600 text-white hover:bg-blue-700"
-                      } disabled:opacity-50`}
-                    >
-                      {isSaved ? "저장됨" : isSaving ? "저장 중..." : "저장"}
-                    </button>
-                  </div>
+                  return (
+                    <tr key={w.id} className="hover:bg-gray-50">
+                      {/* 워커 이름 */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${
+                            ["online","idle","crawling"].includes(w.status) ? "bg-green-500" : "bg-gray-300"
+                          }`} />
+                          <div>
+                            <div className="font-medium text-sm">{w.name || w.id}</div>
+                            {w.ip_address && (
+                              <div className="text-xs text-gray-400 font-mono">{w.ip_address}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
 
-                  {/* network type selector */}
-                  <div className="mb-3">
-                    <Label>네트워크 유형</Label>
-                    <div className="flex gap-2 flex-wrap">
-                      {(
-                        Object.entries(NETWORK_LABELS) as [
-                          NetworkType,
-                          string,
-                        ][]
-                      ).map(([value, label]) => (
-                        <button
-                          key={value}
-                          onClick={() =>
-                            updateWorkerNet(w.id, "network_type", value)
-                          }
-                          className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                            cfg.network_type === value
-                              ? "border-blue-500 bg-blue-50 text-blue-700 font-semibold"
-                              : "border-gray-200 text-gray-600 hover:border-gray-300"
-                          }`}
+                      {/* 네트워크 유형 */}
+                      <td className="px-4 py-3">
+                        <select
+                          value={cfg.network_type}
+                          onChange={(e) => updateWorkerNet(w.id, "network_type", e.target.value)}
+                          className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          {label}
+                          {(Object.entries(NETWORK_LABELS) as [NetworkType, string][]).map(([v, l]) => (
+                            <option key={v} value={v}>{l}</option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* 하위 설정 (유형별) */}
+                      <td className="px-4 py-3">
+                        {cfg.network_type === "wifi" && (
+                          <span className="text-xs text-gray-400">추가 설정 없음</span>
+                        )}
+
+                        {cfg.network_type === "tethering" && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <select
+                              value={cfg.tethering_carrier}
+                              onChange={(e) => updateWorkerNet(w.id, "tethering_carrier", e.target.value)}
+                              className="px-2 py-1 text-xs border border-gray-300 rounded-md"
+                            >
+                              {(Object.entries(CARRIER_LABELS) as [TetheringCarrier, string][]).map(([v, l]) => (
+                                <option key={v} value={v}>{l}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => updateWorkerNet(w.id, "tethering_auto_reconnect", !cfg.tethering_auto_reconnect)}
+                              className={`px-2 py-1 text-xs rounded-md border ${
+                                cfg.tethering_auto_reconnect
+                                  ? "border-green-500 bg-green-50 text-green-700"
+                                  : "border-gray-300 text-gray-400"
+                              }`}
+                            >
+                              자동 IP변경 {cfg.tethering_auto_reconnect ? "ON" : "OFF"}
+                            </button>
+                            {cfg.tethering_auto_reconnect && (
+                              <select
+                                value={cfg.tethering_reconnect_interval}
+                                onChange={(e) => updateWorkerNet(w.id, "tethering_reconnect_interval", e.target.value)}
+                                className="px-2 py-1 text-xs border border-gray-300 rounded-md"
+                              >
+                                {(Object.entries(RECONNECT_LABELS) as [TetheringReconnectInterval, string][]).map(([v, l]) => (
+                                  <option key={v} value={v}>{l}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        )}
+
+                        {(cfg.network_type === "proxy_static" || cfg.network_type === "proxy_rotate") && (
+                          <input
+                            type="text"
+                            value={cfg.proxy_url}
+                            onChange={(e) => updateWorkerNet(w.id, "proxy_url", e.target.value)}
+                            placeholder="http://user:pass@host:port"
+                            className="w-full max-w-xs px-2 py-1 text-xs border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        )}
+                      </td>
+
+                      {/* 저장 */}
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => saveWorkerConfig(w.id)}
+                          disabled={isSaving}
+                          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                            isSaved ? "bg-green-600 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+                          } disabled:opacity-50`}
+                        >
+                          {isSaved ? "OK" : isSaving ? "..." : "저장"}
                         </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* sub-settings based on network type */}
-                  {cfg.network_type === "tethering" && (
-                    <div className="bg-gray-50 rounded-md p-3 space-y-3">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <Label>통신사</Label>
-                          <select
-                            value={cfg.tethering_carrier}
-                            onChange={(e) =>
-                              updateWorkerNet(
-                                w.id,
-                                "tethering_carrier",
-                                e.target.value
-                              )
-                            }
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            {(
-                              Object.entries(CARRIER_LABELS) as [
-                                TetheringCarrier,
-                                string,
-                              ][]
-                            ).map(([v, l]) => (
-                              <option key={v} value={v}>
-                                {l}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <Label>자동 IP 변경</Label>
-                          <button
-                            onClick={() =>
-                              updateWorkerNet(
-                                w.id,
-                                "tethering_auto_reconnect",
-                                !cfg.tethering_auto_reconnect
-                              )
-                            }
-                            className={`w-full px-2 py-1.5 text-sm rounded-md border transition-colors ${
-                              cfg.tethering_auto_reconnect
-                                ? "border-green-500 bg-green-50 text-green-700"
-                                : "border-gray-300 text-gray-500"
-                            }`}
-                          >
-                            {cfg.tethering_auto_reconnect ? "ON" : "OFF"}
-                          </button>
-                        </div>
-                        <div>
-                          <Label>변경 주기</Label>
-                          <select
-                            value={cfg.tethering_reconnect_interval}
-                            onChange={(e) =>
-                              updateWorkerNet(
-                                w.id,
-                                "tethering_reconnect_interval",
-                                e.target.value
-                              )
-                            }
-                            disabled={!cfg.tethering_auto_reconnect}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
-                          >
-                            {(
-                              Object.entries(RECONNECT_LABELS) as [
-                                TetheringReconnectInterval,
-                                string,
-                              ][]
-                            ).map(([v, l]) => (
-                              <option key={v} value={v}>
-                                {l}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        테더링 시 비행기모드 ON/OFF로 IP를 변경합니다. 통신사마다
-                        IP 대역이 달라 분산 효과가 있습니다.
-                      </p>
-                    </div>
-                  )}
-
-                  {cfg.network_type === "proxy_static" && (
-                    <div className="bg-gray-50 rounded-md p-3">
-                      <Label>프록시 URL</Label>
-                      <input
-                        type="text"
-                        value={cfg.proxy_url}
-                        onChange={(e) =>
-                          updateWorkerNet(w.id, "proxy_url", e.target.value)
-                        }
-                        placeholder="http://user:pass@host:port"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                      />
-                      <p className="text-xs text-gray-400 mt-1">
-                        고정 IP 프록시 — 항상 같은 IP로 요청합니다.
-                      </p>
-                    </div>
-                  )}
-
-                  {cfg.network_type === "proxy_rotate" && (
-                    <div className="bg-gray-50 rounded-md p-3 space-y-2">
-                      <div>
-                        <Label>프록시 URL</Label>
-                        <input
-                          type="text"
-                          value={cfg.proxy_url}
-                          onChange={(e) =>
-                            updateWorkerNet(w.id, "proxy_url", e.target.value)
-                          }
-                          placeholder="http://user:pass@host:port"
-                          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                        />
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        회전 프록시 — 요청마다 또는 일정 주기로 IP가 변경됩니다.
-                        Residential proxy 서비스 권장.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
 
-        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
           <p className="text-xs text-blue-700">
-            <strong>IP 분산 전략:</strong> 각 워커를 다른 네트워크에 연결하면
-            IP가 분산됩니다. 테더링 시 통신사를 다양화하면 IP 대역이 달라져 차단
-            위험이 줄어듭니다. 프록시는 residential proxy를 권장합니다.
+            <strong>IP 분산:</strong> 테더링 시 통신사를 다양화하면 IP 대역이 달라집니다. 프록시는 residential proxy를 권장합니다.
           </p>
         </div>
       </Section>
