@@ -469,6 +469,17 @@ class CrawlStationGUI:
         )
         self.btn_restart.pack(side="left")
 
+        # 진단 버튼
+        self.btn_diagnose = tk.Button(
+            btn_frame, text="진단",
+            font=("Segoe UI", 9),
+            bg="#6B7280", fg="white", relief="flat",
+            activebackground="#4B5563", activeforeground="white",
+            padx=14, pady=4, cursor="hand2",
+            command=self._run_diagnostics,
+        )
+        self.btn_diagnose.pack(side="left", padx=(6, 0))
+
         # 삭제 버튼 (오른쪽)
         self.btn_uninstall = tk.Button(
             bar, text="삭제",
@@ -494,29 +505,71 @@ class CrawlStationGUI:
 
     def _start_worker(self):
         def _do():
-            if not os.path.isfile(PYTHON_EXE) or not os.path.isfile(WORKER_SCRIPT):
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Error",
-                    f"Worker files not found.\n{PYTHON_EXE}\n{WORKER_SCRIPT}"
-                ))
+            # 1. 파일 존재 확인
+            issues = []
+            if not os.path.isfile(PYTHON_EXE):
+                issues.append(f"Python 없음: {PYTHON_EXE}")
+            if not os.path.isfile(WORKER_SCRIPT):
+                issues.append(f"worker.py 없음: {WORKER_SCRIPT}")
+            if not os.path.isfile(ENV_PATH):
+                issues.append(f".env 없음: {ENV_PATH}")
+            else:
+                with open(ENV_PATH) as f:
+                    content = f.read()
+                if "__SUPABASE_URL__" in content or not content.strip():
+                    issues.append(".env에 크레덴셜이 설정되지 않았습니다")
+
+            if issues:
+                msg = "워커를 시작할 수 없습니다:\n\n" + "\n".join(issues)
+                self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
                 return
+
+            # 2. 워커 테스트 실행 (3초간 실행하여 에러 확인)
+            self.root.after(0, lambda: self._log_append("워커 시작 중...\n"))
             try:
                 CREATE_NO_WINDOW = 0x08000000
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     [PYTHON_EXE, WORKER_SCRIPT],
                     cwd=WORKER_DIR,
                     creationflags=CREATE_NO_WINDOW,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
+                # 3초 대기 후 프로세스가 살아있는지 확인
+                time.sleep(3)
+                if proc.poll() is not None:
+                    # 프로세스가 종료됨 — 에러 확인
+                    stdout = proc.stdout.read().decode("utf-8", errors="replace")[-1000:]
+                    stderr = proc.stderr.read().decode("utf-8", errors="replace")[-1000:]
+                    error_msg = stderr or stdout or "(출력 없음)"
+                    msg = f"워커가 즉시 종료되었습니다.\n\n{error_msg}"
+                    self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
+                    self.root.after(0, lambda: self._log_append(f"[에러] {error_msg}\n"))
+                    return
+                else:
+                    # 살아있음 — stdout/stderr 파이프 해제 (백그라운드 실행)
+                    proc.stdout.close()
+                    proc.stderr.close()
+                    self.root.after(0, lambda: self._log_append("워커가 시작되었습니다.\n"))
             except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Error", f"Failed to start worker:\n{e}"
-                ))
-            time.sleep(1.5)
+                msg = f"워커 실행 실패:\n\n{str(e)}"
+                self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
+                return
+
+            time.sleep(2)
             self._refresh_data()
 
         threading.Thread(target=_do, daemon=True).start()
+
+    def _log_append(self, text):
+        """로그 텍스트 위젯에 메시지 추가"""
+        try:
+            self.log_text.configure(state="normal")
+            self.log_text.insert("end", text)
+            self.log_text.see("end")
+            self.log_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def _stop_worker(self):
         def _do():
@@ -587,6 +640,175 @@ class CrawlStationGUI:
                 except Exception:
                     pass
             time.sleep(1.5)
+            self._refresh_data()
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _run_diagnostics(self):
+        """전체 시스템 진단 + 자동 수정"""
+        def _do():
+            results = []
+            fixes_applied = 0
+
+            self.root.after(0, lambda: self._log_append("\n=== 시스템 진단 시작 ===\n"))
+
+            # 1. Python 확인
+            if os.path.isfile(PYTHON_EXE):
+                results.append("✓ Python: " + PYTHON_EXE)
+            else:
+                results.append("✕ Python 없음: " + PYTHON_EXE)
+
+            # 2. .env 확인
+            env_data = {}
+            if os.path.isfile(ENV_PATH):
+                with open(ENV_PATH) as f:
+                    for line in f:
+                        line = line.strip()
+                        if "=" in line and not line.startswith("#"):
+                            k, v = line.split("=", 1)
+                            env_data[k.strip()] = v.strip()
+
+                if env_data.get("SUPABASE_URL") and "__" not in env_data.get("SUPABASE_URL", ""):
+                    results.append("✓ SUPABASE_URL: " + env_data["SUPABASE_URL"][:40] + "...")
+                else:
+                    results.append("✕ SUPABASE_URL 미설정")
+                if env_data.get("SUPABASE_KEY") and "__" not in env_data.get("SUPABASE_KEY", ""):
+                    results.append("✓ SUPABASE_KEY: 설정됨")
+                else:
+                    results.append("✕ SUPABASE_KEY 미설정")
+                if env_data.get("WORKER_ID"):
+                    results.append("✓ WORKER_ID: " + env_data["WORKER_ID"])
+                else:
+                    results.append("✕ WORKER_ID 미설정")
+            else:
+                results.append("✕ .env 없음: " + ENV_PATH)
+
+            # 3. worker.py 확인
+            if os.path.isfile(WORKER_SCRIPT):
+                results.append("✓ worker.py: 존재")
+            else:
+                results.append("✕ worker.py 없음 — 다운로드 시도...")
+                # 자동 다운로드 시도
+                try:
+                    import urllib.request
+                    station = env_data.get("SUPABASE_URL", "").replace("/rest/v1", "").rstrip("/")
+                    if not station:
+                        station = "https://crawl-station.vercel.app"
+                    files = ["worker.py", "handlers/__init__.py", "handlers/base.py",
+                             "handlers/kin.py", "handlers/blog.py", "handlers/serp.py"]
+                    for f in files:
+                        t = os.path.join(WORKER_DIR, f)
+                        os.makedirs(os.path.dirname(t), exist_ok=True)
+                        try:
+                            urllib.request.urlretrieve(
+                                f"https://crawl-station.vercel.app/api/download?file={f}", t)
+                            results.append(f"  ✓ 다운로드: {f}")
+                            fixes_applied += 1
+                        except Exception as e:
+                            results.append(f"  ✕ 다운로드 실패: {f} — {e}")
+                except Exception as e:
+                    results.append(f"  ✕ 다운로드 오류: {e}")
+
+            # 4. handlers 확인
+            handlers_dir = os.path.join(WORKER_DIR, "handlers")
+            if os.path.isdir(handlers_dir) and os.path.isfile(os.path.join(handlers_dir, "base.py")):
+                results.append("✓ handlers: 존재")
+            else:
+                results.append("✕ handlers 없음")
+
+            # 5. supabase 패키지 확인
+            try:
+                r = subprocess.run(
+                    [PYTHON_EXE, "-c", "import supabase; print(supabase.__version__)"],
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=0x08000000,
+                )
+                if r.returncode == 0:
+                    results.append("✓ supabase 패키지: " + r.stdout.strip())
+                else:
+                    results.append("✕ supabase 패키지 없음 — 설치 시도...")
+                    r2 = subprocess.run(
+                        [PYTHON_EXE, "-m", "pip", "install", "--quiet", "supabase"],
+                        capture_output=True, text=True, timeout=300,
+                        creationflags=0x08000000,
+                    )
+                    if r2.returncode == 0:
+                        results.append("  ✓ supabase 설치 완료")
+                        fixes_applied += 1
+                    else:
+                        results.append("  ✕ supabase 설치 실패: " + r2.stderr[:200])
+            except Exception as e:
+                results.append(f"✕ supabase 확인 오류: {e}")
+
+            # 6. playwright/chromium 확인
+            try:
+                r = subprocess.run(
+                    [PYTHON_EXE, "-c", "from playwright.sync_api import sync_playwright; print('OK')"],
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=0x08000000,
+                )
+                if r.returncode == 0:
+                    results.append("✓ playwright: 설치됨")
+                else:
+                    results.append("✕ playwright 없음 — 설치 시도...")
+                    subprocess.run(
+                        [PYTHON_EXE, "-m", "pip", "install", "--quiet", "playwright"],
+                        capture_output=True, text=True, timeout=300,
+                        creationflags=0x08000000,
+                    )
+                    subprocess.run(
+                        [PYTHON_EXE, "-m", "playwright", "install", "chromium"],
+                        capture_output=True, text=True, timeout=600,
+                        creationflags=0x08000000,
+                    )
+                    results.append("  ✓ playwright + chromium 설치 시도 완료")
+                    fixes_applied += 1
+            except Exception as e:
+                results.append(f"✕ playwright 확인 오류: {e}")
+
+            # 7. 네트워크 확인
+            try:
+                import urllib.request
+                urllib.request.urlopen("https://crawl-station.vercel.app/api/workers", timeout=5)
+                results.append("✓ Station 연결: OK")
+            except Exception:
+                results.append("✕ Station 연결 실패")
+
+            # 8. 워커 실행 테스트
+            if os.path.isfile(WORKER_SCRIPT) and os.path.isfile(PYTHON_EXE):
+                results.append("\n워커 실행 테스트 중...")
+                try:
+                    proc = subprocess.Popen(
+                        [PYTHON_EXE, WORKER_SCRIPT],
+                        cwd=WORKER_DIR,
+                        creationflags=0x08000000,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    time.sleep(5)
+                    if proc.poll() is not None:
+                        stderr = proc.stderr.read().decode("utf-8", errors="replace")[-500:]
+                        stdout = proc.stdout.read().decode("utf-8", errors="replace")[-500:]
+                        results.append("✕ 워커 즉시 종료됨:")
+                        if stderr:
+                            results.append("  " + stderr[:300])
+                        if stdout:
+                            results.append("  " + stdout[:300])
+                    else:
+                        results.append("✓ 워커 실행 중! (PID: " + str(proc.pid) + ")")
+                        proc.stdout.close()
+                        proc.stderr.close()
+                except Exception as e:
+                    results.append(f"✕ 워커 실행 실패: {e}")
+
+            # 결과 표시
+            summary = "\n".join(results)
+            if fixes_applied:
+                summary += f"\n\n{fixes_applied}개 문제를 자동 수정했습니다."
+            summary += "\n=== 진단 완료 ===\n"
+
+            self.root.after(0, lambda: self._log_append(summary + "\n"))
+            time.sleep(2)
             self._refresh_data()
 
         threading.Thread(target=_do, daemon=True).start()
