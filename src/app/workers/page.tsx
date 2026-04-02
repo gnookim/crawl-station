@@ -303,6 +303,18 @@ export default function WorkersPage() {
         </div>
       )}
 
+      {/* 상태 범례 + 버전 설명 */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mb-3 px-1 text-xs text-gray-500">
+        <span className="font-medium text-gray-600">상태:</span>
+        <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />대기 — 실행 중, 작업 대기</span>
+        <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" />작업 중 — 크롤링 실행 중</span>
+        <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />차단 — 봇 탐지 등</span>
+        <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-400" />오프라인 — 15초 이상 응답 없음</span>
+        <span className="text-gray-300">|</span>
+        <span className="font-medium text-gray-600">버전:</span>
+        <span>워커 코드 버전 (인스톨러 버전과 별개)</span>
+      </div>
+
       {/* 워커 목록 */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {workers.length === 0 ? (

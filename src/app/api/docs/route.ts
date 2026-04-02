@@ -269,11 +269,41 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-02
 
-### Windows GUI 워커 파일 자동 복구 (v0.4.2)
-- 시작/재시작 시 누락 파일(handlers 등) 자동 감지 + 다운로드
+### Windows 워커 정식 가동 (v0.5.9 ~ v0.5.15)
+
+#### handlers 모듈 누락 해결
+- GUI 시작/재시작 시 누락 파일(handlers 등) 자동 감지 + 다운로드
 - Station API → GitHub raw fallback 이중 다운로드 경로
-- 진단 기능에서도 handlers 독립 체크 + 자동 다운로드
-- handlers 모듈 누락으로 워커 시작 실패하던 문제 해결
+- embedded Python의 python312._pth에 상위 디렉토리(..) 추가
+  - embedded Python은 PYTHONPATH를 무시하므로 _pth로 import 경로 설정
+
+#### 인코딩 에러 해결
+- Windows 한국어 환경(cp949)에서 이모지 출력 시 UnicodeEncodeError 수정
+- PYTHONIOENCODING=utf-8 환경변수 설정
+
+#### 워커 프로세스 안정화
+- GUI에서 시작 시 PIPE 테스트 → 로그파일 출력으로 재시작 방식 적용
+  - 기존: PIPE close → BrokenPipeError로 워커 크래시
+- 설치 완료 후 워커 실행 시 CMD 창 안 뜨게 수정 (CREATE_NO_WINDOW)
+
+#### GUI 앱 자동 시작
+- GUI 열면 워커가 중지 상태일 때 자동 시작
+- Windows 부팅 시 레지스트리: worker.py 직접 실행 → GUI 앱 실행으로 변경
+- 버튼 클릭감 개선 (raised + 호버 효과)
+
+#### 바탕화면 정리
+- .bat 바로가기 3개(시작/중지/삭제) 제거, CrawlStation Worker 아이콘 1개만 유지
+- 재설치 시 기존 .bat 파일 자동 정리
+- 언인스톨 시 바탕화면 아이콘 자동 삭제
+
+#### 다운로드 API 캐시 제거
+- GitHub Release 캐시 revalidate:300 → no-store로 변경
+- 새 버전 배포 후 즉시 최신 버전 다운로드 반영
+
+#### 워커 관리 페이지 개선
+- 상태 범례 추가 (대기/작업 중/차단/오프라인 설명)
+- 상태 배지에 마우스 호버 시 설명 툴팁 표시
+- 버전 = 워커 코드 버전 (인스톨러 버전과 별개) 설명 추가
 `;
 
 export async function GET(request: NextRequest) {
