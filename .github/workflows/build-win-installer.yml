@@ -150,7 +150,7 @@ jobs:
           [Code]
           var
             InstallPage: TWizardPage;
-            StepLabels: array[0..9] of TNewStaticText;
+            StepLabels: array[0..10] of TNewStaticText;
             ProgressBar: TNewProgressBar;
             StatusLabel: TNewStaticText;
             InstallDone: Boolean;
@@ -168,6 +168,7 @@ jobs:
               7: Result := '설정 파일 생성';
               8: Result := '서비스 등록';
               9: Result := 'GUI 앱 검증';
+              10: Result := '워커 실행 검증';
             else
               Result := '단계 ' + IntToStr(i);
             end;
@@ -183,7 +184,7 @@ jobs:
               'Python, Chromium, 크롤링 패키지를 설치합니다. 5~10분 소요될 수 있습니다.');
 
             yPos := 8;
-            for i := 0 to 9 do
+            for i := 0 to 10 do
             begin
               lbl := TNewStaticText.Create(InstallPage);
               lbl.Parent := InstallPage.Surface;
@@ -206,7 +207,7 @@ jobs:
             ProgressBar.Width := InstallPage.SurfaceWidth - 24;
             ProgressBar.Height := 20;
             ProgressBar.Min := 0;
-            ProgressBar.Max := 10;
+            ProgressBar.Max := 11;
             ProgressBar.Position := 0;
 
             yPos := yPos + 30;
@@ -228,7 +229,7 @@ jobs:
             i: Integer;
             prefix: string;
           begin
-            for i := 0 to 9 do
+            for i := 0 to 10 do
             begin
               if i < stepNum then
               begin
@@ -353,8 +354,8 @@ jobs:
               begin
                 if (GetArrayLength(Lines) > 0) and (Lines[0] = '0') then
                 begin
-                  UpdateStepUI(10, 'done');
-                  ProgressBar.Position := 10;
+                  UpdateStepUI(11, 'done');
+                  ProgressBar.Position := 11;
                   StatusLabel.Caption := '설치 완료! 워커가 실행 중입니다.';
                   StatusLabel.Font.Color := $00008000;
                 end

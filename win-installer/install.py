@@ -17,7 +17,7 @@ SUPABASE_URL = "__SUPABASE_URL__"
 SUPABASE_KEY = "__SUPABASE_KEY__"
 STATION_URL = "__STATION_URL__"
 INSTALL_DIR = r"C:\CrawlWorker"
-TOTAL = 10
+TOTAL = 11
 
 # ── 전역 상태 ──
 SESSION_ID = uuid.uuid4().hex
@@ -501,6 +501,36 @@ def step_packages():
 
     log("    -> 패키지 설치 완료")
 
+    # 핵심 패키지 import 검증 + 자동 수정
+    verify_imports = [
+        ("supabase", "supabase"),
+        ("greenlet", "greenlet"),
+        ("playwright.sync_api", "playwright"),
+        ("httpx", "httpx"),
+    ]
+    for module_name, pip_name in verify_imports:
+        r = subprocess.run(
+            [py, "-c", f"import {module_name}; print('OK')"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if r.returncode != 0 or "OK" not in r.stdout:
+            log(f"    -> ⚠️ {module_name} import 실패 — 재설치 중...")
+            subprocess.run(
+                [py, "-m", "pip", "install", "--force-reinstall", "--quiet", pip_name],
+                capture_output=True, text=True, timeout=300,
+            )
+            # 재검증
+            r2 = subprocess.run(
+                [py, "-c", f"import {module_name}; print('OK')"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if r2.returncode != 0 or "OK" not in r2.stdout:
+                log(f"    -> ⚠️ {module_name} 재설치 후에도 실패: {r2.stderr[:200]}")
+            else:
+                log(f"    -> ✅ {module_name} 재설치 완료")
+        else:
+            log(f"    -> ✅ {module_name} OK")
+
 
 def step_download_files():
     """7단계: 워커 파일 다운로드"""
@@ -688,6 +718,91 @@ except Exception as e:
     )
 
 
+def step_verify_worker():
+    """11단계: 워커 실행 검증 — worker.py가 3초 이상 살아있는지 확인"""
+    py = PY_PATH
+    worker_script = os.path.join(INSTALL_DIR, "worker.py")
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+
+    if not os.path.exists(worker_script):
+        log("    -> worker.py 없음 (건너뜀)")
+        return
+
+    # 1차: import만 테스트 (빠른 검증)
+    log("    -> import 검증 중...")
+    r = subprocess.run(
+        [py, "-c", "import sys; sys.path.insert(0, r'{}'); from handlers import HANDLERS; print('OK', len(HANDLERS))".format(INSTALL_DIR)],
+        capture_output=True, text=True, timeout=30,
+        env=env,
+    )
+    if r.returncode != 0:
+        error_msg = r.stderr[:300]
+        log("    -> ⚠️ import 실패: " + error_msg)
+
+        # DLL 문제면 해당 패키지 강제 재설치
+        if "DLL load failed" in error_msg:
+            # 에러에서 모듈 이름 추출
+            for pkg in ["greenlet", "httpx", "supabase", "playwright"]:
+                if pkg in error_msg.lower():
+                    log(f"    -> {pkg} 강제 재설치 중...")
+                    subprocess.run(
+                        [py, "-m", "pip", "install", "--force-reinstall", "--quiet", pkg],
+                        capture_output=True, text=True, timeout=300, env=env,
+                    )
+            # 모듈 특정 안 되면 전체 재설치
+            if "greenlet" not in error_msg.lower():
+                log("    -> 핵심 패키지 전체 재설치 중...")
+                subprocess.run(
+                    [py, "-m", "pip", "install", "--force-reinstall", "--quiet",
+                     "supabase", "greenlet", "httpx"],
+                    capture_output=True, text=True, timeout=300, env=env,
+                )
+
+        # 재검증
+        r2 = subprocess.run(
+            [py, "-c", "import sys; sys.path.insert(0, r'{}'); from handlers import HANDLERS; print('OK', len(HANDLERS))".format(INSTALL_DIR)],
+            capture_output=True, text=True, timeout=30, env=env,
+        )
+        if r2.returncode != 0:
+            raise StepError(
+                "워커 import 검증 실패 (재설치 후에도)",
+                stdout=r2.stdout, stderr=r2.stderr,
+            )
+        log("    -> ✅ import 재검증 통과")
+    else:
+        log("    -> ✅ import OK: " + r.stdout.strip())
+
+    # 2차: 실제 실행 테스트 (3초 생존)
+    log("    -> 워커 실행 테스트 중...")
+    try:
+        proc = subprocess.Popen(
+            [py, worker_script],
+            cwd=INSTALL_DIR,
+            creationflags=0x08000000,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        import time as _time
+        _time.sleep(3)
+        if proc.poll() is not None:
+            stderr = proc.stderr.read().decode("utf-8", errors="replace")[-500:]
+            stdout = proc.stdout.read().decode("utf-8", errors="replace")[-500:]
+            raise StepError(
+                "워커가 3초 내에 종료됨",
+                stdout=stdout, stderr=stderr,
+            )
+        else:
+            proc.kill()
+            proc.wait()
+            log("    -> ✅ 워커 실행 검증 통과 (3초 생존)")
+    except StepError:
+        raise
+    except Exception as e:
+        raise StepError("워커 실행 검증 실패: " + str(e))
+
+
 # ═══════════════════════════════════════════════════════
 #  메인
 # ═══════════════════════════════════════════════════════
@@ -742,6 +857,7 @@ def main():
         (8, "설정 파일 생성", step_create_env),
         (9, "서비스 등록", step_register_service),
         (10, "GUI 앱 검증", step_verify_gui),
+        (11, "워커 실행 검증", step_verify_worker),
     ]
 
     failed_steps = []
