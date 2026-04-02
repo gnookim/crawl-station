@@ -23,12 +23,23 @@ export async function GET(request: NextRequest) {
   // ── 개별 파일 서빙 (최신 릴리즈에서) ──
   if (fileParam) {
     const sb = createServerClient();
-    const { data } = await sb
+    let { data } = await sb
       .from("worker_releases")
       .select("files")
       .eq("is_latest", true)
       .limit(1)
       .single();
+
+    // fallback: is_latest가 없으면 최신 버전으로
+    if (!data?.files) {
+      const { data: fallback } = await sb
+        .from("worker_releases")
+        .select("files")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      data = fallback;
+    }
 
     if (!data?.files || !(fileParam in data.files)) {
       return NextResponse.json(

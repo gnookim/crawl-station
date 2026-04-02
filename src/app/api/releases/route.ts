@@ -29,13 +29,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 기존 is_latest를 모두 false로
-  await sb
-    .from("worker_releases")
-    .update({ is_latest: false })
-    .eq("is_latest", true);
-
-  // 새 릴리스 등록
+  // 새 릴리스 등록 먼저 (is_latest 간극 방지)
   const { data, error } = await sb
     .from("worker_releases")
     .insert({
@@ -46,6 +40,15 @@ export async function POST(request: NextRequest) {
     })
     .select()
     .single();
+
+  if (!error && data) {
+    // 새 릴리즈 등록 성공 후 기존 is_latest를 false로 (새 건 제외)
+    await sb
+      .from("worker_releases")
+      .update({ is_latest: false })
+      .eq("is_latest", true)
+      .neq("id", data.id);
+  }
 
   if (error) {
     return NextResponse.json(
