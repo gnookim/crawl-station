@@ -43,6 +43,11 @@ jobs:
           }
           Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile payload\python\get-pip.py
 
+          # greenlet + pyee를 embedded Python에 미리 설치 (DLL 호환성 보장)
+          & payload\python\python.exe payload\python\get-pip.py --quiet 2>$null
+          & payload\python\python.exe -m pip install --quiet greenlet pyee
+          Write-Host "Pre-installed greenlet + pyee into embedded Python"
+
           # install.py + run-install.bat + worker_gui.pyw 복사
           Copy-Item win-installer\install.py payload\install.py
           Copy-Item win-installer\run-install.bat payload\run-install.bat
