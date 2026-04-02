@@ -837,8 +837,72 @@ def step_verify_worker():
             else:
                 proc.kill()
                 proc.wait()
-                log("    -> ✅ 워커 실행 검증 통과!")
-                return
+                log("    -> ✅ 로컬 실행 검증 통과!")
+
+                # Station 크롤링 테스트
+                log("    -> Station 크롤링 테스트 중... (최대 2분)")
+                _wid = ""
+                try:
+                    env_path = os.path.join(INSTALL_DIR, ".env")
+                    if os.path.exists(env_path):
+                        with open(env_path) as ef:
+                            for line in ef:
+                                if line.startswith("WORKER_ID="):
+                                    _wid = line.strip().split("=", 1)[1]
+                except Exception:
+                    pass
+
+                if _wid:
+                    # 워커를 백그라운드로 시작
+                    worker_proc = subprocess.Popen(
+                        [py, os.path.join(INSTALL_DIR, "worker.py")],
+                        cwd=INSTALL_DIR, creationflags=0x08000000, env=env,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                    _time.sleep(8)  # 워커 등록 + heartbeat 대기
+
+                    # Station 테스트 API 호출
+                    test_ok = False
+                    try:
+                        test_payload = json.dumps({"worker_id": _wid}).encode("utf-8")
+                        test_req = urllib.request.Request(
+                            STATION_URL + "/api/test/worker",
+                            data=test_payload,
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        with urllib.request.urlopen(test_req, timeout=150) as resp:
+                            test_result = json.loads(resp.read().decode("utf-8"))
+                            test_ok = test_result.get("ok", False)
+                            if test_ok:
+                                log("    -> ✅ Station 크롤링 테스트 통과!")
+                                log("       결과: {}개 ({:.1f}초)".format(
+                                    test_result.get("result_count", 0),
+                                    test_result.get("elapsed_ms", 0) / 1000))
+                            else:
+                                log("    -> ⚠️ Station 테스트 실패: " +
+                                    str(test_result.get("error", ""))[:200])
+                    except Exception as e:
+                        log("    -> ⚠️ Station 테스트 연결 실패: " + str(e)[:100])
+
+                    # 테스트 후 워커 정리
+                    try:
+                        worker_proc.kill()
+                        worker_proc.wait()
+                    except Exception:
+                        pass
+
+                    if test_ok:
+                        return  # 모든 검증 통과!
+
+                    # Station 테스트 실패 — 다음 수정 전략 시도
+                    if attempt < len(FIX_STRATEGIES):
+                        log("    -> 다음 전략으로 재시도...")
+                        continue
+                    raise StepError("Station 크롤링 테스트 최종 실패")
+                else:
+                    log("    -> WORKER_ID 없음 — Station 테스트 생략")
+                    return
         else:
             error_msg = r.stderr[:300]
             log("    -> ⚠️ import 실패: " + error_msg[:150])
@@ -944,8 +1008,8 @@ def main():
         success = run_step(num, name, func)
         if not success:
             failed_steps.append(name)
-            # 1~4단계는 필수 — 실패 시 중단
-            if num <= 4:
+            # 필수 단계 실패 시 중단 (1~4: 기본 설치, 11: 워커 검증)
+            if num <= 4 or num == 11:
                 log("\n  [ABORT] 필수 단계 실패: " + name)
                 log("  설치를 완료할 수 없습니다.")
                 report_status("complete", success=False)
