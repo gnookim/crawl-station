@@ -98,9 +98,29 @@ export async function POST(request: NextRequest) {
       const hasResults = items.length > 0;
       const hasTitles = items.some((i) => i.title.length > 3);
       const hasUrls = items.some((i) => i.url.startsWith("http"));
+      const testPassed = hasResults && hasTitles && hasUrls;
+
+      // 테스트 통과 시 워커 검증 상태 업데이트
+      const testSummary = {
+        ok: testPassed,
+        keyword: TEST_KEYWORD,
+        result_count: items.length,
+        elapsed_ms: elapsed,
+        tested_at: new Date().toISOString(),
+      };
+      if (testPassed) {
+        await sb.from("workers").update({
+          verified_at: new Date().toISOString(),
+          last_test_result: testSummary,
+        }).eq("id", workerId);
+      } else {
+        await sb.from("workers").update({
+          last_test_result: testSummary,
+        }).eq("id", workerId);
+      }
 
       return NextResponse.json({
-        ok: hasResults && hasTitles && hasUrls,
+        ok: testPassed,
         worker_id: workerId,
         request_id: req.id,
         keyword: TEST_KEYWORD,

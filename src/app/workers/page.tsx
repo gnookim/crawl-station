@@ -404,7 +404,19 @@ export default function WorkersPage() {
                 return (
                   <tr key={w.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2">
-                      <div className="font-medium">{w.name || w.id}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">{w.name || w.id}</span>
+                        {w.verified_at ? (
+                          <span title={`테스트 통과: ${new Date(w.verified_at).toLocaleString("ko")}`}
+                            className="px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium cursor-help">
+                            검증됨
+                          </span>
+                        ) : (
+                          <span className="px-1 py-0.5 bg-gray-100 text-gray-400 rounded text-xs">
+                            미검증
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-gray-400">{w.id}</div>
                     </td>
                     <td className="px-4 py-2 text-gray-500 text-xs">

@@ -17,6 +17,8 @@ export interface Worker {
   version: string;
   registered_by: "auto" | "manual";
   command: "stop" | "restart" | "update" | null;
+  verified_at: string | null;
+  last_test_result: Record<string, unknown> | null;
   created_at: string;
   is_active?: boolean;
 }

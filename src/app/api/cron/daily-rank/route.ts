@@ -23,6 +23,18 @@ export async function GET(request: NextRequest) {
 
   const sb = createServerClient();
 
+  // 좀비 작업 정리 (10분 이상 running → failed)
+  const zombieCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await sb
+    .from("crawl_requests")
+    .update({
+      status: "failed",
+      error_message: "타임아웃 — 10분 이상 응답 없음 (cron 자동 정리)",
+      completed_at: new Date().toISOString(),
+    })
+    .eq("status", "running")
+    .lt("started_at", zombieCutoff);
+
   // 현재 KST 시간
   const kstNow = new Date(
     new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
