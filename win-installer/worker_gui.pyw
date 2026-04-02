@@ -513,6 +513,7 @@ class CrawlStationGUI:
         env = os.environ.copy()
         env["PYTHONPATH"] = WORKER_DIR + os.pathsep + env.get("PYTHONPATH", "")
         env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUNBUFFERED"] = "1"
         return env
 
     # ------------------------------------------------------------------
@@ -737,12 +738,12 @@ class CrawlStationGUI:
                     self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
                     return
 
-            # 3. 본 실행 (stdout/stderr → 로그파일, 파이프 없음)
+            # 3. 본 실행 (stdout/stderr → 로그파일, -u로 즉시 출력)
             try:
                 os.makedirs(LOG_DIR, exist_ok=True)
                 log_fh = open(LOG_FILE, "a", encoding="utf-8")
                 subprocess.Popen(
-                    [PYTHON_EXE, WORKER_SCRIPT],
+                    [PYTHON_EXE, "-u", WORKER_SCRIPT],
                     cwd=WORKER_DIR,
                     creationflags=CREATE_NO_WINDOW,
                     env=self._worker_env(),
