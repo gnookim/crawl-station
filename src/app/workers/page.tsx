@@ -12,6 +12,8 @@ export default function WorkersPage() {
   const [newWorkerName, setNewWorkerName] = useState("");
   const [newWorkerId, setNewWorkerId] = useState("");
   const [commandLoading, setCommandLoading] = useState<string | null>(null);
+  const [testingWorker, setTestingWorker] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
   const [refreshInterval, setRefreshInterval] = useState(5);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -138,6 +140,23 @@ export default function WorkersPage() {
       setCommandLoading(null);
       loadData(true);
     }
+  }
+
+  async function runTest(workerId: string) {
+    setTestingWorker(workerId);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/test/worker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ worker_id: workerId }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch (e) {
+      setTestResult({ ok: false, error: String(e) });
+    }
+    setTestingWorker(null);
   }
 
   const outdatedCount = workers.filter(
@@ -315,6 +334,46 @@ export default function WorkersPage() {
         <span>워커 코드 버전 (인스톨러 버전과 별개)</span>
       </div>
 
+      {/* 테스트 결과 */}
+      {testResult && (
+        <div className={`mb-4 rounded-lg border p-4 ${
+          testResult.ok ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+        }`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-bold ${testResult.ok ? "text-green-700" : "text-red-700"}`}>
+                {testResult.ok ? "테스트 통과" : "테스트 실패"}
+              </span>
+              <span className="text-xs text-gray-500">
+                {String(testResult.worker_id || "")} | {String(testResult.elapsed_ms || 0)}ms
+              </span>
+            </div>
+            <button
+              onClick={() => setTestResult(null)}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              닫기
+            </button>
+          </div>
+          {testResult.error && (
+            <p className="text-xs text-red-600 mb-2">{String(testResult.error)}</p>
+          )}
+          {testResult.results && (
+            <div className="space-y-1">
+              <div className="text-xs text-gray-500 mb-1">
+                키워드: &quot;{String(testResult.keyword || "")}&quot; | 결과: {String(testResult.result_count || 0)}개
+              </div>
+              {(testResult.results as { rank: number; title: string; url: string }[]).map((r, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className="font-bold text-blue-600 w-6 text-right">{r.rank}</span>
+                  <span className="truncate max-w-md">{r.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 워커 목록 */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {workers.length === 0 ? (
@@ -405,6 +464,13 @@ export default function WorkersPage() {
                               업데이트
                             </button>
                           )}
+                          <button
+                            onClick={() => runTest(w.id)}
+                            disabled={testingWorker !== null}
+                            className="px-1.5 py-0.5 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors disabled:opacity-50"
+                          >
+                            {testingWorker === w.id ? "테스트 중..." : "테스트"}
+                          </button>
                           <button
                             onClick={() =>
                               sendCommand("restart", [w.id])
