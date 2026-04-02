@@ -23,7 +23,7 @@ export async function GET() {
   const workers = (data || []).map((w) => ({
     ...w,
     is_active: w.last_seen
-      ? now - new Date(w.last_seen).getTime() < 15000
+      ? now - new Date(w.last_seen).getTime() < 30000
       : false,
   }));
 

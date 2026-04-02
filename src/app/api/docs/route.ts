@@ -188,7 +188,7 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 파란색 CW 앱 아이콘 자동 생성
 
 ### 워커 오프라인 감지
-- last_seen 기준 15초 이내 응답 없으면 오프라인 표시
+- last_seen 기준 30초 이내 응답 없으면 오프라인 표시
 - 기존 DB status("idle") 대신 is_active 기반 실시간 판별
 
 ### 워커 관리 페이지 개선
@@ -407,6 +407,24 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 워커별 ai_auto_adjust 개별 설정 가능
 - 최근 AI 분석 로그 뷰어
 - "지금 분석 실행" 수동 트리거 버튼
+
+### 워커 v0.9.2 — 안정성 대폭 개선
+
+#### 할당량 이중 카운팅 버그 수정
+- dispatch API에서 작업 배정 시 increment_daily_used 호출 제거
+- 워커가 작업 완료 시에만 할당량 차감 (이전에는 배정+완료 2회 차감)
+- 실제 처리량의 2배로 할당량이 소진되던 문제 해결
+
+#### Heartbeat 백그라운드 태스크 분리
+- heartbeat를 별도 asyncio 백그라운드 태스크로 분리 (10초 간격)
+- 배치 휴식(180초), 키워드 딜레이(15~30초), 새벽 휴식 중에도 heartbeat 유지
+- 오프라인 판정 임계값 15초 → 30초로 조정 (workers API, dispatch API, UI 모두)
+- 워커가 정상 동작 중인데 오프라인으로 깜빡이던 문제 해결
+
+#### 타임존 버그 수정
+- 새벽 휴식 시간 판정: \`(hour + 9) % 24\` → \`zoneinfo.ZoneInfo("Asia/Seoul")\` 사용
+- \`astimezone()\`이 로컬 시간을 반환하는데 +9를 중복 적용하던 문제 수정
+- KST 자정 리셋 로직도 동일하게 수정
 `;
 
 export async function GET(request: NextRequest) {

@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
 
   const effectivePriority = priority || PRIORITY_BY_TYPE[type] || 5;
 
-  // 활성 워커 조회 (idle 또는 crawling 중이면서 최근 15초 이내 heartbeat)
-  const cutoff = new Date(Date.now() - 15000).toISOString();
+  // 활성 워커 조회 (idle 또는 crawling 중이면서 최근 30초 이내 heartbeat)
+  const cutoff = new Date(Date.now() - 30000).toISOString();
   const { data: activeWorkers } = await sb
     .from("workers")
     .select("id, name, status")
@@ -146,16 +146,10 @@ export async function POST(request: NextRequest) {
 
   await sb.from("crawl_requests").insert(rows);
 
-  // 워커별 할당 수 집계 + daily_used 증가
+  // 워커별 할당 수 집계 (quota increment는 워커가 작업 완료 시 처리)
   const workerCounts: Record<string, number> = {};
   for (const { workerId } of assignments) {
     workerCounts[workerId] = (workerCounts[workerId] || 0) + 1;
-  }
-
-  for (const [wid, count] of Object.entries(workerCounts)) {
-    for (let i = 0; i < count; i++) {
-      await sb.rpc("increment_daily_used", { wid });
-    }
   }
 
   return NextResponse.json({

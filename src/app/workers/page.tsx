@@ -37,7 +37,7 @@ export default function WorkersPage() {
     const enriched = (workersRes.data || []).map((w) => ({
       ...w,
       is_active: w.last_seen
-        ? now - new Date(w.last_seen).getTime() < 15000
+        ? now - new Date(w.last_seen).getTime() < 30000
         : false,
     })) as Worker[];
 
@@ -328,7 +328,7 @@ export default function WorkersPage() {
         <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />대기 — 실행 중, 작업 대기</span>
         <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" />작업 중 — 크롤링 실행 중</span>
         <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />차단 — 봇 탐지 등</span>
-        <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-400" />오프라인 — 15초 이상 응답 없음</span>
+        <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-400" />오프라인 — 30초 이상 응답 없음</span>
         <span className="text-gray-300">|</span>
         <span className="font-medium text-gray-600">버전:</span>
         <span>워커 코드 버전 (인스톨러 버전과 별개)</span>

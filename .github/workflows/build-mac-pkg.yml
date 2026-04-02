@@ -208,7 +208,7 @@ jobs:
 
           sudo -u "$REAL_USER" "$PYTHON3" -m playwright install chromium 2>/dev/null || true
 
-          FILES="worker.py handlers/__init__.py handlers/base.py handlers/kin.py handlers/blog.py handlers/serp.py"
+          FILES="worker.py handlers/__init__.py handlers/base.py handlers/kin.py handlers/blog.py handlers/serp.py handlers/area.py handlers/deep.py handlers/rank.py supabase_rest.py"
           for f in $FILES; do
               TARGET="${INSTALL_DIR}/${f}"
               sudo -u "$REAL_USER" mkdir -p "$(dirname "${TARGET}")"
@@ -236,6 +236,7 @@ jobs:
               <key>ProgramArguments</key>
               <array>
                   <string>${PYTHON3}</string>
+                  <string>-u</string>
                   <string>${INSTALL_DIR}/worker.py</string>
               </array>
               <key>WorkingDirectory</key>
