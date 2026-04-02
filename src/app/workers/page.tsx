@@ -14,7 +14,7 @@ export default function WorkersPage() {
   const [commandLoading, setCommandLoading] = useState<string | null>(null);
   const [testingWorker, setTestingWorker] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
-  const [refreshInterval, setRefreshInterval] = useState(5);
+  const [refreshInterval, setRefreshInterval] = useState(10);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -257,7 +257,7 @@ export default function WorkersPage() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">자동 갱신:</span>
-          {[3, 5, 10, 30, 0].map((sec) => (
+          {[5, 10, 30, 0].map((sec) => (
             <button
               key={sec}
               onClick={() => setRefreshInterval(sec)}
