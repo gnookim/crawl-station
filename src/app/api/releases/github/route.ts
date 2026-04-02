@@ -20,6 +20,7 @@ const WORKER_FILES = [
   "handlers/area.py",
   "handlers/deep.py",
   "handlers/rank.py",
+  "supabase_rest.py",
 ];
 
 async function fetchFileFromGitHub(filepath: string): Promise<string | null> {

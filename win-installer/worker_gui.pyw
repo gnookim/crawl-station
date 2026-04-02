@@ -539,6 +539,7 @@ class CrawlStationGUI:
             "handlers/area.py",
             "handlers/deep.py",
             "handlers/rank.py",
+        "supabase_rest.py",
         ]
         STATION_DL = "https://crawl-station.vercel.app/api/download?file={}"
         GITHUB_RAW = "https://raw.githubusercontent.com/gnookim/naver-crawler/main/{}"
@@ -587,6 +588,7 @@ class CrawlStationGUI:
             "handlers/area.py",
             "handlers/deep.py",
             "handlers/rank.py",
+        "supabase_rest.py",
         ]
         GITHUB_RAW = "https://raw.githubusercontent.com/gnookim/naver-crawler/main/{}"
         downloaded = 0
