@@ -30,6 +30,10 @@ export async function GET(request: NextRequest) {
   const kstHour = kstNow.getHours();
   const kstDate = kstNow.toISOString().slice(0, 10); // YYYY-MM-DD
 
+  // 수동 호출 시 특정 슬롯만 실행 가능
+  const { searchParams } = new URL(request.url);
+  const forceSlot = searchParams.get("slot");
+
   // 활성 스케줄 조회
   const { data: schedules } = await sb
     .from("daily_rank_schedules")
@@ -40,32 +44,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "활성 스케줄 없음", hour: kstHour });
   }
 
+  // 활성 워커 조회 (공통)
+  const cutoff = new Date(Date.now() - 15000).toISOString();
+  const { data: activeWorkers } = await sb
+    .from("workers")
+    .select("id")
+    .in("status", ["idle", "crawling", "online"])
+    .gte("last_seen", cutoff)
+    .order("id");
+
   const results = [];
 
   for (const schedule of schedules) {
     const slotHours: number[] = schedule.slot_hours || [];
-    const slotIndex = slotHours.indexOf(kstHour);
 
-    // 이 시간이 스케줄에 없으면 스킵
-    if (slotIndex === -1) continue;
-
-    // 이미 디스패치했는지 확인 (중복 방지)
-    const { data: existing } = await sb
-      .from("daily_rank_dispatch_log")
-      .select("id")
-      .eq("schedule_id", schedule.id)
-      .eq("dispatch_date", kstDate)
-      .eq("slot_hour", kstHour)
-      .limit(1);
-
-    if (existing?.length) {
-      results.push({
-        schedule: schedule.name,
-        status: "이미 디스패치됨",
-        slot: kstHour,
-      });
-      continue;
-    }
+    // Hobby 플랜: 하루 1회 cron → 모든 슬롯을 한 번에 디스패치
+    // forceSlot이 있으면 해당 슬롯만
+    const slotsToDispatch = forceSlot
+      ? [parseInt(forceSlot)]
+      : slotHours;
 
     // URL 목록 조회
     const { data: urls } = await sb
@@ -74,93 +71,96 @@ export async function GET(request: NextRequest) {
       .eq("schedule_id", schedule.id);
 
     if (!urls?.length) {
-      results.push({
-        schedule: schedule.name,
-        status: "URL 없음",
-      });
+      results.push({ schedule: schedule.name, status: "URL 없음" });
       continue;
     }
 
-    // 슬롯별 배치 분할
     const totalSlots = slotHours.length;
     const chunkSize = Math.ceil(urls.length / totalSlots);
-    const start = slotIndex * chunkSize;
-    const chunk = urls.slice(start, start + chunkSize);
-
-    if (!chunk.length) {
-      results.push({
-        schedule: schedule.name,
-        status: "이 슬롯에 할당된 URL 없음",
-        slot: kstHour,
-      });
-      continue;
-    }
-
-    // 활성 워커 조회 (quota 여유 있는)
-    const cutoff = new Date(Date.now() - 15000).toISOString();
-    const { data: activeWorkers } = await sb
-      .from("workers")
-      .select("id")
-      .in("status", ["idle", "crawling", "online"])
-      .gte("last_seen", cutoff)
-      .order("id");
-
     const workerIds = (activeWorkers || [])
       .map((w) => w.id)
       .slice(0, schedule.worker_count);
 
-    // 태스크 생성
-    const BATCH_SIZE = 500;
-    let tasksCreated = 0;
+    for (const slotHour of slotsToDispatch) {
+      const slotIndex = slotHours.indexOf(slotHour);
+      if (slotIndex === -1) continue;
 
-    for (let i = 0; i < chunk.length; i += BATCH_SIZE) {
-      const batch = chunk.slice(i, i + BATCH_SIZE);
-      const rows = batch.map((item, idx) => ({
-        keyword: item.keyword,
-        type: "daily_rank",
-        options: {
-          target_url: item.url,
-          check_tabs: ["integrated", "blog_tab"],
-          schedule_id: schedule.id,
-        },
-        status: workerIds.length
-          ? ("assigned" as const)
-          : ("pending" as const),
-        assigned_worker: workerIds.length
-          ? workerIds[(i + idx) % workerIds.length]
-          : null,
-        priority: 1,
-      }));
+      // 이미 디스패치했는지 확인
+      const { data: existing } = await sb
+        .from("daily_rank_dispatch_log")
+        .select("id")
+        .eq("schedule_id", schedule.id)
+        .eq("dispatch_date", kstDate)
+        .eq("slot_hour", slotHour)
+        .limit(1);
 
-      await sb.from("crawl_requests").insert(rows);
-      tasksCreated += rows.length;
-    }
+      if (existing?.length) {
+        results.push({
+          schedule: schedule.name,
+          status: "이미 디스패치됨",
+          slot: slotHour,
+        });
+        continue;
+      }
 
-    // quota 증가
-    if (workerIds.length) {
-      const perWorker = Math.ceil(tasksCreated / workerIds.length);
-      for (const wid of workerIds) {
-        for (let j = 0; j < perWorker; j++) {
-          await sb.rpc("increment_daily_used", { wid });
+      // 이 슬롯의 URL 청크
+      const start = slotIndex * chunkSize;
+      const chunk = urls.slice(start, start + chunkSize);
+      if (!chunk.length) continue;
+
+      // 태스크 생성
+      const BATCH_SIZE = 500;
+      let tasksCreated = 0;
+
+      for (let i = 0; i < chunk.length; i += BATCH_SIZE) {
+        const batch = chunk.slice(i, i + BATCH_SIZE);
+        const rows = batch.map((item, idx) => ({
+          keyword: item.keyword,
+          type: "daily_rank",
+          options: {
+            target_url: item.url,
+            check_tabs: ["integrated", "blog_tab"],
+            schedule_id: schedule.id,
+          },
+          status: workerIds.length
+            ? ("assigned" as const)
+            : ("pending" as const),
+          assigned_worker: workerIds.length
+            ? workerIds[(i + idx) % workerIds.length]
+            : null,
+          priority: 1,
+        }));
+
+        await sb.from("crawl_requests").insert(rows);
+        tasksCreated += rows.length;
+      }
+
+      // quota 증가
+      if (workerIds.length) {
+        const perWorker = Math.ceil(tasksCreated / workerIds.length);
+        for (const wid of workerIds) {
+          for (let j = 0; j < perWorker; j++) {
+            await sb.rpc("increment_daily_used", { wid });
+          }
         }
       }
+
+      // 디스패치 로그
+      await sb.from("daily_rank_dispatch_log").insert({
+        schedule_id: schedule.id,
+        dispatch_date: kstDate,
+        slot_hour: slotHour,
+        tasks_created: tasksCreated,
+      });
+
+      results.push({
+        schedule: schedule.name,
+        status: "디스패치 완료",
+        slot: slotHour,
+        tasks_created: tasksCreated,
+        workers: workerIds.length,
+      });
     }
-
-    // 디스패치 로그 기록
-    await sb.from("daily_rank_dispatch_log").insert({
-      schedule_id: schedule.id,
-      dispatch_date: kstDate,
-      slot_hour: kstHour,
-      tasks_created: tasksCreated,
-    });
-
-    results.push({
-      schedule: schedule.name,
-      status: "디스패치 완료",
-      slot: kstHour,
-      tasks_created: tasksCreated,
-      workers: workerIds.length,
-    });
   }
 
   return NextResponse.json({
