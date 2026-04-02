@@ -14,7 +14,7 @@ const WORKER_FILES = [
   "handlers/area.py",
   "handlers/deep.py",
   "handlers/rank.py",
-        "supabase_rest.py",
+  "supabase_rest.py",
 ];
 
 export default function ReleasesPage() {
