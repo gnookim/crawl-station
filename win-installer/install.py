@@ -561,7 +561,9 @@ def step_register_service():
                 if line.startswith("WORKER_ID="):
                     wid = line.strip().split("=", 1)[1]
 
-    # 레지스트리 자동 실행 등록
+    # 레지스트리 자동 실행 등록 (GUI 앱 → 자동 시작)
+    pythonw = os.path.join(os.path.dirname(py), "pythonw.exe")
+    gui_path = os.path.join(INSTALL_DIR, "worker_gui.pyw")
     try:
         import winreg
         key = winreg.OpenKey(
@@ -571,10 +573,10 @@ def step_register_service():
         )
         winreg.SetValueEx(
             key, "CrawlStationWorker", 0, winreg.REG_SZ,
-            '"{}" "{}"'.format(py, os.path.join(INSTALL_DIR, "worker.py")),
+            '"{}" "{}"'.format(pythonw, gui_path),
         )
         winreg.CloseKey(key)
-        log("    -> PC 시작 시 자동 실행 등록됨")
+        log("    -> PC 시작 시 GUI 앱 자동 실행 등록됨")
     except Exception as e:
         raise StepError("자동 실행 등록 실패: " + str(e))
 
@@ -780,10 +782,13 @@ def main():
     try:
         os.makedirs(os.path.join(INSTALL_DIR, "logs"), exist_ok=True)
         _lf = open(os.path.join(INSTALL_DIR, "logs", "worker.log"), "a", encoding="utf-8")
+        _env = os.environ.copy()
+        _env["PYTHONIOENCODING"] = "utf-8"
         subprocess.Popen(
             [PY_PATH, os.path.join(INSTALL_DIR, "worker.py")],
             cwd=INSTALL_DIR,
             creationflags=0x08000000,
+            env=_env,
             stdout=_lf,
             stderr=_lf,
         )

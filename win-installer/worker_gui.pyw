@@ -259,6 +259,9 @@ class CrawlStationGUI:
         # Initial refresh
         self._schedule_refresh()
 
+        # 워커가 실행 중이 아니면 자동 시작
+        self.root.after(1500, self._auto_start_worker)
+
     def _configure_styles(self):
         s = self.style
         s.configure(".", background=COL_BG, font=("Segoe UI", 9))
@@ -504,9 +507,10 @@ class CrawlStationGUI:
     # ------------------------------------------------------------------
 
     def _worker_env(self):
-        """워커 실행 시 환경변수 — PYTHONPATH에 WORKER_DIR 추가"""
+        """워커 실행 시 환경변수"""
         env = os.environ.copy()
         env["PYTHONPATH"] = WORKER_DIR + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONIOENCODING"] = "utf-8"
         return env
 
     # ------------------------------------------------------------------
@@ -1120,6 +1124,12 @@ class CrawlStationGUI:
     # ------------------------------------------------------------------
     # Run
     # ------------------------------------------------------------------
+
+    def _auto_start_worker(self):
+        """GUI 시작 시 워커가 실행 중이 아니면 자동 시작"""
+        if not is_worker_running():
+            self._log_append("워커 자동 시작 중...\n")
+            self._start_worker()
 
     def run(self):
         self.root.mainloop()
