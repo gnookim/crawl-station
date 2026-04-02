@@ -578,28 +578,18 @@ def step_register_service():
     except Exception as e:
         raise StepError("자동 실행 등록 실패: " + str(e))
 
-    # 바탕화면 바로가기
+    # 이전 버전의 .bat 바로가기 정리
     desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-    try:
-        with open(os.path.join(desktop, "CrawlWorker.bat"), "w", encoding="utf-8") as f:
-            f.write('@echo off\ncd /d "{}"\n"{}" worker.py\n'.format(INSTALL_DIR, py))
+    for old_bat in ["CrawlWorker.bat", "CrawlWorker Stop.bat", "CrawlWorker Uninstall.bat"]:
+        old_path = os.path.join(desktop, old_bat)
+        if os.path.isfile(old_path):
+            try:
+                os.remove(old_path)
+                log("    -> 이전 바로가기 삭제: " + old_bat)
+            except Exception:
+                pass
 
-        with open(os.path.join(desktop, "CrawlWorker Stop.bat"), "w", encoding="utf-8") as f:
-            f.write('@echo off\ntaskkill /f /im python.exe 2>nul\necho Stopped.\npause\n')
-
-        with open(os.path.join(desktop, "CrawlWorker Uninstall.bat"), "w", encoding="utf-8") as f:
-            f.write('@echo off\ntaskkill /f /im python.exe 2>nul\n')
-            f.write('reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" '
-                    '/v CrawlStationWorker /f 2>nul\n')
-            f.write('curl -s -X DELETE "{}/api/workers?id={}" >nul 2>&1\n'.format(STATION_URL, wid))
-            f.write('rmdir /s /q "{}" 2>nul\n'.format(INSTALL_DIR))
-            f.write('del "%USERPROFILE%\\Desktop\\CrawlWorker.bat" 2>nul\n')
-            f.write('del "%USERPROFILE%\\Desktop\\CrawlWorker Stop.bat" 2>nul\n')
-            f.write('echo Uninstalled.\npause\ndel "%~f0" 2>nul\n')
-
-        log("    -> 바탕화면 바로가기 생성 (시작/중지/삭제)")
-    except Exception as e:
-        raise StepError("바로가기 생성 실패: " + str(e))
+    log("    -> 서비스 등록 완료 (GUI 앱 아이콘은 Inno Setup이 생성)")
 
 
 def step_verify_gui():
