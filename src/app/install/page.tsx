@@ -19,13 +19,15 @@ function WorkerInstall() {
   const [release, setRelease] = useState<ReleaseInfo | null>(null);
 
   useEffect(() => {
-    fetch("https://api.github.com/repos/gnookim/crawl-station/releases/latest")
+    // Supabase worker_releases에서 최신 버전 조회 (실제 워커 코드 버전)
+    fetch("/api/releases")
       .then((r) => r.json())
       .then((data) => {
-        if (data.tag_name) {
+        const latest = (data.releases || []).find((r: { is_latest: boolean }) => r.is_latest);
+        if (latest) {
           setRelease({
-            version: data.tag_name.replace(/^v/, ""),
-            published: data.published_at || "",
+            version: latest.version,
+            published: latest.created_at || "",
           });
         }
       })
