@@ -4,12 +4,17 @@ import { useEffect, useState } from "react";
 
 export default function ChangelogPage() {
   const [markdown, setMarkdown] = useState("");
+  const [newestFirst, setNewestFirst] = useState(true);
 
   useEffect(() => {
     fetch("/api/docs?type=changelog")
       .then((r) => r.text())
       .then(setMarkdown);
   }, []);
+
+  // ## 날짜 섹션 단위로 분리
+  const { title, sections } = parseSections(markdown);
+  const ordered = newestFirst ? [...sections].reverse() : sections;
 
   return (
     <div className="p-6 max-w-4xl">
@@ -20,29 +25,74 @@ export default function ChangelogPage() {
             CrawlStation 시스템 변경 이력
           </p>
         </div>
-        <a
-          href="/api/docs?type=changelog"
-          download="CrawlStation-업데이트기록.md"
-          className="px-3 py-1.5 text-xs bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors"
-        >
-          MD 다운로드
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setNewestFirst(!newestFirst)}
+            className="px-3 py-1.5 text-xs border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            {newestFirst ? "↑ 최신순" : "↓ 오래된순"}
+          </button>
+          <a
+            href="/api/docs?type=changelog"
+            download="CrawlStation-업데이트기록.md"
+            className="px-3 py-1.5 text-xs bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors"
+          >
+            MD 다운로드
+          </a>
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <MarkdownRenderer content={markdown} />
+        {!markdown ? (
+          <div className="text-sm text-gray-400 text-center py-8">로딩 중...</div>
+        ) : (
+          <>
+            {title && (
+              <h1 className="text-2xl font-bold mb-4">{title}</h1>
+            )}
+            {ordered.map((section, idx) => (
+              <div key={idx}>
+                <MarkdownRenderer content={section} />
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function MarkdownRenderer({ content }: { content: string }) {
-  if (!content) {
-    return (
-      <div className="text-sm text-gray-400 text-center py-8">로딩 중...</div>
-    );
+/** MD를 ## 섹션 단위로 분리 */
+function parseSections(md: string): { title: string; sections: string[] } {
+  if (!md) return { title: "", sections: [] };
+
+  const lines = md.split("\n");
+  let title = "";
+  const sections: string[] = [];
+  let current: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("# ") && !title) {
+      title = line.slice(2);
+      continue;
+    }
+    if (line.startsWith("## ")) {
+      if (current.length > 0) {
+        sections.push(current.join("\n"));
+      }
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) {
+    sections.push(current.join("\n"));
   }
 
+  return { title, sections };
+}
+
+function MarkdownRenderer({ content }: { content: string }) {
   const lines = content.split("\n");
   const elements: React.ReactNode[] = [];
   let inCodeBlock = false;
@@ -95,14 +145,7 @@ function MarkdownRenderer({ content }: { content: string }) {
       continue;
     }
 
-    if (line.startsWith("# ")) {
-      flushList();
-      elements.push(
-        <h1 key={`h1-${i}`} className="text-2xl font-bold mb-4">
-          {line.slice(2)}
-        </h1>
-      );
-    } else if (line.startsWith("## ")) {
+    if (line.startsWith("## ")) {
       flushList();
       elements.push(
         <h2
@@ -111,6 +154,13 @@ function MarkdownRenderer({ content }: { content: string }) {
         >
           {line.slice(3)}
         </h2>
+      );
+    } else if (line.startsWith("#### ")) {
+      flushList();
+      elements.push(
+        <h4 key={`h4-${i}`} className="text-xs font-bold mt-3 mb-1 text-gray-500">
+          {line.slice(5)}
+        </h4>
       );
     } else if (line.startsWith("### ")) {
       flushList();
