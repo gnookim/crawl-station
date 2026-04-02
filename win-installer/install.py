@@ -502,13 +502,39 @@ def step_packages():
     except Exception:
         pass
 
-    # playwright
+    # greenlet 보호: 빌드 시 포함된 greenlet 버전 기록
+    greenlet_ver = None
+    try:
+        r0 = subprocess.run([py, "-c", "import greenlet; print(greenlet.__version__)"],
+                            capture_output=True, text=True, timeout=10)
+        if r0.returncode == 0:
+            greenlet_ver = r0.stdout.strip()
+            log("    -> greenlet {} (빌드 포함)".format(greenlet_ver))
+    except Exception:
+        pass
+
+    # playwright (greenlet 덮어쓰기 방지)
     log("    -> playwright 설치 중... (1~2분)")
     r = subprocess.run([py, "-m", "pip", "install", "--quiet", "playwright"],
                        capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
         raise StepError("playwright 설치 실패", stdout=r.stdout, stderr=r.stderr)
     log("    -> playwright OK")
+
+    # greenlet 복원 (pip이 다른 버전으로 바꿨을 수 있음)
+    if greenlet_ver:
+        try:
+            r_check = subprocess.run([py, "-c", "import greenlet; print(greenlet.__version__)"],
+                                     capture_output=True, text=True, timeout=10)
+            new_ver = r_check.stdout.strip() if r_check.returncode == 0 else ""
+            if new_ver != greenlet_ver:
+                log("    -> greenlet 변경됨 ({} → {}) — 원래 버전 복원 중...".format(greenlet_ver, new_ver))
+                subprocess.run([py, "-m", "pip", "install", "--quiet",
+                               "greenlet=={}".format(greenlet_ver)],
+                               capture_output=True, text=True, timeout=120)
+                log("    -> greenlet {} 복원 완료".format(greenlet_ver))
+        except Exception:
+            pass
 
     # supabase
     log("    -> supabase 설치 중...")
@@ -517,6 +543,15 @@ def step_packages():
     if r.returncode != 0:
         raise StepError("supabase 설치 실패", stdout=r.stdout, stderr=r.stderr)
     log("    -> supabase OK")
+
+    # greenlet 최종 복원
+    if greenlet_ver:
+        try:
+            subprocess.run([py, "-m", "pip", "install", "--quiet",
+                           "greenlet=={}".format(greenlet_ver)],
+                           capture_output=True, text=True, timeout=120)
+        except Exception:
+            pass
 
     # Chromium
     log("    -> Chromium 브라우저 다운로드 중... (2~5분)")
