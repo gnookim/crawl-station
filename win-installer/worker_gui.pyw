@@ -573,6 +573,90 @@ class CrawlStationGUI:
                 downloaded.append(f)
         return downloaded, failed
 
+    def _force_redownload_all(self):
+        """모든 워커 파일을 강제 재다운로드 (기존 파일 삭제 후)"""
+        REQUIRED_FILES = [
+            "worker.py",
+            "handlers/__init__.py",
+            "handlers/base.py",
+            "handlers/kin.py",
+            "handlers/blog.py",
+            "handlers/serp.py",
+            "handlers/area.py",
+            "handlers/deep.py",
+            "handlers/rank.py",
+        ]
+        GITHUB_RAW = "https://raw.githubusercontent.com/gnookim/naver-crawler/main/{}"
+        downloaded = 0
+        for f in REQUIRED_FILES:
+            target = os.path.join(WORKER_DIR, f)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            # 기존 파일 삭제
+            if os.path.isfile(target):
+                try:
+                    os.remove(target)
+                except Exception:
+                    pass
+            # GitHub에서 다운로드
+            try:
+                urllib.request.urlretrieve(GITHUB_RAW.format(f), target)
+                downloaded += 1
+            except Exception:
+                pass
+        self.root.after(0, lambda: self._log_append(
+            f"  강제 재다운로드: {downloaded}/{len(REQUIRED_FILES)}개 완료\n"))
+
+    def _call_ai_diagnose(self, action, error_msg):
+        """Station AI 진단 API 호출 — 에러 분석 + 해결 방안"""
+        try:
+            import platform as _pf
+            payload = json.dumps({
+                "session_id": "gui-" + read_env().get("WORKER_ID", "unknown"),
+                "step_number": 0,
+                "step_name": action,
+                "retry_count": 0,
+                "error": {
+                    "type": "GUIError",
+                    "message": error_msg[:500],
+                },
+                "environment": {
+                    "os_version": _pf.version(),
+                    "python_path": PYTHON_EXE,
+                    "install_dir": WORKER_DIR,
+                    "install_dir_contents": os.listdir(WORKER_DIR) if os.path.isdir(WORKER_DIR) else [],
+                    "handlers_contents": os.listdir(os.path.join(WORKER_DIR, "handlers")) if os.path.isdir(os.path.join(WORKER_DIR, "handlers")) else [],
+                },
+                "log_so_far": error_msg[:2000],
+                "installer_version": "gui",
+                "previous_fixes": [],
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                "https://crawl-station.vercel.app/api/diagnose",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                diagnosis = result.get("diagnosis", "")
+                fix_commands = result.get("fix_commands", [])
+
+                # 자동 수정 명령 실행
+                if fix_commands:
+                    self.root.after(0, lambda: self._log_append(
+                        f"[AI] {len(fix_commands)}개 수정 명령 실행 중...\n"))
+                    for cmd in fix_commands:
+                        try:
+                            subprocess.run(cmd, shell=True, capture_output=True,
+                                         text=True, timeout=30)
+                        except Exception:
+                            pass
+
+                return diagnosis
+        except Exception as e:
+            return f"AI 진단 연결 실패: {e}"
+
     def _start_worker(self):
         def _do():
             # 1. 파일 존재 확인
@@ -604,37 +688,50 @@ class CrawlStationGUI:
                 self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
                 return
 
-            # 2. 워커 테스트 실행 (3초간 PIPE로 에러 확인 → 성공 시 로그파일로 재시작)
-            self.root.after(0, lambda: self._log_append("워커 시작 중...\n"))
-            try:
-                CREATE_NO_WINDOW = 0x08000000
-                test_proc = subprocess.Popen(
-                    [PYTHON_EXE, WORKER_SCRIPT],
-                    cwd=WORKER_DIR,
-                    creationflags=CREATE_NO_WINDOW,
-                    env=self._worker_env(),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-                # 3초 대기 후 프로세스가 살아있는지 확인
-                time.sleep(3)
-                if test_proc.poll() is not None:
-                    # 프로세스가 종료됨 — 에러 확인
-                    stdout = test_proc.stdout.read().decode("utf-8", errors="replace")[-1000:]
-                    stderr = test_proc.stderr.read().decode("utf-8", errors="replace")[-1000:]
-                    error_msg = stderr or stdout or "(출력 없음)"
-                    msg = f"워커가 즉시 종료되었습니다.\n\n{error_msg}"
+            # 2. 워커 테스트 실행 (최대 2회: 실패 시 자동 복구 후 재시도)
+            for attempt in range(2):
+                self.root.after(0, lambda: self._log_append(
+                    f"워커 시작 중...{' (재시도)' if attempt > 0 else ''}\n"))
+                try:
+                    CREATE_NO_WINDOW = 0x08000000
+                    test_proc = subprocess.Popen(
+                        [PYTHON_EXE, WORKER_SCRIPT],
+                        cwd=WORKER_DIR,
+                        creationflags=CREATE_NO_WINDOW,
+                        env=self._worker_env(),
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    time.sleep(3)
+                    if test_proc.poll() is not None:
+                        stdout = test_proc.stdout.read().decode("utf-8", errors="replace")[-1000:]
+                        stderr = test_proc.stderr.read().decode("utf-8", errors="replace")[-1000:]
+                        error_msg = stderr or stdout or "(출력 없음)"
+
+                        # 자동 복구 시도: ModuleNotFoundError → 파일 강제 재다운로드
+                        if "ModuleNotFoundError" in error_msg and attempt == 0:
+                            self.root.after(0, lambda: self._log_append(
+                                f"모듈 오류 감지 — 파일 강제 재다운로드 중...\n"))
+                            self._force_redownload_all()
+                            continue  # 재시도
+
+                        # 자동 복구 실패 또는 다른 에러 → AI 진단 요청
+                        self.root.after(0, lambda: self._log_append(f"[에러] {error_msg}\n"))
+                        ai_result = self._call_ai_diagnose("start_failure", error_msg)
+                        if ai_result:
+                            self.root.after(0, lambda: self._log_append(
+                                f"[AI 진단] {ai_result}\n"))
+                        msg = f"워커가 즉시 종료되었습니다.\n\n{error_msg}"
+                        self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
+                        return
+                    else:
+                        test_proc.kill()
+                        test_proc.wait()
+                        break  # 테스트 통과
+                except Exception as e:
+                    msg = f"워커 실행 실패:\n\n{str(e)}"
                     self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
-                    self.root.after(0, lambda: self._log_append(f"[에러] {error_msg}\n"))
                     return
-                else:
-                    # 테스트 통과 — 테스트 프로세스 종료 후 로그파일 출력으로 재시작
-                    test_proc.kill()
-                    test_proc.wait()
-            except Exception as e:
-                msg = f"워커 실행 실패:\n\n{str(e)}"
-                self.root.after(0, lambda: messagebox.showerror("시작 실패", msg))
-                return
 
             # 3. 본 실행 (stdout/stderr → 로그파일, 파이프 없음)
             try:
@@ -861,32 +958,48 @@ class CrawlStationGUI:
             except Exception:
                 results.append("✕ Station 연결 실패")
 
-            # 8. 워커 실행 테스트
+            # 8. 워커 실행 테스트 (실패 시 자동 복구 + AI 진단)
             if os.path.isfile(WORKER_SCRIPT) and os.path.isfile(PYTHON_EXE):
                 results.append("\n워커 실행 테스트 중...")
-                try:
-                    proc = subprocess.Popen(
-                        [PYTHON_EXE, WORKER_SCRIPT],
-                        cwd=WORKER_DIR,
-                        creationflags=0x08000000,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                    )
-                    time.sleep(5)
-                    if proc.poll() is not None:
-                        stderr = proc.stderr.read().decode("utf-8", errors="replace")[-500:]
-                        stdout = proc.stdout.read().decode("utf-8", errors="replace")[-500:]
-                        results.append("✕ 워커 즉시 종료됨:")
-                        if stderr:
-                            results.append("  " + stderr[:300])
-                        if stdout:
-                            results.append("  " + stdout[:300])
-                    else:
-                        results.append("✓ 워커 실행 중! (PID: " + str(proc.pid) + ")")
-                        proc.stdout.close()
-                        proc.stderr.close()
-                except Exception as e:
-                    results.append(f"✕ 워커 실행 실패: {e}")
+                for test_attempt in range(2):
+                    try:
+                        proc = subprocess.Popen(
+                            [PYTHON_EXE, WORKER_SCRIPT],
+                            cwd=WORKER_DIR,
+                            creationflags=0x08000000,
+                            env=self._worker_env(),
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                        )
+                        time.sleep(5)
+                        if proc.poll() is not None:
+                            stderr = proc.stderr.read().decode("utf-8", errors="replace")[-500:]
+                            stdout = proc.stdout.read().decode("utf-8", errors="replace")[-500:]
+                            error_out = stderr or stdout or ""
+
+                            if "ModuleNotFoundError" in error_out and test_attempt == 0:
+                                results.append("✕ 모듈 오류 — 파일 강제 재다운로드 중...")
+                                self._force_redownload_all()
+                                fixes_applied += 1
+                                continue  # 재시도
+
+                            results.append("✕ 워커 즉시 종료됨:")
+                            if error_out:
+                                results.append("  " + error_out[:300])
+
+                            # AI 진단
+                            results.append("\nAI 진단 요청 중...")
+                            ai = self._call_ai_diagnose("diagnostic_test", error_out)
+                            if ai:
+                                results.append(f"AI: {ai[:300]}")
+                        else:
+                            results.append("✓ 워커 실행 중! (PID: " + str(proc.pid) + ")")
+                            proc.stdout.close()
+                            proc.stderr.close()
+                        break
+                    except Exception as e:
+                        results.append(f"✕ 워커 실행 실패: {e}")
+                        break
 
             # 결과 표시
             summary = "\n".join(results)
