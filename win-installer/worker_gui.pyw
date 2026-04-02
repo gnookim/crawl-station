@@ -534,6 +534,9 @@ class CrawlStationGUI:
             "handlers/kin.py",
             "handlers/blog.py",
             "handlers/serp.py",
+            "handlers/area.py",
+            "handlers/deep.py",
+            "handlers/rank.py",
         ]
         STATION_DL = "https://crawl-station.vercel.app/api/download?file={}"
         GITHUB_RAW = "https://raw.githubusercontent.com/gnookim/naver-crawler/main/{}"

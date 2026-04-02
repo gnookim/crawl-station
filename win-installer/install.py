@@ -507,6 +507,7 @@ def step_download_files():
     files = [
         "worker.py", "handlers/__init__.py", "handlers/base.py",
         "handlers/kin.py", "handlers/blog.py", "handlers/serp.py",
+        "handlers/area.py", "handlers/deep.py", "handlers/rank.py",
     ]
     failed = []
     for f in files:

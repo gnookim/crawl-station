@@ -17,6 +17,9 @@ const WORKER_FILES = [
   "handlers/blog.py",
   "handlers/serp.py",
   "handlers/kin.py",
+  "handlers/area.py",
+  "handlers/deep.py",
+  "handlers/rank.py",
 ];
 
 async function fetchFileFromGitHub(filepath: string): Promise<string | null> {

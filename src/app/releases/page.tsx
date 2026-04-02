@@ -11,6 +11,9 @@ const WORKER_FILES = [
   "handlers/blog.py",
   "handlers/serp.py",
   "handlers/kin.py",
+  "handlers/area.py",
+  "handlers/deep.py",
+  "handlers/rank.py",
 ];
 
 export default function ReleasesPage() {
