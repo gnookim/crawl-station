@@ -355,10 +355,10 @@ export default function WorkersPage() {
               닫기
             </button>
           </div>
-          {testResult.error && (
+          {testResult.error ? (
             <p className="text-xs text-red-600 mb-2">{String(testResult.error)}</p>
-          )}
-          {testResult.results && (
+          ) : null}
+          {testResult.results ? (
             <div className="space-y-1">
               <div className="text-xs text-gray-500 mb-1">
                 키워드: &quot;{String(testResult.keyword || "")}&quot; | 결과: {String(testResult.result_count || 0)}개
@@ -370,7 +370,7 @@ export default function WorkersPage() {
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       )}
 

@@ -291,7 +291,7 @@ function ResultViewer({ type, data }: { type: string; data: Record<string, unkno
               <span className={`font-bold ${rank > 0 ? "text-green-600" : "text-gray-400"}`}>
                 {rank > 0 ? `${rank}위` : "미발견"}
               </span>
-              {d.found_url && <span className="text-gray-400 truncate max-w-xs">{String(d.found_url)}</span>}
+              {d.found_url ? <span className="text-gray-400 truncate max-w-xs">{String(d.found_url)}</span> : null}
             </div>
           );
         })}
@@ -318,7 +318,7 @@ function ResultViewer({ type, data }: { type: string; data: Record<string, unkno
                 {(d.headings as string[] || []).length > 0 && (
                   <div><strong>소제목:</strong> {(d.headings as string[]).join(" / ")}</div>
                 )}
-                {d.body && <div className="mt-1 text-gray-500 max-h-24 overflow-y-auto whitespace-pre-wrap">{String(d.body).slice(0, 500)}...</div>}
+                {d.body ? <div className="mt-1 text-gray-500 max-h-24 overflow-y-auto whitespace-pre-wrap">{String(d.body).slice(0, 500)}...</div> : null}
               </div>
             </details>
           );
@@ -337,7 +337,7 @@ function ResultViewer({ type, data }: { type: string; data: Record<string, unkno
           <div key={i} className="flex items-center gap-3 text-xs">
             <span className="w-8 text-right font-bold text-blue-600">{String(d.rank || i + 1)}</span>
             <span className="font-medium truncate max-w-md">{String(d.title || "-")}</span>
-            {d.url && <span className="text-gray-400 truncate max-w-xs">{String(d.url)}</span>}
+            {d.url ? <span className="text-gray-400 truncate max-w-xs">{String(d.url)}</span> : null}
           </div>
         );
       })}
