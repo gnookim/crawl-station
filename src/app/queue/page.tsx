@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { CrawlRequest, Worker } from "@/types";
-import { CRAWL_TYPE_LABELS } from "@/types";
+import { CRAWL_TYPE_LABELS, PRIORITY_BY_TYPE } from "@/types";
 import { TaskStatusBadge } from "@/components/ui/status-badge";
 
 export default function QueuePage() {
@@ -14,6 +14,9 @@ export default function QueuePage() {
   const [newKeywords, setNewKeywords] = useState("");
   const [newType, setNewType] = useState("blog_serp");
   const [newWorker, setNewWorker] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [resultData, setResultData] = useState<Record<string, unknown>[] | null>(null);
+  const [loadingResult, setLoadingResult] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -53,13 +56,30 @@ export default function QueuePage() {
       type: newType,
       status: newWorker ? "assigned" : "pending",
       assigned_worker: newWorker || null,
-      priority: 0,
+      priority: PRIORITY_BY_TYPE[newType] || 5,
     }));
 
     await supabase.from("crawl_requests").insert(rows);
     setNewKeywords("");
     setShowNewTask(false);
     loadData();
+  }
+
+  async function toggleResult(requestId: string) {
+    if (expandedId === requestId) {
+      setExpandedId(null);
+      setResultData(null);
+      return;
+    }
+    setExpandedId(requestId);
+    setLoadingResult(true);
+    const { data } = await supabase
+      .from("crawl_results")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("rank");
+    setResultData((data || []) as Record<string, unknown>[]);
+    setLoadingResult(false);
   }
 
   const activeWorkers = workers.filter(
@@ -188,8 +208,19 @@ export default function QueuePage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {requests.map((r) => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 font-medium">{r.keyword}</td>
+                <>
+                <tr
+                  key={r.id}
+                  className={`hover:bg-gray-50 ${r.status === "completed" ? "cursor-pointer" : ""} ${expandedId === r.id ? "bg-blue-50" : ""}`}
+                  onClick={() => r.status === "completed" && toggleResult(r.id)}
+                >
+                  <td className="px-4 py-2 font-medium">
+                    {r.status === "completed" && (
+                      <span className="text-blue-500 mr-1">{expandedId === r.id ? "▼" : "▶"}</span>
+                    )}
+                    {r.keyword}
+                    {r.scope && <span className="text-xs text-gray-400 ml-1">({r.scope})</span>}
+                  </td>
                   <td className="px-4 py-2 text-gray-500 text-xs">
                     {CRAWL_TYPE_LABELS[r.type] || r.type}
                   </td>
@@ -197,7 +228,7 @@ export default function QueuePage() {
                     <TaskStatusBadge status={r.status} />
                   </td>
                   <td className="px-4 py-2 text-xs text-gray-400">
-                    {r.assigned_worker || "-"}
+                    {r.assigned_worker ? (r.assigned_worker.slice(0, 15)) : "-"}
                   </td>
                   <td className="px-4 py-2 text-xs text-red-500 max-w-48 truncate">
                     {r.error_message || "-"}
@@ -206,11 +237,110 @@ export default function QueuePage() {
                     {new Date(r.created_at).toLocaleString("ko")}
                   </td>
                 </tr>
+                {expandedId === r.id && (
+                  <tr key={`${r.id}-result`}>
+                    <td colSpan={6} className="px-4 py-3 bg-gray-50">
+                      {loadingResult ? (
+                        <div className="text-sm text-gray-400">결과 로딩 중...</div>
+                      ) : !resultData?.length ? (
+                        <div className="text-sm text-gray-400">결과 없음</div>
+                      ) : (
+                        <ResultViewer type={r.type} data={resultData} />
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </>
               ))}
             </tbody>
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+function ResultViewer({ type, data }: { type: string; data: Record<string, unknown>[] }) {
+  if (type === "area_analysis") {
+    return (
+      <div className="space-y-1">
+        <div className="text-xs font-semibold text-gray-600 mb-2">통합검색 영역 순위</div>
+        {data.map((r, i) => {
+          const d = (r.data || {}) as Record<string, unknown>;
+          return (
+            <div key={i} className="flex items-center gap-3 text-xs">
+              <span className="w-8 text-right font-bold text-blue-600">{String(d.rank || i + 1)}위</span>
+              <span className="font-medium">{String(d.area || "-")}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (type === "daily_rank" || type === "rank_check") {
+    return (
+      <div className="space-y-1">
+        <div className="text-xs font-semibold text-gray-600 mb-2">순위 체크 결과</div>
+        {data.map((r, i) => {
+          const d = (r.data || {}) as Record<string, unknown>;
+          const rank = d.rank as number;
+          return (
+            <div key={i} className="flex items-center gap-3 text-xs">
+              <span className="font-medium">{String(d.tab || "-")}</span>
+              <span className={`font-bold ${rank > 0 ? "text-green-600" : "text-gray-400"}`}>
+                {rank > 0 ? `${rank}위` : "미발견"}
+              </span>
+              {d.found_url && <span className="text-gray-400 truncate max-w-xs">{String(d.found_url)}</span>}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (type === "deep_analysis") {
+    return (
+      <div className="space-y-2">
+        <div className="text-xs font-semibold text-gray-600 mb-2">심화 분석 결과</div>
+        {data.map((r, i) => {
+          const d = (r.data || {}) as Record<string, unknown>;
+          return (
+            <details key={i} className="border border-gray-200 rounded-md">
+              <summary className="px-3 py-1.5 text-xs cursor-pointer hover:bg-gray-100">
+                <span className="font-bold text-blue-600 mr-2">{String(d.rank || i + 1)}위</span>
+                <span className="font-medium">{String(d.title || "").slice(0, 60)}</span>
+                <span className="text-gray-400 ml-2">[{String(d.tab || "")}] {String(d.content_type || "")}</span>
+              </summary>
+              <div className="px-3 py-2 text-xs space-y-1 bg-gray-50">
+                <div><strong>URL:</strong> <span className="text-blue-500">{String(d.url || "")}</span></div>
+                <div><strong>글자 수:</strong> {String(d.word_count || 0)} | <strong>이미지:</strong> {String(d.image_count || 0)} | <strong>영상:</strong> {d.has_video ? "있음" : "없음"}</div>
+                {(d.headings as string[] || []).length > 0 && (
+                  <div><strong>소제목:</strong> {(d.headings as string[]).join(" / ")}</div>
+                )}
+                {d.body && <div className="mt-1 text-gray-500 max-h-24 overflow-y-auto whitespace-pre-wrap">{String(d.body).slice(0, 500)}...</div>}
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // 기본 (blog_serp, blog_crawl, kin_analysis 등)
+  return (
+    <div className="space-y-1">
+      <div className="text-xs font-semibold text-gray-600 mb-2">결과 ({data.length}개)</div>
+      {data.map((r, i) => {
+        const d = (r.data || {}) as Record<string, unknown>;
+        return (
+          <div key={i} className="flex items-center gap-3 text-xs">
+            <span className="w-8 text-right font-bold text-blue-600">{String(d.rank || i + 1)}</span>
+            <span className="font-medium truncate max-w-md">{String(d.title || "-")}</span>
+            {d.url && <span className="text-gray-400 truncate max-w-xs">{String(d.url)}</span>}
+          </div>
+        );
+      })}
     </div>
   );
 }
