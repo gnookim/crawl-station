@@ -14,6 +14,8 @@ export default function WorkersPage() {
   const [commandLoading, setCommandLoading] = useState<string | null>(null);
   const [testingWorker, setTestingWorker] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
+  const [testAllResults, setTestAllResults] = useState<Record<string, Record<string, unknown>> | null>(null);
+  const [testingAll, setTestingAll] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(10);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -159,6 +161,39 @@ export default function WorkersPage() {
     setTestingWorker(null);
   }
 
+  async function runTestAll() {
+    const targets = workers.filter((w) => w.is_active);
+    if (targets.length === 0) {
+      alert("활성 워커가 없습니다.");
+      return;
+    }
+    if (!confirm(`활성 워커 ${targets.length}대를 동시에 테스트하시겠습니까?`)) return;
+    setTestingAll(true);
+    setTestAllResults({});
+    setTestResult(null);
+
+    const promises = targets.map(async (w) => {
+      try {
+        const res = await fetch("/api/test/worker", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ worker_id: w.id }),
+        });
+        const data = await res.json();
+        setTestAllResults((prev) => ({ ...prev, [w.id]: data }));
+      } catch (e) {
+        setTestAllResults((prev) => ({
+          ...prev,
+          [w.id]: { ok: false, error: String(e) },
+        }));
+      }
+    });
+
+    await Promise.all(promises);
+    setTestingAll(false);
+    loadData(true);
+  }
+
   const outdatedCount = workers.filter(
     (w) => latestVersion && w.version !== latestVersion
   ).length;
@@ -185,6 +220,13 @@ export default function WorkersPage() {
         <div className="flex gap-2">
           {activeWorkers.length > 0 && (
             <div className="flex gap-1">
+              <button
+                onClick={runTestAll}
+                disabled={testingAll || testingWorker !== null}
+                className="px-2.5 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {testingAll ? `테스트 중...` : "전체 테스트"}
+              </button>
               <button
                 onClick={() => sendCommand("update")}
                 disabled={commandLoading !== null}
@@ -371,6 +413,44 @@ export default function WorkersPage() {
               ))}
             </div>
           ) : null}
+        </div>
+      )}
+
+      {/* 전체 테스트 결과 */}
+      {testAllResults && Object.keys(testAllResults).length > 0 && (
+        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-bold text-blue-700">
+              전체 테스트 결과 ({Object.values(testAllResults).filter((r) => r.ok).length}/{Object.keys(testAllResults).length} 통과)
+              {testingAll && " — 진행 중..."}
+            </span>
+            <button
+              onClick={() => setTestAllResults(null)}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              닫기
+            </button>
+          </div>
+          <div className="space-y-1">
+            {Object.entries(testAllResults).map(([wid, result]) => {
+              const w = workers.find((w) => w.id === wid);
+              return (
+                <div key={wid} className="flex items-center gap-2 text-xs">
+                  <span className={result.ok ? "text-green-600" : "text-red-600"}>
+                    {result.ok ? "pass" : "fail"}
+                  </span>
+                  <span className="font-medium">{w?.name || wid}</span>
+                  <span className="text-gray-400">
+                    {result.elapsed_ms ? `${result.elapsed_ms}ms` : ""}
+                    {result.result_count !== undefined ? ` | ${String(result.result_count)}개` : ""}
+                  </span>
+                  {result.error ? (
+                    <span className="text-red-500 truncate max-w-xs">{String(result.error)}</span>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 워커가 온라인인지 확인
-  const cutoff = new Date(Date.now() - 15000).toISOString();
+  const cutoff = new Date(Date.now() - 30000).toISOString();
   const { data: worker } = await sb
     .from("workers")
     .select("id, status, last_seen")
