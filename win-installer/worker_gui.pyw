@@ -1023,9 +1023,10 @@ class CrawlStationGUI:
             return
 
         def _do():
-            # 1. Stop worker
+            CREATE_NO_WINDOW = 0x08000000
+
+            # 1. Stop ALL worker-related processes (worker.py)
             try:
-                CREATE_NO_WINDOW = 0x08000000
                 wmic = subprocess.run(
                     ["wmic", "process", "where",
                      "name='python.exe' or name='pythonw.exe'",
@@ -1080,25 +1081,57 @@ class CrawlStationGUI:
             except Exception:
                 pass
 
-            # 4. Remove Start Menu shortcut
-            try:
-                start_menu = os.path.join(
-                    os.environ.get("APPDATA", ""),
-                    "Microsoft", "Windows", "Start Menu", "Programs",
-                )
-                shortcut = os.path.join(start_menu, "CrawlStation Worker.lnk")
-                if os.path.isfile(shortcut):
-                    os.remove(shortcut)
-            except Exception:
-                pass
+            # 4. Remove Start Menu / Desktop shortcuts
+            for folder in [
+                os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows", "Start Menu", "Programs"),
+                os.path.join(os.path.expanduser("~"), "Desktop"),
+            ]:
+                for name in ["CrawlStation Worker.lnk", "CrawlWorker.bat",
+                             "CrawlWorker Stop.bat", "CrawlWorker Uninstall.bat"]:
+                    path = os.path.join(folder, name)
+                    if os.path.isfile(path):
+                        try:
+                            os.remove(path)
+                        except Exception:
+                            pass
 
-            # 5. Delete worker directory
+            # 5. Inno Setup 언인스톨러가 있으면 실행 (제어판 등록 제거)
+            uninstaller = os.path.join(WORKER_DIR, "unins000.exe")
+            if os.path.isfile(uninstaller):
+                try:
+                    subprocess.Popen(
+                        [uninstaller, "/SILENT", "/NORESTART"],
+                        creationflags=CREATE_NO_WINDOW,
+                    )
+                    # Inno 언인스톨러가 폴더를 삭제해줌
+                    time.sleep(2)
+                except Exception:
+                    pass
+
+            # 6. Delete worker directory (예약 삭제 — 실행 중 파일 대비)
+            # 지금 삭제 시도
             try:
                 shutil.rmtree(WORKER_DIR, ignore_errors=True)
             except Exception:
                 pass
 
-            # 6. Close app
+            # 잔여 파일이 있으면 재부팅 시 삭제하는 배치 생성
+            if os.path.isdir(WORKER_DIR):
+                try:
+                    bat = os.path.join(os.environ.get("TEMP", "C:\\Temp"),
+                                       "crawlworker_cleanup.bat")
+                    with open(bat, "w") as f:
+                        f.write(f'@echo off\nping 127.0.0.1 -n 3 >nul\n'
+                                f'rmdir /s /q "{WORKER_DIR}" 2>nul\n'
+                                f'del "%~f0" 2>nul\n')
+                    subprocess.Popen(
+                        ["cmd", "/c", bat],
+                        creationflags=CREATE_NO_WINDOW,
+                    )
+                except Exception:
+                    pass
+
+            # 7. Close app
             self.root.after(0, self.root.destroy)
 
         threading.Thread(target=_do, daemon=True).start()

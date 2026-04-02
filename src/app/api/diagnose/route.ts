@@ -112,9 +112,19 @@ function sanitizeCommands(commands: unknown[]): string[] {
 }
 
 // ── Supabase에서 API 키 조회 ──
-async function getAnthropicKey(): Promise<string | null> {
+async function getAnthropicKey(source?: string): Promise<string | null> {
   try {
     const sb = createServerClient();
+    // 워커 요청이면 워커용 키 우선
+    if (source === "gui" || source === "worker") {
+      const { data: workerData } = await sb
+        .from("station_settings")
+        .select("value")
+        .eq("key", "anthropic_worker_key")
+        .single();
+      if (workerData?.value) return workerData.value;
+    }
+    // 인스톨러용 키 (기본)
     const { data } = await sb
       .from("station_settings")
       .select("value")
@@ -129,7 +139,13 @@ async function getAnthropicKey(): Promise<string | null> {
 
 // ── 메인 핸들러 ──
 export async function POST(request: NextRequest) {
-  const apiKey = await getAnthropicKey();
+  // session_id로 source 판별 (gui-xxx → 워커용 키 우선)
+  let bodyPeek: Record<string, unknown> = {};
+  try {
+    bodyPeek = await request.clone().json();
+  } catch {}
+  const source = String(bodyPeek.session_id || "").startsWith("gui-") ? "gui" : "installer";
+  const apiKey = await getAnthropicKey(source);
   if (!apiKey) {
     return NextResponse.json(
       { error: "AI 진단 서비스가 설정되지 않았습니다. Station 설정에서 Anthropic API 키를 등록하세요." },
