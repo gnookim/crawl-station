@@ -258,6 +258,8 @@ class CrawlStationGUI:
 
         # Initial refresh
         self._schedule_refresh()
+        self._schedule_log_refresh()
+        self._last_log_size = 0
 
         # 워커가 실행 중이 아니면 자동 시작
         self.root.after(1500, self._auto_start_worker)
@@ -1153,6 +1155,25 @@ class CrawlStationGUI:
     def _schedule_refresh(self):
         threading.Thread(target=self._refresh_data, daemon=True).start()
         self.root.after(REFRESH_MS, self._schedule_refresh)
+
+    def _schedule_log_refresh(self):
+        """로그 실시간 갱신 (1초마다, 파일 변경 시에만)"""
+        try:
+            if os.path.isfile(LOG_FILE):
+                size = os.path.getsize(LOG_FILE)
+                if size != self._last_log_size:
+                    self._last_log_size = size
+                    lines = read_log_tail(50)
+                    self.log_text.configure(state="normal")
+                    self.log_text.delete("1.0", "end")
+                    for line in lines:
+                        tag = self._log_tag(line)
+                        self.log_text.insert("end", line + "\n", tag)
+                    self.log_text.configure(state="disabled")
+                    self.log_text.see("end")
+        except Exception:
+            pass
+        self.root.after(1000, self._schedule_log_refresh)
 
     def _refresh_data(self):
         """Gather all data in background thread, then update UI on main thread."""

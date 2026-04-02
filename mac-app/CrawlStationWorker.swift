@@ -39,6 +39,8 @@ class WorkerManager: ObservableObject {
     private let plistPath: String
     private let stationURL: String
     private var timer: Timer?
+    private var logTimer: Timer?
+    private var lastLogSize: UInt64 = 0
 
     init() {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -46,8 +48,13 @@ class WorkerManager: ObservableObject {
         plistPath = "\(home)/Library/LaunchAgents/com.crawlstation.worker.plist"
         stationURL = "https://crawl-station.vercel.app"
         refresh()
+        // 전체 상태 갱신: 5초
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             self?.refresh()
+        }
+        // 로그 실시간 갱신: 1초
+        logTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.refreshLogOnly()
         }
     }
 
@@ -113,6 +120,26 @@ class WorkerManager: ObservableObject {
 
             // station check (async already)
             self.checkStation()
+        }
+    }
+
+    /// 로그만 빠르게 갱신 (1초마다) — 파일 크기 변경 시에만 읽기
+    func refreshLogOnly() {
+        DispatchQueue.global(qos: .utility).async { [self] in
+            let logPath = "\(workerDir)/logs/worker.log"
+            guard let attrs = try? FileManager.default.attributesOfItem(atPath: logPath),
+                  let size = attrs[.size] as? UInt64 else { return }
+
+            // 파일 크기 변화 없으면 스킵
+            if size == lastLogSize { return }
+            lastLogSize = size
+
+            let logOutput = shellOutput("/usr/bin/tail", ["-50", logPath])
+            let lines = logOutput.components(separatedBy: .newlines).filter { !$0.isEmpty }
+
+            DispatchQueue.main.async {
+                self.logLines = lines
+            }
         }
     }
 
