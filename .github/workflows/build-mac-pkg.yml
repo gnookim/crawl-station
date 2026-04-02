@@ -152,6 +152,9 @@ jobs:
           mkdir -p scripts
           cat > scripts/postinstall << 'SCRIPT_EOF'
           #!/bin/bash
+          set -euo pipefail
+
+          # ── 사용자 감지 (root로 실행되므로 실제 사용자 찾기) ──
           REAL_USER="${USER}"
           if [ "$REAL_USER" = "root" ]; then
               REAL_USER=$(stat -f "%Su" /dev/console 2>/dev/null || echo "$SUDO_USER")
@@ -165,67 +168,144 @@ jobs:
           PLIST_LABEL="com.crawlstation.worker"
           PLIST_PATH="${REAL_HOME}/Library/LaunchAgents/${PLIST_LABEL}.plist"
           LOG_DIR="${INSTALL_DIR}/logs"
+          INSTALL_LOG="${INSTALL_DIR}/install.log"
 
-          log() { echo "[CrawlWorker] $1"; }
+          # ── 로그 (파일 + stdout 동시 출력) ──
+          sudo -u "$REAL_USER" mkdir -p "${INSTALL_DIR}/handlers" "${LOG_DIR}"
+          log() {
+              echo "[$(date '+%H:%M:%S')] $1" | tee -a "${INSTALL_LOG}"
+          }
+          log "=== CrawlStation Worker 설치 시작 ==="
+          log "사용자: ${REAL_USER}, 홈: ${REAL_HOME}"
 
-          # Python 확인/설치
-          install_python() {
-              if command -v python3 &> /dev/null; then
-                  PY_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)")
-                  PY_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
-                  if [ "$PY_MAJOR" -ge 3 ] && [ "$PY_MINOR" -ge 10 ]; then
-                      log "Python $(python3 --version) OK"
-                      return 0
+          # ── 1. Python 확인/설치 ──
+          export PATH="/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+          find_python() {
+              for p in python3.12 python3; do
+                  local PY=$(command -v "$p" 2>/dev/null || true)
+                  if [ -n "$PY" ]; then
+                      local VER=$("$PY" -c "import sys; v=sys.version_info; print(f'{v.major}.{v.minor}')" 2>/dev/null || echo "0.0")
+                      local MAJOR=$(echo "$VER" | cut -d. -f1)
+                      local MINOR=$(echo "$VER" | cut -d. -f2)
+                      if [ "$MAJOR" -ge 3 ] && [ "$MINOR" -ge 10 ]; then
+                          echo "$PY"
+                          return 0
+                      fi
                   fi
-              fi
-              if sudo -u "$REAL_USER" bash -c 'command -v brew' &> /dev/null; then
-                  log "Homebrew로 Python 설치..."
-                  sudo -u "$REAL_USER" brew install python@3.12 2>/dev/null || \
-                  sudo -u "$REAL_USER" brew upgrade python@3.12 2>/dev/null
-                  export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-                  if command -v python3 &> /dev/null; then return 0; fi
-              fi
-              log "Python 공식 인스톨러 다운로드..."
-              curl -sL "https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg" -o /tmp/python.pkg
-              installer -pkg /tmp/python.pkg -target / 2>/dev/null
-              rm -f /tmp/python.pkg
-              rm -rf "/Applications/IDLE.app" "/Applications/Python Launcher.app" 2>/dev/null
-              export PATH="/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
-              hash -r 2>/dev/null
-              command -v python3 &> /dev/null && return 0
-              log "ERROR: Python 설치 실패"
-              exit 1
+              done
+              return 1
           }
 
-          install_python
-          PYTHON3=$(which python3)
+          PYTHON3=$(find_python || true)
+          if [ -z "$PYTHON3" ]; then
+              log "Python 3.10+ 없음 — 설치 시작"
+              # Homebrew 시도
+              if sudo -u "$REAL_USER" bash -c 'command -v brew' &>/dev/null; then
+                  log "Homebrew로 Python 설치..."
+                  sudo -u "$REAL_USER" brew install python@3.12 2>>"${INSTALL_LOG}" || true
+                  PYTHON3=$(find_python || true)
+              fi
+              # 공식 인스톨러 fallback
+              if [ -z "$PYTHON3" ]; then
+                  log "Python 공식 인스톨러 다운로드..."
+                  curl -fSL "https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg" -o /tmp/python.pkg 2>>"${INSTALL_LOG}"
+                  installer -pkg /tmp/python.pkg -target / >>"${INSTALL_LOG}" 2>&1
+                  rm -f /tmp/python.pkg
+                  rm -rf "/Applications/IDLE.app" "/Applications/Python Launcher.app" 2>/dev/null || true
+                  hash -r 2>/dev/null || true
+                  PYTHON3=$(find_python || true)
+              fi
+          fi
 
-          # 워커 설치
-          sudo -u "$REAL_USER" mkdir -p "${INSTALL_DIR}/handlers" "${LOG_DIR}"
+          if [ -z "$PYTHON3" ]; then
+              log "ERROR: Python 설치 실패 — 수동으로 python.org에서 Python 3.12를 설치해주세요"
+              exit 1
+          fi
+          log "Python: $($PYTHON3 --version) ($PYTHON3)"
 
-          sudo -u "$REAL_USER" "$PYTHON3" -m pip install --quiet playwright supabase 2>/dev/null || \
-          sudo -u "$REAL_USER" "$PYTHON3" -m pip install --quiet --break-system-packages playwright supabase 2>/dev/null || true
+          # ── 2. pip 패키지 설치 (재시도 포함) ──
+          install_pip_pkg() {
+              local PKG="$1"
+              sudo -u "$REAL_USER" "$PYTHON3" -m pip install --quiet "$PKG" 2>>"${INSTALL_LOG}" && return 0
+              sudo -u "$REAL_USER" "$PYTHON3" -m pip install --quiet --break-system-packages "$PKG" 2>>"${INSTALL_LOG}" && return 0
+              log "WARNING: $PKG 설치 실패 — pip 업그레이드 후 재시도"
+              sudo -u "$REAL_USER" "$PYTHON3" -m pip install --upgrade pip 2>>"${INSTALL_LOG}" || true
+              sudo -u "$REAL_USER" "$PYTHON3" -m pip install --quiet --break-system-packages "$PKG" 2>>"${INSTALL_LOG}" && return 0
+              log "ERROR: $PKG 설치 최종 실패"
+              return 1
+          }
 
-          sudo -u "$REAL_USER" "$PYTHON3" -m playwright install chromium 2>/dev/null || true
+          log "pip 패키지 설치..."
+          install_pip_pkg playwright || true
+          install_pip_pkg supabase || true
+          log "pip 패키지 완료"
 
+          # ── 3. Chromium 설치 ──
+          log "Chromium 브라우저 설치..."
+          sudo -u "$REAL_USER" "$PYTHON3" -m playwright install chromium >>"${INSTALL_LOG}" 2>&1 || {
+              log "WARNING: Chromium 설치 실패 — 재시도"
+              sudo -u "$REAL_USER" "$PYTHON3" -m playwright install chromium >>"${INSTALL_LOG}" 2>&1 || {
+                  log "WARNING: Chromium 설치 최종 실패 (워커 시작 후 자동 재시도됨)"
+              }
+          }
+          log "Chromium 완료"
+
+          # ── 4. 워커 파일 다운로드 (검증 포함) ──
+          log "워커 파일 다운로드..."
           FILES="worker.py handlers/__init__.py handlers/base.py handlers/kin.py handlers/blog.py handlers/serp.py handlers/area.py handlers/deep.py handlers/rank.py supabase_rest.py"
+          DOWNLOAD_OK=0
+          DOWNLOAD_FAIL=0
           for f in $FILES; do
               TARGET="${INSTALL_DIR}/${f}"
               sudo -u "$REAL_USER" mkdir -p "$(dirname "${TARGET}")"
-              sudo -u "$REAL_USER" curl -sS "${STATION_URL}/api/download?file=${f}" -o "${TARGET}" 2>/dev/null
+              # 최대 3회 재시도
+              SUCCESS=false
+              for attempt in 1 2 3; do
+                  if sudo -u "$REAL_USER" curl -fsSL "${STATION_URL}/api/download?file=${f}" -o "${TARGET}" 2>>"${INSTALL_LOG}"; then
+                      # 파일 크기 검증 (100바이트 미만이면 실패로 간주)
+                      FSIZE=$(wc -c < "${TARGET}" 2>/dev/null || echo 0)
+                      if [ "$FSIZE" -gt 100 ]; then
+                          SUCCESS=true
+                          break
+                      fi
+                      log "WARNING: ${f} 다운로드 크기 이상 (${FSIZE}B) — 재시도 ${attempt}/3"
+                  else
+                      log "WARNING: ${f} 다운로드 실패 — 재시도 ${attempt}/3"
+                  fi
+                  sleep 2
+              done
+              if $SUCCESS; then
+                  DOWNLOAD_OK=$((DOWNLOAD_OK + 1))
+              else
+                  DOWNLOAD_FAIL=$((DOWNLOAD_FAIL + 1))
+                  log "ERROR: ${f} 다운로드 최종 실패"
+              fi
           done
+          log "다운로드 완료: ${DOWNLOAD_OK}개 성공, ${DOWNLOAD_FAIL}개 실패"
 
+          if [ "$DOWNLOAD_FAIL" -gt 2 ]; then
+              log "ERROR: 핵심 파일 다운로드 실패가 너무 많습니다. 네트워크를 확인해주세요."
+              exit 1
+          fi
+
+          # ── 5. .env 생성 (기존 있으면 유지) ──
           ENV_FILE="${INSTALL_DIR}/.env"
           if [ ! -f "${ENV_FILE}" ]; then
               WORKER_ID="worker-$("$PYTHON3" -c "import uuid; print(uuid.uuid4().hex[:8])")"
-              printf "SUPABASE_URL=%s\nSUPABASE_KEY=%s\nWORKER_ID=%s\n" "${SUPABASE_URL}" "${SUPABASE_KEY}" "${WORKER_ID}" > "${ENV_FILE}"
+              printf "SUPABASE_URL=%s\nSUPABASE_KEY=%s\nWORKER_ID=%s\n" \
+                  "${SUPABASE_URL}" "${SUPABASE_KEY}" "${WORKER_ID}" > "${ENV_FILE}"
               chown "$REAL_USER" "${ENV_FILE}"
-              log "워커 ID: ${WORKER_ID}"
+              log "워커 ID 생성: ${WORKER_ID}"
+          else
+              WORKER_ID=$(grep WORKER_ID "${ENV_FILE}" | cut -d= -f2)
+              log "기존 워커 ID 유지: ${WORKER_ID}"
           fi
 
-          # LaunchAgent
+          # ── 6. LaunchAgent 등록 ──
           sudo -u "$REAL_USER" launchctl unload "${PLIST_PATH}" 2>/dev/null || true
           sudo -u "$REAL_USER" mkdir -p "${REAL_HOME}/Library/LaunchAgents"
+
           cat > "${PLIST_PATH}" << PLISTEOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -263,8 +343,32 @@ jobs:
           </plist>
           PLISTEOF
           chown "$REAL_USER" "${PLIST_PATH}"
-          sudo -u "$REAL_USER" launchctl load "${PLIST_PATH}"
-          log "설치 완료!"
+
+          sudo -u "$REAL_USER" launchctl load "${PLIST_PATH}" 2>>"${INSTALL_LOG}" || {
+              log "WARNING: LaunchAgent 로드 실패 — 수동 시작 필요"
+          }
+
+          # ── 7. 워커 시작 검증 (10초 대기) ──
+          log "워커 시작 검증..."
+          sleep 5
+          if pgrep -f "CrawlWorker/worker.py" > /dev/null 2>&1; then
+              log "워커 프로세스 실행 확인"
+          else
+              log "WARNING: 워커 프로세스 미감지 — 5초 더 대기"
+              sleep 5
+              if pgrep -f "CrawlWorker/worker.py" > /dev/null 2>&1; then
+                  log "워커 프로세스 실행 확인"
+              else
+                  log "WARNING: 워커가 시작되지 않았습니다. 로그 확인: ${LOG_DIR}/worker.err"
+                  log "--- worker.err ---"
+                  tail -10 "${LOG_DIR}/worker.err" 2>/dev/null | tee -a "${INSTALL_LOG}" || true
+              fi
+          fi
+
+          log "=== 설치 완료 ==="
+          log "워커 ID: ${WORKER_ID}"
+          log "로그: ${LOG_DIR}/worker.log"
+          log "설치 로그: ${INSTALL_LOG}"
           SCRIPT_EOF
           chmod +x scripts/postinstall
 
