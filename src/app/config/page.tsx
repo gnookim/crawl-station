@@ -33,6 +33,8 @@ interface WorkerNetConfig {
   tethering_carrier: TetheringCarrier;
   tethering_auto_reconnect: boolean;
   tethering_reconnect_interval: TetheringReconnectInterval;
+  daily_quota: number;
+  daily_used: number;
 }
 
 interface WorkerInfo {
@@ -70,6 +72,8 @@ const DEFAULT_NET_CONFIG: WorkerNetConfig = {
   tethering_carrier: "skt",
   tethering_auto_reconnect: false,
   tethering_reconnect_interval: "per_batch",
+  daily_quota: 500,
+  daily_used: 0,
 };
 
 /* ── page component ── */
@@ -126,6 +130,8 @@ export default function ConfigPage() {
               tethering_auto_reconnect: c.tethering_auto_reconnect || false,
               tethering_reconnect_interval:
                 c.tethering_reconnect_interval || "per_batch",
+              daily_quota: c.daily_quota ?? 500,
+              daily_used: c.daily_used ?? 0,
             } satisfies WorkerNetConfig,
           ] as const;
         } catch {
@@ -345,6 +351,82 @@ export default function ConfigPage() {
             <strong>IP 분산:</strong> 테더링 시 통신사를 다양화하면 IP 대역이 달라집니다. 프록시는 residential proxy를 권장합니다.
           </p>
         </div>
+      </Section>
+
+      {/* ═══════ 워커별 일일 할당량 ═══════ */}
+      <Section
+        title="일일 할당량"
+        desc="워커당 하루 최대 작업 수를 제한하여 차단을 방지합니다. 자정(KST) 자동 리셋."
+      >
+        {workers.length === 0 ? (
+          <p className="text-sm text-gray-400">등록된 워커가 없습니다.</p>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium">워커</th>
+                  <th className="text-left px-4 py-2 font-medium">오늘 사용</th>
+                  <th className="text-left px-4 py-2 font-medium">일일 한도</th>
+                  <th className="text-right px-4 py-2 font-medium w-16"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {workers.map((w) => {
+                  const cfg = workerConfigs[w.id] || DEFAULT_NET_CONFIG;
+                  const pct = cfg.daily_quota > 0 ? Math.min(100, Math.round((cfg.daily_used / cfg.daily_quota) * 100)) : 0;
+                  const isExhausted = cfg.daily_used >= cfg.daily_quota;
+                  const isSaving = savingWorkers[w.id];
+                  const isSaved = savedWorkers[w.id];
+
+                  return (
+                    <tr key={w.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-sm">{w.name || w.id}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                isExhausted ? "bg-red-500" : pct > 70 ? "bg-yellow-500" : "bg-green-500"
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className={`text-xs font-mono ${isExhausted ? "text-red-600 font-bold" : "text-gray-500"}`}>
+                            {cfg.daily_used} / {cfg.daily_quota}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          value={cfg.daily_quota}
+                          onChange={(e) => updateWorkerNet(w.id, "daily_quota" as keyof WorkerNetConfig, parseInt(e.target.value) || 100)}
+                          min={10}
+                          max={5000}
+                          className="w-24 px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => saveWorkerConfig(w.id)}
+                          disabled={isSaving}
+                          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                            isSaved ? "bg-green-600 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+                          } disabled:opacity-50`}
+                        >
+                          {isSaved ? "OK" : isSaving ? "..." : "저장"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Section>
 
       {/* ═══════ 글로벌 크롤링 설정 ═══════ */}

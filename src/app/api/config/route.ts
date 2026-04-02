@@ -33,6 +33,8 @@ export async function GET(request: NextRequest) {
           scroll_back_probability: 0.4,
           proxy_url: "",
           network_type: "wifi",
+          daily_quota: 500,
+          daily_used: 0,
         },
       });
     }

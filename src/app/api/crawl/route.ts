@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { authenticateApiKey } from "@/lib/auth";
+import { PRIORITY_BY_TYPE } from "@/types";
 
 /**
  * CrawlStation 연동 API — 외부 앱에서 크롤링 요청/결과 조회
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
     "blog_crawl",
     "blog_serp",
     "rank_check",
+    "deep_analysis",
+    "area_analysis",
+    "daily_rank",
   ];
   if (!validTypes.includes(type)) {
     return NextResponse.json(
@@ -59,14 +63,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 요청 등록
+  // 요청 등록 (priority 미지정 시 타입별 기본값 적용)
+  const effectivePriority = priority || PRIORITY_BY_TYPE[type] || 5;
   const rows = keywords.map((keyword: string) => {
     const row: Record<string, unknown> = {
       keyword,
       type,
       options: Object.keys(options).length > 0 ? options : null,
       status: "pending",
-      priority,
+      priority: effectivePriority,
     };
     if (callback_url) row.callback_url = callback_url;
     return row;

@@ -304,6 +304,30 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 상태 범례 추가 (대기/작업 중/차단/오프라인 설명)
 - 상태 배지에 마우스 호버 시 설명 툴팁 표시
 - 버전 = 워커 코드 버전 (인스톨러 버전과 별개) 설명 추가
+
+### 분배 정책 Phase 1
+
+#### 새 크롤링 타입
+- deep_analysis (심화 분석): 키워드 상위 컨텐츠 세부 분석 → AI 컨텐츠 생성용
+- area_analysis (영역 분석): 통합검색 영역(파워링크/지식인/블로그/카페 등) 순위 파악
+- daily_rank (일일 순위): 등록된 URL의 매일 검색 순위 체크 (대규모 반복 작업)
+
+#### 타입별 자동 우선순위
+- deep_analysis → priority 10 (즉시 처리)
+- blog_crawl, blog_serp, kin_analysis, area_analysis → priority 5
+- rank_check, daily_rank → priority 1 (백그라운드)
+- POST /api/crawl에서 priority 미지정 시 타입별 기본값 자동 적용
+
+#### 워커 일일 할당량
+- worker_config에 daily_quota(기본 500), daily_used 컬럼 추가
+- KST 자정 자동 리셋 (Supabase RPC 함수)
+- 워커가 할당량 소진 시 작업 픽업 중단, 60초마다 재확인
+- dispatch API에서 할당량 소진 워커 제외 후 분배
+- /config 페이지에 워커별 할당량 설정 + 사용량 프로그래스 바 UI
+- atomic increment로 race condition 방지
+
+#### 분배 정책 설계 문서
+- docs/DISTRIBUTION.md 추가 (작업 유형, 분배 정책, 봇 탐지 회피 5계층, Phase 1~4 로드맵)
 `;
 
 export async function GET(request: NextRequest) {

@@ -68,6 +68,9 @@ export interface WorkerConfig {
   tethering_carrier: TetheringCarrier;
   tethering_auto_reconnect: boolean;
   tethering_reconnect_interval: TetheringReconnectInterval;
+  daily_quota: number;
+  daily_used: number;
+  quota_reset_at: string;
   updated_at: string;
   updated_by: string;
 }
@@ -87,13 +90,30 @@ export type CrawlType =
   | "kin_analysis"
   | "blog_crawl"
   | "blog_serp"
-  | "rank_check";
+  | "rank_check"
+  | "deep_analysis"
+  | "area_analysis"
+  | "daily_rank";
 
 export const CRAWL_TYPE_LABELS: Record<string, string> = {
   kin_analysis: "지식인 분석",
   blog_crawl: "블로그 크롤링",
   blog_serp: "블로그 순위",
   rank_check: "통합검색 순위",
+  deep_analysis: "심화 분석",
+  area_analysis: "영역 분석",
+  daily_rank: "일일 순위",
+};
+
+/** 타입별 기본 우선순위 (높을수록 먼저 처리) */
+export const PRIORITY_BY_TYPE: Record<string, number> = {
+  deep_analysis: 10,
+  kin_analysis: 5,
+  blog_crawl: 5,
+  blog_serp: 5,
+  area_analysis: 5,
+  rank_check: 1,
+  daily_rank: 1,
 };
 
 export const STATUS_LABELS: Record<string, string> = {
