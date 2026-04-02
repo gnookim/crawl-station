@@ -786,12 +786,16 @@ def main():
         wait_prompt()
         return
 
-    # 워커 즉시 실행
+    # 워커 즉시 실행 (백그라운드, 창 없음)
     try:
+        os.makedirs(os.path.join(INSTALL_DIR, "logs"), exist_ok=True)
+        _lf = open(os.path.join(INSTALL_DIR, "logs", "worker.log"), "a", encoding="utf-8")
         subprocess.Popen(
             [PY_PATH, os.path.join(INSTALL_DIR, "worker.py")],
             cwd=INSTALL_DIR,
-            creationflags=0x00000010,
+            creationflags=0x08000000,
+            stdout=_lf,
+            stderr=_lf,
         )
     except Exception as e:
         log("    -> 워커 실행 실패: " + str(e))
