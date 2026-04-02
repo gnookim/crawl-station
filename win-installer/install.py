@@ -475,6 +475,33 @@ def step_packages():
     """6단계: 크롤링 패키지 설치 (playwright, supabase, Chromium)"""
     py = PY_PATH
 
+    # VC++ Runtime 확인 + 설치 (greenlet 등 C extension에 필요)
+    try:
+        import ctypes
+        try:
+            ctypes.WinDLL("vcruntime140.dll")
+            ctypes.WinDLL("vcruntime140_1.dll")
+            log("    -> VC++ Runtime OK")
+        except OSError:
+            log("    -> VC++ Runtime 없음 — 설치 중...")
+            vc_url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+            vc_path = os.path.join(INSTALL_DIR, "vc_redist.x64.exe")
+            try:
+                urllib.request.urlretrieve(vc_url, vc_path)
+                subprocess.run([vc_path, "/install", "/quiet", "/norestart"],
+                               capture_output=True, timeout=120)
+                log("    -> VC++ Runtime 설치 완료")
+            except Exception as e:
+                log("    -> VC++ Runtime 설치 실패 (무시): " + str(e)[:100])
+            finally:
+                if os.path.exists(vc_path):
+                    try:
+                        os.remove(vc_path)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
     # playwright
     log("    -> playwright 설치 중... (1~2분)")
     r = subprocess.run([py, "-m", "pip", "install", "--quiet", "playwright"],
