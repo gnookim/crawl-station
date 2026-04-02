@@ -40,6 +40,8 @@ export interface CrawlRequest {
   priority: number;
   callback_url: string | null;
   error_message: string | null;
+  parent_id: string | null;
+  scope: string | null;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;

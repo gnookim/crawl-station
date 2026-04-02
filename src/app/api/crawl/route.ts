@@ -65,6 +65,60 @@ export async function POST(request: NextRequest) {
 
   // 요청 등록 (priority 미지정 시 타입별 기본값 적용)
   const effectivePriority = priority || PRIORITY_BY_TYPE[type] || 5;
+
+  // deep_analysis → 영역별 서브태스크 분할
+  if (type === "deep_analysis") {
+    const SCOPES = ["integrated", "blog_tab", "kin_tab", "cafe_tab"];
+    const parentRows = keywords.map((keyword: string) => ({
+      keyword,
+      type: "deep_analysis",
+      options: Object.keys(options).length > 0 ? options : null,
+      status: "pending" as const,
+      priority: effectivePriority,
+      ...(callback_url ? { callback_url } : {}),
+    }));
+
+    const { data: parents, error: parentErr } = await sb
+      .from("crawl_requests")
+      .insert(parentRows)
+      .select("id, keyword");
+
+    if (parentErr || !parents) {
+      return NextResponse.json(
+        { error: `등록 실패: ${parentErr?.message}` },
+        { status: 500 }
+      );
+    }
+
+    // 각 부모 요청 → 4개 서브태스크 생성
+    const subtaskRows = parents.flatMap((parent) =>
+      SCOPES.map((scope) => ({
+        keyword: parent.keyword,
+        type: "deep_analysis",
+        options: { ...options, scope },
+        status: "pending" as const,
+        priority: effectivePriority,
+        parent_id: parent.id,
+        scope,
+      }))
+    );
+
+    await sb.from("crawl_requests").insert(subtaskRows);
+
+    // 부모 요청 상태를 assigned로 (서브태스크가 처리)
+    await sb
+      .from("crawl_requests")
+      .update({ status: "assigned" })
+      .in("id", parents.map((p) => p.id));
+
+    return NextResponse.json({
+      message: `${parents.length}개 심화분석 요청 → ${subtaskRows.length}개 서브태스크로 분할`,
+      requests: parents,
+      subtasks_per_keyword: SCOPES.length,
+    });
+  }
+
+  // 일반 요청 등록
   const rows = keywords.map((keyword: string) => {
     const row: Record<string, unknown> = {
       keyword,

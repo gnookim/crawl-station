@@ -23,7 +23,18 @@
       "Bash(python3 -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\(''''message'''',''''error''''\\)\\)\")",
       "Bash(supabase/migrations/20260401_add_network_columns.sql:*)",
       "Bash(supabase migration:*)",
-      "Bash(curl -s \"https://uovisddipuiniissawde.supabase.co/rest/v1/worker_config?id=eq.global&select=proxy_url,network_type,tethering_carrier,tethering_auto_reconnect\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\")"
+      "Bash(curl -s \"https://uovisddipuiniissawde.supabase.co/rest/v1/worker_config?id=eq.global&select=proxy_url,network_type,tethering_carrier,tethering_auto_reconnect\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\")",
+      "Bash(find /Users/gnookim/Desktop/Claude_Agent/crawl-station/src -name *worker*)",
+      "Bash(curl -s \"http://localhost:4000/api/settings?key=anthropic_api_key\")",
+      "Bash(curl -s -X POST \"http://localhost:4000/api/settings\" -H \"Content-Type: application/json\" -d '{\"\"key\"\": \"\"anthropic_api_key\"\", \"\"value\"\": \"\"sk-ant-test-12345\"\"}')",
+      "Bash(curl -s -X POST \"http://localhost:4000/api/settings\" -H \"Content-Type: application/json\" -d '{\"\"key\"\": \"\"anthropic_api_key\"\", \"\"value\"\": null}')",
+      "Bash(git tag:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(''''tag:'''', d[''''tag_name'''']\\); [print\\(''''asset:'''', a[''''name''''], a[''''browser_download_url'''']\\) for a in d[''''assets'''']]\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://crawl-station.vercel.app/api/download?file=worker.py\")",
+      "Bash(curl -s \"https://crawl-station.vercel.app/api/download?file=worker.py\")",
+      "Bash(ls /Users/gnookim/Desktop/Claude_Agent/crawl-station/*.md)",
+      "Bash(grep -r \"SUPABASE_URL\\\\|NEXT_PUBLIC_SUPABASE\" .env*)",
+      "Bash(grep -r \"SUPABASE_SERVICE\\\\|SUPABASE_DB\\\\|DATABASE_URL\\\\|SUPABASE_ACCESS_TOKEN\" .env*)"
     ]
   }
 }

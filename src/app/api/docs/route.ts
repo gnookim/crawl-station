@@ -328,6 +328,22 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 #### 분배 정책 설계 문서
 - docs/DISTRIBUTION.md 추가 (작업 유형, 분배 정책, 봇 탐지 회피 5계층, Phase 1~4 로드맵)
+
+### 새 핸들러 + 서브태스크 분할 (워커 v0.5.0)
+
+#### 새 크롤링 핸들러 3종
+- AreaAnalysisHandler: 통합검색 영역(파워링크/블로그/지식인/카페/쇼핑 등) 순위 분석
+- DeepAnalysisHandler: 키워드 상위 컨텐츠 심화 분석 (통합검색+블로그+지식인+카페 탭)
+- DailyRankHandler: 등록된 URL의 검색 결과 순위 체크 (최대 3페이지, 탭별)
+
+#### Phase 2: 서브태스크 분할
+- deep_analysis 요청 → 4개 서브태스크(통합/블로그/지식인/카페)로 자동 분할
+- 서브태스크가 여러 워커에 분산되어 병렬 처리
+- 모든 서브태스크 완료 시 부모 요청 자동 완료
+- crawl_requests에 parent_id, scope 컬럼 추가
+
+#### 업데이트 기록 페이지
+- 최신순 정렬 기본 적용 + 정렬 토글 버튼
 `;
 
 export async function GET(request: NextRequest) {
