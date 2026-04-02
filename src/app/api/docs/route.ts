@@ -369,6 +369,24 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 파일 쓰기 순서 수정: 일반 파일 → __init__.py → worker.py
 - os.execv → sys.exit(42)로 재시작 방식 변경 (LaunchAgent 호환)
 - 재시작 전 import 검증 추가 (실패 시 재시작 취소)
+
+### Phase 4: 고급 봇 탐지 회피 (워커 v0.6.0)
+
+#### Decoy 검색
+- 25개 일반 키워드 풀 (날씨, 맛집, 영화, 주식 등)
+- 작업 사이 15% 확률로 목적 없는 검색 실행
+- 검색 → 스크롤 → 30% 확률로 결과 클릭 → 자연스러운 패턴
+
+#### 새벽 자동 휴식
+- KST 3~5시 작업 자동 중단 (config.rest_hours로 커스텀 가능)
+- 사람이 안 쓰는 시간대에 크롤링하면 의심받으므로 자동 휴식
+
+#### 봇 탐지 회피 5계층 완성
+- Layer 1: 네트워크 (IP 로테이션, 프록시, 테더링)
+- Layer 2: 브라우저 핑거프린트 (UA, canvas, WebGL)
+- Layer 3: 행동 패턴 (타이핑, 스크롤, 오타, 클릭)
+- Layer 4: 분배 (할당량, 서브태스크, 시간대 분산)
+- Layer 5: 패턴 위장 (decoy 검색, 새벽 휴식)
 `;
 
 export async function GET(request: NextRequest) {
