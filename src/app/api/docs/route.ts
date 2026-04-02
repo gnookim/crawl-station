@@ -344,6 +344,31 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 #### 업데이트 기록 페이지
 - 최신순 정렬 기본 적용 + 정렬 토글 버튼
+
+### Phase 3: 일일 순위 스케줄 매니저
+
+#### 스케줄 시스템
+- /schedule 페이지: 스케줄 생성/관리/URL 등록
+- 스케줄별 설정: 이름, 워커 수, 실행 시간대(KST)
+- URL 벌크 등록 (탭 구분: 키워드/URL/메모)
+- 오늘 디스패치 상태 실시간 확인
+
+#### Vercel Cron 자동 디스패치
+- 매시간 /api/cron/daily-rank 실행
+- 스케줄의 slot_hours에 해당하는 시간에만 작업 생성
+- URL을 슬롯 수로 균등 분할 (예: 1만개 / 4슬롯 = 2,500개씩)
+- 워커 라운드 로빈 배정 + quota increment
+- 중복 디스패치 방지 (dispatch_log 유니크 제약)
+
+#### DB 테이블
+- daily_rank_schedules: 스케줄 설정
+- daily_rank_urls: 순위 체크 대상 URL 목록
+- daily_rank_dispatch_log: 디스패치 이력 (중복 방지)
+
+#### 워커 업데이트 안정화
+- 파일 쓰기 순서 수정: 일반 파일 → __init__.py → worker.py
+- os.execv → sys.exit(42)로 재시작 방식 변경 (LaunchAgent 호환)
+- 재시작 전 import 검증 추가 (실패 시 재시작 취소)
 `;
 
 export async function GET(request: NextRequest) {
