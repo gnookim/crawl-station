@@ -387,6 +387,26 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - Layer 3: 행동 패턴 (타이핑, 스크롤, 오타, 클릭)
 - Layer 4: 분배 (할당량, 서브태스크, 시간대 분산)
 - Layer 5: 패턴 위장 (decoy 검색, 새벽 휴식)
+
+### AI 기반 크롤링 회피 고도화 (워커 v0.7.0)
+
+#### 메타데이터 수집
+- 워커가 매 크롤링마다 기록: 응답시간, 결과 수, 차단 여부, 캡챠, 에러 유형
+- crawl_metadata 테이블에 저장 → AI 분석 기반 데이터
+
+#### AI 분석 엔진 (/api/ai/analyze)
+- 최근 1시간 메타데이터 집계 → 워커별 차단율/에러율 계산
+- 정상이면 AI 호출 생략 (비용 절약)
+- 차단 발생 시 Claude AI에게 전략 조정 요청
+- AI가 딜레이/배치/decoy 비율 자동 조정
+- 차단율에 따라 모델 에스컬레이션: Haiku → Sonnet → Opus
+
+#### 시스템 설정
+- AI 모델 선택 (Haiku/Sonnet/Opus) + 자동 조정 on/off
+- 인스톨러용/워커용 Claude API 키 분리 관리
+- 워커별 ai_auto_adjust 개별 설정 가능
+- 최근 AI 분석 로그 뷰어
+- "지금 분석 실행" 수동 트리거 버튼
 `;
 
 export async function GET(request: NextRequest) {

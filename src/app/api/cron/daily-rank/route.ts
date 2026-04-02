@@ -163,9 +163,24 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // AI 회피 분석도 함께 실행 (Hobby 플랜 cron 1개 제한 대응)
+  let aiAnalysis = null;
+  try {
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "https://crawl-station.vercel.app";
+    const aiRes = await fetch(`${baseUrl}/api/ai/analyze`, {
+      headers: cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {},
+    });
+    aiAnalysis = await aiRes.json();
+  } catch {
+    aiAnalysis = { error: "AI 분석 호출 실패" };
+  }
+
   return NextResponse.json({
     kst_hour: kstHour,
     kst_date: kstDate,
     dispatched: results,
+    ai_analysis: aiAnalysis,
   });
 }
