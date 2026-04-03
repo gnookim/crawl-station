@@ -56,7 +56,7 @@ export default function DashboardPage() {
     const activeWorkers = workerList.filter((w) => {
       if (!w.last_seen) return false;
       const diff = now.getTime() - new Date(w.last_seen).getTime();
-      return diff < 15000 && w.status !== "offline";
+      return diff < 30000 && w.status !== "offline";
     });
 
     setStats({

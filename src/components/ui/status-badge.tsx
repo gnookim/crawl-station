@@ -8,7 +8,7 @@ export function WorkerStatusBadge({
     idle: { label: "대기", color: "bg-green-50 text-green-700", dot: "bg-green-500", desc: "실행 중, 작업 대기" },
     crawling: { label: "작업 중", color: "bg-blue-50 text-blue-700", dot: "bg-blue-500", desc: "크롤링 실행 중" },
     blocked: { label: "차단", color: "bg-yellow-50 text-yellow-700", dot: "bg-yellow-500", desc: "봇 탐지 등으로 차단됨" },
-    offline: { label: "오프라인", color: "bg-gray-100 text-gray-500", dot: "bg-gray-400", desc: "15초 이상 응답 없음" },
+    offline: { label: "오프라인", color: "bg-gray-100 text-gray-500", dot: "bg-gray-400", desc: "30초 이상 응답 없음" },
   };
 
   const c = config[status] || config.offline;

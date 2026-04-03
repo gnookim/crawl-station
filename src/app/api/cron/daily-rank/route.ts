@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
   }
 
   // 활성 워커 조회 (공통)
-  const cutoff = new Date(Date.now() - 15000).toISOString();
+  const cutoff = new Date(Date.now() - 30000).toISOString();
   const { data: activeWorkers } = await sb
     .from("workers")
     .select("id")
