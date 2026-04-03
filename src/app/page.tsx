@@ -50,15 +50,16 @@ export default function DashboardPage() {
           .gte("completed_at", new Date().toISOString().split("T")[0]),
       ]);
 
-    const workerList = (workersRes.data || []) as Worker[];
+    const now = new Date();
+    const workerList = ((workersRes.data || []) as Worker[]).map((w) => ({
+      ...w,
+      is_active: w.last_seen
+        ? now.getTime() - new Date(w.last_seen).getTime() < WORKER_ONLINE_THRESHOLD_MS
+        : false,
+    }));
     setWorkers(workerList);
 
-    const now = new Date();
-    const activeWorkers = workerList.filter((w) => {
-      if (!w.last_seen) return false;
-      const diff = now.getTime() - new Date(w.last_seen).getTime();
-      return diff < WORKER_ONLINE_THRESHOLD_MS && w.status !== "offline";
-    });
+    const activeWorkers = workerList.filter((w) => w.is_active);
 
     setStats({
       totalWorkers: workerList.length,
@@ -174,7 +175,7 @@ function WorkerRow({ worker: w }: { worker: Worker }) {
         )}
       </td>
       <td className="px-4 py-2">
-        <WorkerStatusBadge status={w.status} />
+        <WorkerStatusBadge status={w.is_active ? w.status : "offline"} />
       </td>
       <td className="px-4 py-2 text-gray-500 text-xs">
         {w.current_keyword ? (
