@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Worker, WorkerRelease } from "@/types";
+import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
 import { WorkerStatusBadge } from "@/components/ui/status-badge";
 
 export default function WorkersPage() {
@@ -39,7 +40,7 @@ export default function WorkersPage() {
     const enriched = (workersRes.data || []).map((w) => ({
       ...w,
       is_active: w.last_seen
-        ? now - new Date(w.last_seen).getTime() < 30000
+        ? now - new Date(w.last_seen).getTime() < WORKER_ONLINE_THRESHOLD_MS
         : false,
     })) as Worker[];
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { authenticateApiKey } from "@/lib/auth";
-import { PRIORITY_BY_TYPE } from "@/types";
+import { PRIORITY_BY_TYPE, WORKER_ONLINE_THRESHOLD_MS } from "@/types";
 
 /**
  * Dispatch Agent — 작업 분배 API
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const effectivePriority = priority || PRIORITY_BY_TYPE[type] || 5;
 
   // 활성 워커 조회 (idle 또는 crawling 중이면서 최근 30초 이내 heartbeat)
-  const cutoff = new Date(Date.now() - 30000).toISOString();
+  const cutoff = new Date(Date.now() - WORKER_ONLINE_THRESHOLD_MS).toISOString();
   const { data: activeWorkers } = await sb
     .from("workers")
     .select("id, name, status")

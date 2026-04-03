@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
 
 /**
  * 일일 순위 스케줄 디스패치 — Vercel Cron에서 매시간 호출
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
   }
 
   // 활성 워커 조회 (공통)
-  const cutoff = new Date(Date.now() - 30000).toISOString();
+  const cutoff = new Date(Date.now() - WORKER_ONLINE_THRESHOLD_MS).toISOString();
   const { data: activeWorkers } = await sb
     .from("workers")
     .select("id")

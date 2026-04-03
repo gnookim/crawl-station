@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
 
 /**
  * CrawlStation 연동 API — 워커 상태 조회 + 삭제
@@ -23,7 +24,7 @@ export async function GET() {
   const workers = (data || []).map((w) => ({
     ...w,
     is_active: w.last_seen
-      ? now - new Date(w.last_seen).getTime() < 30000
+      ? now - new Date(w.last_seen).getTime() < WORKER_ONLINE_THRESHOLD_MS
       : false,
   }));
 

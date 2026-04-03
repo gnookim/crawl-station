@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
 
 /**
  * 워커 테스트 API
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 워커가 온라인인지 확인
-  const cutoff = new Date(Date.now() - 30000).toISOString();
+  const cutoff = new Date(Date.now() - WORKER_ONLINE_THRESHOLD_MS).toISOString();
   const { data: worker } = await sb
     .from("workers")
     .select("id, status, last_seen")

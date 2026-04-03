@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Worker } from "@/types";
+import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
 import { WorkerStatusBadge } from "@/components/ui/status-badge";
 
 export default function DashboardPage() {
@@ -56,7 +57,7 @@ export default function DashboardPage() {
     const activeWorkers = workerList.filter((w) => {
       if (!w.last_seen) return false;
       const diff = now.getTime() - new Date(w.last_seen).getTime();
-      return diff < 30000 && w.status !== "offline";
+      return diff < WORKER_ONLINE_THRESHOLD_MS && w.status !== "offline";
     });
 
     setStats({

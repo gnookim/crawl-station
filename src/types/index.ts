@@ -120,6 +120,9 @@ export const PRIORITY_BY_TYPE: Record<string, number> = {
   daily_rank: 1,
 };
 
+/** 워커 오프라인 판정 임계값 (ms) — heartbeat 10초 간격 기준, 여유 있게 30초 */
+export const WORKER_ONLINE_THRESHOLD_MS = 30_000;
+
 export const STATUS_LABELS: Record<string, string> = {
   pending: "대기",
   assigned: "할당됨",
