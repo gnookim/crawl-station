@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ssoLogin } from "@/lib/sso";
 
 export default function LoginPage() {
@@ -81,6 +82,16 @@ export default function LoginPage() {
           >
             {loading ? "로그인 중..." : "로그인"}
           </button>
+
+          <p className="text-xs text-center text-gray-400">
+            계정이 없나요?{" "}
+            <Link
+              href="/register"
+              className="text-blue-600 hover:underline"
+            >
+              회원가입
+            </Link>
+          </p>
         </form>
       </div>
     </div>

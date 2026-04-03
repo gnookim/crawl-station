@@ -66,6 +66,23 @@ export async function ssoLogin(
   return data;
 }
 
+/** 회원가입 */
+export async function ssoRegister(
+  email: string,
+  password: string,
+  name?: string
+): Promise<void> {
+  const res = await fetch(`${SSO_BASE}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, name: name || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "회원가입 실패");
+  }
+}
+
 /** 로그아웃: 서버 세션 삭제 + 로컬 토큰 제거 */
 export async function ssoLogout(): Promise<void> {
   const tokens = loadTokens();
