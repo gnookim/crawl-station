@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthGuard";
+import { ssoLogout } from "@/lib/sso";
 
 const NAV_ITEMS = [
   { href: "/", label: "대시보드", icon: "📊" },
@@ -21,6 +23,13 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useAuth();
+
+  async function handleLogout() {
+    await ssoLogout();
+    router.push("/login");
+  }
 
   return (
     <aside className="w-56 border-r border-gray-200 bg-white flex flex-col shrink-0">
@@ -50,8 +59,20 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="p-3 border-t border-gray-200 text-xs text-gray-400">
-        CrawlStation v0.1
+      <div className="p-3 border-t border-gray-200">
+        {user && (
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-gray-500 truncate" title={user.email}>
+              {user.name || user.email}
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors ml-2 shrink-0"
+            >
+              로그아웃
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
