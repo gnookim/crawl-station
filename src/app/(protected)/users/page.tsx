@@ -32,8 +32,9 @@ export default function UsersPage() {
         fetch(`${SSO_BASE}/admin/pending-users`, { headers }),
       ]);
 
-      if (usersRes.status === 403) {
-        setError("관리자 권한이 필요합니다.");
+      if (!usersRes.ok) {
+        const errBody = await usersRes.text().catch(() => "");
+        setError(`회원 목록 조회 실패 (${usersRes.status}): ${errBody.slice(0, 200)}`);
         setLoading(false);
         return;
       }
