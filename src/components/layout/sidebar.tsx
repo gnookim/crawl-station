@@ -60,15 +60,28 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="p-3 border-t border-gray-200">
+      <div className="border-t border-gray-200">
         {user && (
-          <div className="flex items-center justify-between">
-            <div className="text-xs text-gray-500 truncate" title={user.email}>
-              {user.name || user.email}
-            </div>
+          <div className="p-3 space-y-2">
+            <Link
+              href="/my-account"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              <div className="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
+                {(user.name || user.email)[0].toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-700 truncate">
+                  {user.name || "이름 없음"}
+                </div>
+                <div className="text-xs text-gray-400 truncate">
+                  {user.email}
+                </div>
+              </div>
+            </Link>
             <button
               onClick={handleLogout}
-              className="text-xs text-gray-400 hover:text-red-500 transition-colors ml-2 shrink-0"
+              className="w-full text-left px-2 py-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
             >
               로그아웃
             </button>
