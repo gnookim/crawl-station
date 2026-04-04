@@ -28,18 +28,6 @@ export default function UsersPage() {
     try {
       const headers = await getAuthHeaders();
 
-      // 내 role 확인 (디버그)
-      const meRes = await fetch(`${SSO_BASE}/auth/me`, { headers });
-      if (meRes.ok) {
-        const me = await meRes.json();
-        console.log("SSO me:", me);
-        if (me.role !== "admin" && me.role !== "master") {
-          setError(`관리자 권한이 필요합니다. 현재 역할: "${me.role}" (이메일: ${me.email}). SSO 관리자 포탈에서 이 계정에 admin 권한을 부여해야 합니다.`);
-          setLoading(false);
-          return;
-        }
-      }
-
       const [usersRes, pendingRes] = await Promise.all([
         fetch(`${SSO_BASE}/admin/users`, { headers }),
         fetch(`${SSO_BASE}/admin/pending-users`, { headers }),
