@@ -23,8 +23,8 @@ export default function RegisterPage() {
       setError("비밀번호가 일치하지 않습니다.");
       return;
     }
-    if (password.length < 6) {
-      setError("비밀번호는 6자 이상이어야 합니다.");
+    if (password.length < 8) {
+      setError("비밀번호는 8자 이상이어야 합니다.");
       return;
     }
 
@@ -119,7 +119,7 @@ export default function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="6자 이상"
+              placeholder="8자 이상"
             />
           </div>
 

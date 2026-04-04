@@ -143,3 +143,21 @@ export async function getCurrentUser(): Promise<SSOUser | null> {
 export function isLoggedIn(): boolean {
   return loadTokens() !== null;
 }
+
+/** 사용 기록을 SSO 서버에 전송. 실패해도 메인 로직에 영향 없음. */
+export async function logActivity(
+  action: string,
+  metadata: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    if (!headers.Authorization) return;
+    await fetch(`${SSO_BASE}/activity/log`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ action, app_id: APP_ID, metadata }),
+    });
+  } catch {
+    // 실패해도 무시
+  }
+}

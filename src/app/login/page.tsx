@@ -21,8 +21,11 @@ export default function LoginPage() {
       await ssoLogin(email, password);
       router.push("/");
     } catch (err: unknown) {
-      const message =
+      let message =
         err instanceof Error ? err.message : "로그인에 실패했습니다.";
+      if (message.toLowerCase().includes("pending") || message.toLowerCase().includes("approval")) {
+        message = "계정이 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다.";
+      }
       setError(message);
     } finally {
       setLoading(false);
