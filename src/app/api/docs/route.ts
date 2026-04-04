@@ -425,6 +425,85 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 새벽 휴식 시간 판정: \`(hour + 9) % 24\` → \`zoneinfo.ZoneInfo("Asia/Seoul")\` 사용
 - \`astimezone()\`이 로컬 시간을 반환하는데 +9를 중복 적용하던 문제 수정
 - KST 자정 리셋 로직도 동일하게 수정
+
+### 워커 v0.9.3 — 네이버 DOM 변경 대응
+
+#### blog_serp 셀렉터 수정
+- 네이버가 블로그 링크를 텍스트 없는 \`<a>\` 태그로 중복 감싸는 구조로 변경
+- URL별 가장 긴 텍스트를 가진 링크를 선택하는 Map 방식으로 수정
+- 기존: 텍스트 없는 링크가 먼저 등록되어 모든 결과 필터링됨 → 0개 반환
+
+### 워커 v0.9.4 — 핫 리로드 도입
+
+#### 핸들러 핫 리로드
+- 업데이트 시 재시작 없이 \`importlib.reload()\`로 핸들러 즉시 반영
+- VERSION 전역변수도 런타임에 갱신
+- \`_pending_restart\` + \`restart_worker()\` 로직 완전 제거
+- 핸들러 변경은 즉시 반영, worker.py 구조 변경만 재시작 필요
+
+### 워커 v0.9.5 — 인스톨러 전면 수정
+
+#### STATION_URL 수정
+- GitHub Secrets의 STATION_URL이 잘못된 도메인으로 설정되어 있던 문제 수정
+- 모든 인스톨러(Mac/Windows)가 HTML을 worker.py로 저장하던 근본 원인 해결
+
+#### Mac .pkg postinstall 재작성
+- Python 탐색 로직 강화 (python3.12 우선, 버전 검증)
+- 파일 다운로드 3회 재시도 + 크기 검증 (빈 파일 방지)
+- pip 패키지 설치 3단계 fallback
+- 전체 과정 install.log에 기록
+- 워커 시작 검증 (프로세스 확인 + 에러 로그 출력)
+
+#### Windows 인스톨러 개선
+- step 11 Station 크롤링 테스트 제거 (설치 시간 초과 방지)
+- GUI에 PYTHONUNBUFFERED + -u 플래그 추가 (로그 실시간 표시)
+
+#### 릴리즈 등록 간극 방지
+- 새 릴리즈를 먼저 insert한 후 기존 is_latest를 false로 변경
+- download API에 fallback: is_latest 없으면 최신 created_at 사용
+
+### 워커 v0.9.6 — 에러 가시성 개선
+
+#### 에러 로깅 강화
+- Supabase 쿼리 실패 시 에러 메시지 출력 (기존: silent 무시)
+- heartbeat, config, quota 실패 모두 로깅
+- zoneinfo fallback 추가 (Windows 호환)
+- 반복 import 제거 (루프 안 → 모듈 상단)
+
+### 워커 v0.9.7 — 봇 탐지 회피 고도화
+
+#### 워커별 decoy 관심사 프로필
+- 5개 프로필 (생활/IT/건강/재테크/취미) × 10개 키워드
+- 워커 ID 기반 자동 배정 — 같은 워커는 일관된 관심사로 검색
+- worker_config에서 decoy_profile 수동 지정 가능
+- 네이버 입장에서 각 워커가 고유한 사용자 패턴을 보이게 됨
+
+### Station 개선 (2026-04-02 ~ 04-04)
+
+#### 오프라인 판정 통일
+- 임계값 15초 → 30초로 변경 (heartbeat 10초 기준)
+- WORKER_ONLINE_THRESHOLD_MS 상수로 6곳 통일 관리
+
+#### 워커 관리 페이지 개선
+- 전체 테스트 버튼 — 활성 워커 동시 테스트 + 결과 한눈에 표시
+- 자동 갱신 기본값 10초, 3초 옵션 제거
+- 대시보드와 워커 관리 상태 판정 통일 (is_active 기반)
+
+#### 헬스체크 Cron
+- /api/cron/health-check — 매일 KST 9시 자동 실행
+- 핸들러별 테스트 (blog_serp, kin_analysis, area_analysis)
+- 실패 시 station_settings에 알림 기록
+
+#### SSO 로그인 시스템
+- LifeNBio SSO 연동 (로그인/회원가입/로그아웃)
+- AuthGuard — 미로그인 시 /login 리다이렉트
+- (protected) route group으로 모든 페이지 보호
+- 내 계정 페이지 (프로필 수정, 계정 정보)
+- 회원 관리 페이지 (admin 전용 — 승인/거부, 활성화/비활성화)
+- 사이드바에 사용자 프로필 + 로그아웃
+
+#### 설치 페이지 버전 표시
+- GitHub Release 대신 Supabase worker_releases에서 최신 버전 조회
 `;
 
 export async function GET(request: NextRequest) {
