@@ -504,6 +504,16 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 #### 설치 페이지 버전 표시
 - GitHub Release 대신 Supabase worker_releases에서 최신 버전 조회
+
+### 워커 v0.9.8 — 인스타그램 프로필 크롤링
+
+#### instagram_profile 핸들러 추가
+- 인스타그램 공개 프로필에서 피드 수, 팔로워, 팔로잉, 릴스 수 수집
+- og:description 메타태그 기반 파싱 (한국어/영어 자동 대응)
+- M/K/B 단위 자동 변환 (701M → 701,000,000)
+- 릴스 탭 접근으로 릴스 개수 추정
+- lnb-insta(Insta Desk) 연동 — crawl_requests로 작업 요청, crawl_results로 결과 반환
+- 기존 네이버 크롤링 워커에 추가 설치 없이 통합 운영
 `;
 
 export async function GET(request: NextRequest) {
