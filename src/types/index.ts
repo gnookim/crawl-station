@@ -19,6 +19,7 @@ export interface Worker {
   command: "stop" | "restart" | "update" | null;
   verified_at: string | null;
   last_test_result: Record<string, unknown> | null;
+  allowed_types: string[] | null;
   created_at: string;
   is_active?: boolean;
 }
@@ -75,6 +76,7 @@ export interface WorkerConfig {
   daily_quota: number;
   daily_used: number;
   quota_reset_at: string;
+  allowed_types: string[];
   updated_at: string;
   updated_by: string;
 }

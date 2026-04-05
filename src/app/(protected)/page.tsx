@@ -209,7 +209,10 @@ function WorkerRow({ worker: w }: { worker: Worker }) {
         )}
       </td>
       <td className="px-4 py-2">
-        <WorkerStatusBadge status={w.is_active ? w.status : "offline"} />
+        <div className="flex items-center gap-1">
+          <WorkerStatusBadge status={w.is_active ? w.status : "offline"} />
+          <WorkerTypeBadge allowedTypes={w.allowed_types} />
+        </div>
       </td>
       <td className="px-4 py-2 text-gray-500 text-xs">
         {w.current_keyword ? (
@@ -231,6 +234,17 @@ function WorkerRow({ worker: w }: { worker: Worker }) {
       </td>
     </tr>
   );
+}
+
+function WorkerTypeBadge({ allowedTypes }: { allowedTypes: string[] | null | undefined }) {
+  if (!allowedTypes || allowedTypes.length === 0) return null;
+  const naverTypes = ["kin_analysis", "blog_crawl", "blog_serp", "rank_check", "deep_analysis", "area_analysis", "daily_rank"];
+  const instaTypes = ["instagram_profile"];
+  const isNaver = allowedTypes.every(t => naverTypes.includes(t));
+  const isInsta = allowedTypes.every(t => instaTypes.includes(t));
+  if (isNaver) return <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">네이버</span>;
+  if (isInsta) return <span className="px-1.5 py-0.5 text-xs bg-pink-100 text-pink-700 rounded">인스타</span>;
+  return <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-500 rounded">혼합</span>;
 }
 
 function timeAgo(date: Date): string {

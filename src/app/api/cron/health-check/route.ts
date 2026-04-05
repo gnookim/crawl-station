@@ -22,6 +22,30 @@ export async function GET() {
   const sb = createServerClient();
   const now = new Date();
 
+  // 현재 KST 시간 확인
+  const kstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
+
+  // 실행 허용 시간대 확인 (기본: [9] = KST 오전 9시)
+  const { data: scheduleSetting } = await sb
+    .from("station_settings")
+    .select("value")
+    .eq("key", "health_check_hours")
+    .single();
+
+  const allowedHours: number[] = scheduleSetting?.value
+    ? JSON.parse(scheduleSetting.value)
+    : [9];
+
+  if (!allowedHours.includes(kstHour)) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      message: `헬스체크 건너뜀 — 현재 KST ${kstHour}시, 실행 시간: ${allowedHours.join(", ")}시`,
+      kst_hour: kstHour,
+      allowed_hours: allowedHours,
+    });
+  }
+
   // 활성 워커 1대 선택
   const cutoff = new Date(Date.now() - WORKER_ONLINE_THRESHOLD_MS).toISOString();
   const { data: workers } = await sb

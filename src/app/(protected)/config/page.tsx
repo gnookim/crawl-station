@@ -6,6 +6,7 @@ import type {
   TetheringCarrier,
   TetheringReconnectInterval,
 } from "@/types";
+import { CRAWL_CATEGORIES } from "@/types";
 
 /* ── local types (page-only) ── */
 
@@ -35,6 +36,7 @@ interface WorkerNetConfig {
   tethering_reconnect_interval: TetheringReconnectInterval;
   daily_quota: number;
   daily_used: number;
+  allowed_types: string[];
 }
 
 interface WorkerInfo {
@@ -74,6 +76,7 @@ const DEFAULT_NET_CONFIG: WorkerNetConfig = {
   tethering_reconnect_interval: "per_batch",
   daily_quota: 500,
   daily_used: 0,
+  allowed_types: [],
 };
 
 /* ── page component ── */
@@ -132,6 +135,7 @@ export default function ConfigPage() {
                 c.tethering_reconnect_interval || "per_batch",
               daily_quota: c.daily_quota ?? 500,
               daily_used: c.daily_used ?? 0,
+              allowed_types: Array.isArray(c.allowed_types) ? c.allowed_types : [],
             } satisfies WorkerNetConfig,
           ] as const;
         } catch {
@@ -427,6 +431,107 @@ export default function ConfigPage() {
             </table>
           </div>
         )}
+      </Section>
+
+      {/* ═══════ 워커 타입 분류 ═══════ */}
+      <Section
+        title="워커 타입 분류"
+        desc="워커가 처리할 크롤링 카테고리를 지정합니다. '전체'는 모든 타입을 처리합니다."
+      >
+        {workers.length === 0 ? (
+          <p className="text-sm text-gray-400">등록된 워커가 없습니다.</p>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium">워커</th>
+                  <th className="text-left px-4 py-2 font-medium">타입</th>
+                  <th className="text-right px-4 py-2 font-medium w-16"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {workers.map((w) => {
+                  const cfg = workerConfigs[w.id] || DEFAULT_NET_CONFIG;
+                  const isSaving = savingWorkers[w.id];
+                  const isSaved = savedWorkers[w.id];
+
+                  // 현재 선택된 카테고리 계산
+                  const currentCat = (() => {
+                    if (!cfg.allowed_types || cfg.allowed_types.length === 0) return "all";
+                    const naverTypes = CRAWL_CATEGORIES.find(c => c.key === "naver")?.types || [];
+                    const instaTypes = CRAWL_CATEGORIES.find(c => c.key === "instagram")?.types || [];
+                    if (cfg.allowed_types.every(t => naverTypes.includes(t))) return "naver";
+                    if (cfg.allowed_types.every(t => instaTypes.includes(t))) return "instagram";
+                    return "all";
+                  })();
+
+                  function selectCategory(catKey: string) {
+                    const types = catKey === "all"
+                      ? []
+                      : CRAWL_CATEGORIES.find(c => c.key === catKey)?.types || [];
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    updateWorkerNet(w.id, "allowed_types" as any, types);
+                  }
+
+                  return (
+                    <tr key={w.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-sm">{w.name || w.id}</div>
+                        <div className="text-xs text-gray-400">{w.id}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1">
+                          {[
+                            { key: "all", label: "전체", color: "gray" },
+                            { key: "naver", label: "네이버", color: "green" },
+                            { key: "instagram", label: "인스타그램", color: "pink" },
+                          ].map(({ key, label, color }) => (
+                            <button
+                              key={key}
+                              onClick={() => selectCategory(key)}
+                              className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                                currentCat === key
+                                  ? color === "gray" ? "bg-gray-700 text-white border-gray-700"
+                                    : color === "green" ? "bg-green-600 text-white border-green-600"
+                                    : "bg-pink-500 text-white border-pink-500"
+                                  : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {cfg.allowed_types && cfg.allowed_types.length > 0 && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            {cfg.allowed_types.join(", ")}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => saveWorkerConfig(w.id)}
+                          disabled={isSaving}
+                          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                            isSaved ? "bg-green-600 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+                          } disabled:opacity-50`}
+                        >
+                          {isSaved ? "OK" : isSaving ? "..." : "저장"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-xs text-blue-700">
+            <strong>네이버 전용</strong> 워커는 인스타 작업을 무시하고, <strong>인스타 전용</strong> 워커는 네이버 작업을 무시합니다.
+            저장 후 최대 30초 내에 워커에 자동 반영됩니다.
+          </p>
+        </div>
       </Section>
 
       {/* ═══════ 글로벌 크롤링 설정 ═══════ */}

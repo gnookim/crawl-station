@@ -373,6 +373,191 @@ export default function SettingsPage() {
 
       {/* AI 크롤링 회피 분석 */}
       <AiEvasionSection />
+
+      {/* 헬스체크 스케줄 */}
+      <HealthCheckScheduleSection />
+    </div>
+  );
+}
+
+function HealthCheckScheduleSection() {
+  const [hours, setHours] = useState<number[]>([9]);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runResult, setRunResult] = useState<Record<string, unknown> | null>(null);
+  const [lastResult, setLastResult] = useState<Record<string, unknown> | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [schedRes, resultRes] = await Promise.all([
+          fetch("/api/settings?key=health_check_hours"),
+          fetch("/api/settings?key=health_check_result"),
+        ]);
+        const schedData = await schedRes.json();
+        const resultData = await resultRes.json();
+        if (schedData.value) setHours(JSON.parse(schedData.value));
+        if (resultData.value) setLastResult(JSON.parse(resultData.value));
+      } catch {}
+      setLoaded(true);
+    })();
+  }, []);
+
+  function toggleHour(h: number) {
+    setHours((prev) =>
+      prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => a - b)
+    );
+  }
+
+  async function saveSchedule() {
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "health_check_hours", value: JSON.stringify(hours) }),
+      });
+      const data = await res.json();
+      setSaveMsg({ ok: data.ok, text: data.ok ? "저장 완료" : data.error || "저장 실패" });
+    } catch (e) {
+      setSaveMsg({ ok: false, text: String(e) });
+    }
+    setSaving(false);
+  }
+
+  async function runNow() {
+    setRunning(true);
+    setRunResult(null);
+    try {
+      const res = await fetch("/api/cron/health-check");
+      const data = await res.json();
+      setRunResult(data);
+      // 결과 갱신
+      const resultRes = await fetch("/api/settings?key=health_check_result");
+      const resultData = await resultRes.json();
+      if (resultData.value) setLastResult(JSON.parse(resultData.value));
+    } catch (e) {
+      setRunResult({ error: String(e) });
+    }
+    setRunning(false);
+  }
+
+  // 다음 실행 시간 계산 (KST 기준)
+  function nextRunLabel() {
+    if (hours.length === 0) return "비활성";
+    const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const kstHour = nowKst.getUTCHours();
+    const future = hours.find((h) => h > kstHour) ?? hours[0];
+    const diff = future > kstHour ? future - kstHour : 24 - kstHour + future;
+    return `KST ${future}시 (약 ${diff}시간 후)`;
+  }
+
+  const ALL_HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-5 mt-6">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-bold text-gray-900">헬스체크 스케줄</h3>
+        <button
+          onClick={runNow}
+          disabled={running}
+          className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+        >
+          {running ? "실행 중..." : "지금 실행"}
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 mb-4">
+        핸들러별 테스트 크롤링을 자동 실행합니다. 실행할 KST 시각을 선택하세요 (여러 개 선택 가능).
+      </p>
+
+      {/* 시각 선택 */}
+      {loaded && (
+        <div className="mb-4">
+          <div className="grid grid-cols-12 gap-1 mb-3">
+            {ALL_HOURS.map((h) => (
+              <button
+                key={h}
+                onClick={() => toggleHour(h)}
+                className={`py-1.5 text-xs rounded font-mono transition-colors ${
+                  hours.includes(h)
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {h}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">
+              선택된 시각: {hours.length > 0 ? hours.map((h) => `${h}시`).join(", ") : "없음 (비활성)"}
+            </span>
+            <button
+              onClick={saveSchedule}
+              disabled={saving}
+              className="px-3 py-1.5 text-xs bg-gray-800 text-white rounded-md hover:bg-gray-900 disabled:opacity-50"
+            >
+              {saving ? "저장 중..." : "저장"}
+            </button>
+          </div>
+          {saveMsg && (
+            <p className={`mt-1.5 text-xs ${saveMsg.ok ? "text-green-600" : "text-red-600"}`}>
+              {saveMsg.text}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 다음 실행 */}
+      <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-md mb-4 text-xs text-gray-600">
+        <span className="font-medium">다음 실행:</span>
+        <span>{nextRunLabel()}</span>
+      </div>
+
+      {/* 즉시 실행 결과 */}
+      {runResult && (
+        <div className={`p-3 rounded-md mb-4 text-xs ${
+          runResult.skipped ? "bg-yellow-50 text-yellow-700" :
+          runResult.ok ? "bg-green-50 text-green-700" :
+          "bg-red-50 text-red-700"
+        }`}>
+          <div className="font-bold mb-1">
+            {runResult.skipped ? "건너뜀" : runResult.ok ? "전체 통과" : "일부 실패"}
+          </div>
+          <div>{String(runResult.message || "")}</div>
+          {Array.isArray(runResult.results) && (runResult.results as Record<string, unknown>[]).map((r, i) => (
+            <div key={i} className="mt-1">
+              {r.ok ? "✓" : "✕"} {String(r.type)} — {r.ok ? `${r.resultCount}개` : String(r.error)}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 마지막 헬스체크 결과 */}
+      {lastResult && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 mb-2">
+            마지막 결과 — {new Date(String(lastResult.timestamp)).toLocaleString("ko-KR")}
+          </h4>
+          <div className="space-y-1">
+            {(lastResult.results as Record<string, unknown>[] || []).map((r, i) => (
+              <div key={i} className={`flex items-center gap-2 text-xs p-2 rounded ${
+                r.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+              }`}>
+                <span>{r.ok ? "✓" : "✕"}</span>
+                <span className="font-mono font-medium">{String(r.type)}</span>
+                <span className="text-gray-500">{String(r.keyword)}</span>
+                <span className="ml-auto">
+                  {r.ok ? `${r.resultCount}개 · ${Math.round(Number(r.elapsedMs) / 1000)}초` : String(r.error)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

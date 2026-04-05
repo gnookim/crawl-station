@@ -510,8 +510,9 @@ export default function WorkersPage() {
                       />
                     </td>
                     <td className="px-4 py-2">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <WorkerStatusBadge status={displayStatus} />
+                        <WorkerTypeBadge allowedTypes={w.allowed_types} />
                         {hasPendingCommand && (
                           <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-xs">
                             {w.command}
@@ -546,13 +547,16 @@ export default function WorkersPage() {
                     <td className="px-4 py-2 text-right">
                       {isActive ? (
                         <div className="flex justify-end gap-1">
-                          {w.version !== latestVersion && latestVersion && (
+                          {latestVersion && (
                             <button
-                              onClick={() =>
-                                sendCommand("update", [w.id])
-                              }
+                              onClick={() => sendCommand("update", [w.id])}
                               disabled={commandLoading !== null}
-                              className="px-1.5 py-0.5 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors disabled:opacity-50"
+                              title={w.version === latestVersion ? `최신 버전 (v${latestVersion}) — 강제 재설치` : `v${w.version} → v${latestVersion}`}
+                              className={`px-1.5 py-0.5 text-xs rounded transition-colors disabled:opacity-50 ${
+                                w.version !== latestVersion
+                                  ? "bg-green-50 text-green-700 hover:bg-green-100 font-medium"
+                                  : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                              }`}
                             >
                               업데이트
                             </button>
@@ -601,6 +605,17 @@ export default function WorkersPage() {
       </div>
     </div>
   );
+}
+
+function WorkerTypeBadge({ allowedTypes }: { allowedTypes: string[] | null | undefined }) {
+  if (!allowedTypes || allowedTypes.length === 0) return null;
+  const naverTypes = ["kin_analysis", "blog_crawl", "blog_serp", "rank_check", "deep_analysis", "area_analysis", "daily_rank"];
+  const instaTypes = ["instagram_profile"];
+  const isNaver = allowedTypes.every(t => naverTypes.includes(t));
+  const isInsta = allowedTypes.every(t => instaTypes.includes(t));
+  if (isNaver) return <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">네이버</span>;
+  if (isInsta) return <span className="px-1.5 py-0.5 text-xs bg-pink-100 text-pink-700 rounded">인스타</span>;
+  return <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-500 rounded">혼합</span>;
 }
 
 function LastSeenLabel({ lastSeen }: { lastSeen: string | null }) {
