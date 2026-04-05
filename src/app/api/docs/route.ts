@@ -479,6 +479,8 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 최근 AI 분석 로그 뷰어
 - "지금 분석 실행" 수동 트리거 버튼
 
+## 2026-04-04
+
 ### 워커 v0.9.2 — 안정성 대폭 개선
 
 #### 할당량 이중 카운팅 버그 수정
@@ -511,6 +513,8 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - VERSION 전역변수도 런타임에 갱신
 - \`_pending_restart\` + \`restart_worker()\` 로직 완전 제거
 - 핸들러 변경은 즉시 반영, worker.py 구조 변경만 재시작 필요
+
+## 2026-04-05
 
 ### 워커 v0.9.5 — 인스톨러 전면 수정
 
