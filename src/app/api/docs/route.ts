@@ -39,12 +39,23 @@ X-API-Key: cs_abc123...
 
 ## 크롤링 타입
 
+### 네이버
+
 | type | 설명 |
 |------|------|
 | \`blog_crawl\` | 네이버 블로그 검색 결과 본문/제목/URL 추출 |
-| \`blog_serp\` | 네이버 블로그 SERP 순위 + 메타 정보 |
+| \`blog_serp\` | 네이버 통합검색에서 블로그 SERP 순위 수집 (제목/URL/순위) |
 | \`kin_analysis\` | 네이버 지식iN 크롤링 + 질문/답변 분석 |
-| \`rank_check\` | 특정 키워드에서 특정 블로그 순위 확인 |
+| \`area_analysis\` | 네이버 통합검색 영역 분석 (파워링크/블로그/지식인/카페/쇼핑 등 순서) |
+| \`deep_analysis\` | 키워드 상위 콘텐츠 심화 분석 (통합검색+블로그+지식인+카페 탭) |
+| \`daily_rank\` | 등록된 URL의 매일 검색 순위 체크 (대규모 반복 작업) |
+| \`rank_check\` | 특정 키워드에서 특정 블로그/URL 순위 확인 |
+
+### 인스타그램
+
+| type | 설명 |
+|------|------|
+| \`instagram_profile\` | 인스타그램 공개 프로필 정보 수집 (팔로워/팔로잉/게시물/릴스 수, 프로필 이미지, 자기소개) |
 
 ## API 레퍼런스
 
@@ -156,6 +167,66 @@ while True:
 # 결과
 for item in r["results"]:
     print(item["data"]["title"])
+\`\`\`
+
+## 인스타그램 프로필 수집 예제
+
+인스타그램 공개 프로필에서 팔로워, 팔로잉, 게시물 수, 릴스 수를 수집합니다.
+
+### 요청
+
+\`\`\`json
+{
+  "keywords": ["username1,username2,username3"],
+  "type": "instagram_profile",
+  "options": {
+    "usernames": ["username1", "username2", "username3"],
+    "fetchReelsCount": true
+  }
+}
+\`\`\`
+
+### 결과
+
+\`\`\`json
+{
+  "results": [
+    {
+      "data": {
+        "instagram_pk": 25025320,
+        "username": "instagram",
+        "full_name": "Instagram",
+        "bio": "",
+        "profile_url": "https://...",
+        "follower_count": 701000000,
+        "following_count": 234,
+        "post_count": 8390,
+        "is_verified": false,
+        "is_private": false,
+        "reels_count": 0
+      }
+    }
+  ]
+}
+\`\`\`
+
+### Next.js (Insta Desk 연동)
+
+\`\`\`typescript
+// Supabase public 스키마의 crawl_requests에 직접 등록
+const { data } = await supabase.from("crawl_requests").insert({
+  type: "instagram_profile",
+  keyword: usernames.join(","),
+  options: { usernames, fetchReelsCount: true, source: "insta-desk" },
+  status: "pending",
+  priority: 5,
+}).select("id").single();
+
+// 결과 폴링
+const { data: results } = await supabase
+  .from("crawl_results")
+  .select("data")
+  .eq("request_id", data.id);
 \`\`\`
 `;
 
