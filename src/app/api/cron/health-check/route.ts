@@ -62,7 +62,7 @@ export async function GET() {
         status: "assigned",
         assigned_worker: workerId,
         priority: 99,
-        options: { _health_check: true, max_items: 5 },
+        options: { _health_check: true, max_items: 5, source: "health-check" },
       })
       .select("id")
       .single();

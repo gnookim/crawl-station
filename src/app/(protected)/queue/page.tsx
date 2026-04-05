@@ -223,6 +223,7 @@ export default function QueuePage() {
               <tr>
                 <th className="text-left px-4 py-2 font-medium">키워드</th>
                 <th className="text-left px-4 py-2 font-medium">타입</th>
+                <th className="text-left px-4 py-2 font-medium">출처</th>
                 <th className="text-left px-4 py-2 font-medium">상태</th>
                 <th className="text-left px-4 py-2 font-medium">워커</th>
                 <th className="text-left px-4 py-2 font-medium">에러</th>
@@ -248,6 +249,9 @@ export default function QueuePage() {
                     {CRAWL_TYPE_LABELS[r.type] || r.type}
                   </td>
                   <td className="px-4 py-2">
+                    <SourceBadge options={r.options} />
+                  </td>
+                  <td className="px-4 py-2">
                     <TaskStatusBadge status={r.status} />
                   </td>
                   <td className="px-4 py-2 text-xs text-gray-400">
@@ -262,7 +266,7 @@ export default function QueuePage() {
                 </tr>
                 {expandedId === r.id && (
                   <tr key={`${r.id}-result`}>
-                    <td colSpan={6} className="px-4 py-3 bg-gray-50">
+                    <td colSpan={7} className="px-4 py-3 bg-gray-50">
                       {loadingResult ? (
                         <div className="text-sm text-gray-400">결과 로딩 중...</div>
                       ) : !resultData?.length ? (
@@ -364,6 +368,47 @@ function ResultViewer({ type, data }: { type: string; data: Record<string, unkno
           </div>
         );
       })}
+    </div>
+  );
+}
+
+const SOURCE_MAP: Record<string, { label: string; color: string }> = {
+  "insta-desk": { label: "Insta Desk", color: "bg-pink-50 text-pink-700" },
+  "desk-web": { label: "Desk Web", color: "bg-indigo-50 text-indigo-700" },
+  "health-check": { label: "헬스체크", color: "bg-yellow-50 text-yellow-700" },
+  "station": { label: "Station", color: "bg-blue-50 text-blue-700" },
+  "api": { label: "API", color: "bg-green-50 text-green-700" },
+};
+
+function SourceBadge({ options }: { options: Record<string, unknown> | null }) {
+  if (!options) return <span className="text-xs text-gray-300">-</span>;
+
+  // options에서 출처 판별
+  let source = "";
+  let purpose = "";
+
+  if (options._health_check) {
+    source = "health-check";
+    purpose = "자동 테스트";
+  } else if (options._test) {
+    source = "station";
+    purpose = "수동 테스트";
+  } else if (options.source) {
+    source = String(options.source);
+  }
+
+  if (!source) return <span className="text-xs text-gray-300">-</span>;
+
+  const config = SOURCE_MAP[source] || { label: source, color: "bg-gray-50 text-gray-600" };
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className={`px-1.5 py-0.5 rounded text-xs ${config.color}`}>
+        {config.label}
+      </span>
+      {purpose && (
+        <span className="text-xs text-gray-400">{purpose}</span>
+      )}
     </div>
   );
 }

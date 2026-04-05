@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       status: "assigned",
       assigned_worker: workerId,
       priority: 99, // 최우선 처리
-      options: { _test: true, max_items: 5 },
+      options: { _test: true, max_items: 5, source: "station" },
     })
     .select("id")
     .single();
