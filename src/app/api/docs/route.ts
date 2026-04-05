@@ -514,6 +514,20 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 릴스 탭 접근으로 릴스 개수 추정
 - lnb-insta(Insta Desk) 연동 — crawl_requests로 작업 요청, crawl_results로 결과 반환
 - 기존 네이버 크롤링 워커에 추가 설치 없이 통합 운영
+
+### Station UI — 네이버/인스타 카테고리 탭
+
+#### 대시보드 카테고리 탭
+- 전체/네이버/인스타그램 탭으로 통계 카드 필터링
+- 카테고리별 대기 작업, 실행 중, 완료, 실패 수 분리 표시
+
+#### 작업 큐 카테고리 탭
+- 전체/네이버/인스타그램 탭으로 작업 목록 필터링
+- 기존 상태 필터(전체/대기/실행/완료/실패)와 조합 가능
+
+#### 타입 시스템 확장
+- instagram_profile 타입 추가 (CrawlType, 라벨, 우선순위)
+- CRAWL_CATEGORIES 상수로 카테고리 관리 — 새 플랫폼 추가 시 한 곳만 수정
 `;
 
 export async function GET(request: NextRequest) {

@@ -97,7 +97,8 @@ export type CrawlType =
   | "rank_check"
   | "deep_analysis"
   | "area_analysis"
-  | "daily_rank";
+  | "daily_rank"
+  | "instagram_profile";
 
 export const CRAWL_TYPE_LABELS: Record<string, string> = {
   kin_analysis: "지식인 분석",
@@ -107,6 +108,7 @@ export const CRAWL_TYPE_LABELS: Record<string, string> = {
   deep_analysis: "심화 분석",
   area_analysis: "영역 분석",
   daily_rank: "일일 순위",
+  instagram_profile: "인스타 프로필",
 };
 
 /** 타입별 기본 우선순위 (높을수록 먼저 처리) */
@@ -116,9 +118,32 @@ export const PRIORITY_BY_TYPE: Record<string, number> = {
   blog_crawl: 5,
   blog_serp: 5,
   area_analysis: 5,
+  instagram_profile: 5,
   rank_check: 1,
   daily_rank: 1,
 };
+
+/** 작업 카테고리 — 탭 구분용 */
+export type CrawlCategory = "all" | "naver" | "instagram";
+
+export const CRAWL_CATEGORIES: { key: CrawlCategory; label: string; types: string[] }[] = [
+  { key: "all", label: "전체", types: [] },
+  {
+    key: "naver",
+    label: "네이버",
+    types: ["kin_analysis", "blog_crawl", "blog_serp", "rank_check", "deep_analysis", "area_analysis", "daily_rank"],
+  },
+  {
+    key: "instagram",
+    label: "인스타그램",
+    types: ["instagram_profile"],
+  },
+];
+
+export function getCrawlCategory(type: string): CrawlCategory {
+  if (CRAWL_CATEGORIES[2].types.includes(type)) return "instagram";
+  return "naver";
+}
 
 /** 워커 오프라인 판정 임계값 (ms) — heartbeat 10초 간격 기준, 여유 있게 30초 */
 export const WORKER_ONLINE_THRESHOLD_MS = 30_000;

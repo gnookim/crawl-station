@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { CrawlRequest, Worker } from "@/types";
-import { CRAWL_TYPE_LABELS, PRIORITY_BY_TYPE } from "@/types";
+import { CRAWL_TYPE_LABELS, PRIORITY_BY_TYPE, CRAWL_CATEGORIES, type CrawlCategory } from "@/types";
 import { TaskStatusBadge } from "@/components/ui/status-badge";
 
 export default function QueuePage() {
   const [requests, setRequests] = useState<CrawlRequest[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [filter, setFilter] = useState<string>("all");
+  const [category, setCategory] = useState<CrawlCategory>("all");
   const [showNewTask, setShowNewTask] = useState(false);
   const [newKeywords, setNewKeywords] = useState("");
   const [newType, setNewType] = useState("blog_serp");
@@ -22,7 +23,7 @@ export default function QueuePage() {
     loadData();
     const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
-  }, [filter]);
+  }, [filter, category]);
 
   async function loadData() {
     let query = supabase
@@ -33,6 +34,11 @@ export default function QueuePage() {
 
     if (filter !== "all") {
       query = query.eq("status", filter);
+    }
+
+    const catTypes = CRAWL_CATEGORIES.find((c) => c.key === category)?.types || [];
+    if (catTypes.length > 0) {
+      query = query.in("type", catTypes);
     }
 
     const [reqRes, workerRes] = await Promise.all([
@@ -88,7 +94,7 @@ export default function QueuePage() {
 
   return (
     <div className="p-6 max-w-6xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold">작업 큐</h2>
         <button
           onClick={() => setShowNewTask(!showNewTask)}
@@ -96,6 +102,23 @@ export default function QueuePage() {
         >
           + 작업 등록
         </button>
+      </div>
+
+      {/* 카테고리 탭 */}
+      <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-0.5 w-fit">
+        {CRAWL_CATEGORIES.map((cat) => (
+          <button
+            key={cat.key}
+            onClick={() => setCategory(cat.key)}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              category === cat.key
+                ? "bg-white text-gray-900 font-medium shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
       </div>
 
       {/* 새 작업 등록 */}

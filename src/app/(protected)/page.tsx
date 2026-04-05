@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Worker } from "@/types";
-import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
+import { WORKER_ONLINE_THRESHOLD_MS, CRAWL_CATEGORIES, type CrawlCategory } from "@/types";
 import { WorkerStatusBadge } from "@/components/ui/status-badge";
 
 export default function DashboardPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
+  const [category, setCategory] = useState<CrawlCategory>("all");
   const [stats, setStats] = useState({
     totalWorkers: 0,
     activeWorkers: 0,
@@ -21,33 +22,49 @@ export default function DashboardPage() {
     loadData();
     const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [category]);
 
   async function loadData() {
+    const catTypes = CRAWL_CATEGORIES.find((c) => c.key === category)?.types || [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function withCategory(query: any) {
+      if (catTypes.length > 0) return query.in("type", catTypes);
+      return query;
+    }
+
     const [workersRes, pendingRes, runningRes, completedRes, failedRes] =
       await Promise.all([
         supabase
           .from("workers")
           .select("*")
           .order("last_seen", { ascending: false }),
-        supabase
-          .from("crawl_requests")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["pending", "assigned"]),
-        supabase
-          .from("crawl_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "running"),
-        supabase
-          .from("crawl_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "completed")
-          .gte("completed_at", new Date().toISOString().split("T")[0]),
-        supabase
-          .from("crawl_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "failed")
-          .gte("completed_at", new Date().toISOString().split("T")[0]),
+        withCategory(
+          supabase
+            .from("crawl_requests")
+            .select("id", { count: "exact", head: true })
+            .in("status", ["pending", "assigned"])
+        ),
+        withCategory(
+          supabase
+            .from("crawl_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "running")
+        ),
+        withCategory(
+          supabase
+            .from("crawl_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "completed")
+            .gte("completed_at", new Date().toISOString().split("T")[0])
+        ),
+        withCategory(
+          supabase
+            .from("crawl_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "failed")
+            .gte("completed_at", new Date().toISOString().split("T")[0])
+        ),
       ]);
 
     const now = new Date();
@@ -73,7 +90,24 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 max-w-6xl">
-      <h2 className="text-xl font-bold mb-6">대시보드</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold">대시보드</h2>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          {CRAWL_CATEGORIES.map((cat) => (
+            <button
+              key={cat.key}
+              onClick={() => setCategory(cat.key)}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                category === cat.key
+                  ? "bg-white text-gray-900 font-medium shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* 통계 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
