@@ -28,9 +28,10 @@ export default function UsersPage() {
     try {
       const headers = await getAuthHeaders();
 
+      const APP_SLUG = process.env.NEXT_PUBLIC_APP_ID ?? "crawl-station";
       const [usersRes, pendingRes] = await Promise.all([
         fetch(`${SSO_BASE}/admin/users`, { headers }),
-        fetch(`${SSO_BASE}/admin/pending-users`, { headers }),
+        fetch(`${SSO_BASE}/admin/pending-users?app_slug=${APP_SLUG}`, { headers }),
       ]);
 
       if (!usersRes.ok) {

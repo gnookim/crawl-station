@@ -812,6 +812,26 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 ### 릴리즈 시스템 — handlers/instagram.py 추가
 - GitHub 가져오기 + 릴리즈 파일 목록에 \`handlers/instagram.py\` 포함
 
+## 2026-04-08 (추가)
+
+### API — /api/crawl/complete (신규)
+- crawler-app이 크롤링 완료 후 Station에 결과 보고하는 엔드포인트
+- crawl\_requests status/result/completed\_at 업데이트
+- callback\_url 있으면 Station이 직접 발송 (외부 시스템 연동)
+- increment\_worker\_processed RPC 추가
+
+### Queue UI 개선
+- 테이블 레이아웃/여백/컬럼 너비 최적화
+- 워커/에러 컬럼 truncate + title 속성으로 전체 텍스트 툴팁
+- instagram\_profile 키워드 셀 첫 계정 + 나머지 카운트 표시
+- 출처 배지 목적 표시 (`·자동`, `·수동`) 추가
+
+### 회원 관리 — pending users app\_slug 필터
+- `pending-users?app_slug=crawl-station` 파라미터 추가 (타 앱 가입자 섞임 방지)
+
+### 크롤 타입 — oclick\_sync 추가
+- `/api/crawl` POST 유효 타입에 oclick\_sync 추가 (핸들러 구현 예정)
+
 ### 워커 v0.9.16 — instagram 계정 관리 Supabase 직접 호출
 - CRAWL\_STATION\_URL 환경변수 불필요 — 워커가 기보유한 SUPABASE\_URL/KEY로 instagram\_accounts 직접 조회
 - \_pick\_account / \_report\_block / \_save\_session 모두 Supabase REST API로 전환

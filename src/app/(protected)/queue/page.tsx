@@ -219,15 +219,15 @@ export default function QueuePage() {
           </div>
         ) : (
           <table className="w-full text-sm table-fixed">
-            <thead className="bg-gray-50 text-gray-500 text-xs">
+            <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
               <tr>
-                <th className="text-left px-4 py-2 font-medium">키워드</th>
-                <th className="text-left px-4 py-2 font-medium w-[116px]">타입</th>
-                <th className="text-left px-4 py-2 font-medium w-[112px]">출처</th>
-                <th className="text-left px-4 py-2 font-medium w-[76px]">상태</th>
-                <th className="text-left px-4 py-2 font-medium w-[120px]">워커</th>
-                <th className="text-left px-4 py-2 font-medium w-[120px]">에러</th>
-                <th className="text-right px-4 py-2 font-medium w-[120px]">생성</th>
+                <th className="text-left px-4 py-2.5 font-medium">키워드</th>
+                <th className="text-left px-4 py-2.5 font-medium w-[110px]">타입</th>
+                <th className="text-left px-4 py-2.5 font-medium w-[100px]">출처</th>
+                <th className="text-left px-4 py-2.5 font-medium w-[72px]">상태</th>
+                <th className="text-left px-4 py-2.5 font-medium w-[110px]">워커</th>
+                <th className="text-left px-4 py-2.5 font-medium w-[130px]">에러</th>
+                <th className="text-right px-4 py-2.5 font-medium w-[110px]">생성</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -235,40 +235,44 @@ export default function QueuePage() {
                 <>
                 <tr
                   key={r.id}
-                  className={`hover:bg-gray-50 ${r.status === "completed" ? "cursor-pointer" : ""} ${expandedId === r.id ? "bg-blue-50" : ""}`}
+                  className={`hover:bg-gray-50 transition-colors ${r.status === "completed" ? "cursor-pointer" : ""} ${expandedId === r.id ? "bg-blue-50" : ""}`}
                   onClick={() => r.status === "completed" && toggleResult(r.id)}
                 >
-                  <td className="px-4 py-2 font-medium overflow-hidden">
-                    <div className="flex items-center gap-1 overflow-hidden">
+                  <td className="px-4 py-2.5 overflow-hidden">
+                    <div className="flex items-center gap-1.5 overflow-hidden">
                       {r.status === "completed" && (
-                        <span className="text-blue-500 shrink-0">{expandedId === r.id ? "▼" : "▶"}</span>
+                        <span className="text-blue-400 shrink-0 text-[10px]">{expandedId === r.id ? "▼" : "▶"}</span>
                       )}
                       <KeywordCell keyword={r.keyword} type={r.type} />
                     </div>
-                    {r.scope && <span className="text-xs text-gray-400">({r.scope})</span>}
+                    {r.scope && <span className="text-[11px] text-gray-400 ml-4">({r.scope})</span>}
                   </td>
-                  <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden">
+                  <td className="px-4 py-2.5 text-gray-500 text-xs overflow-hidden">
                     <span className="truncate block">{CRAWL_TYPE_LABELS[r.type] || r.type}</span>
                   </td>
-                  <td className="px-4 py-2 overflow-hidden">
+                  <td className="px-4 py-2.5 overflow-hidden">
                     <SourceBadge options={r.options} />
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5">
                     <TaskStatusBadge status={r.status} />
                   </td>
-                  <td className="px-4 py-2 text-xs text-gray-400 overflow-hidden">
-                    <span className="truncate block">{r.assigned_worker ? r.assigned_worker.slice(0, 20) : "-"}</span>
+                  <td className="px-4 py-2.5 text-xs text-gray-400 overflow-hidden">
+                    <span className="truncate block" title={r.assigned_worker || ""}>
+                      {r.assigned_worker ? r.assigned_worker.slice(0, 14) + (r.assigned_worker.length > 14 ? "…" : "") : "—"}
+                    </span>
                   </td>
-                  <td className="px-4 py-2 text-xs text-red-500 overflow-hidden">
-                    <span className="truncate block">{r.error_message || "-"}</span>
+                  <td className="px-4 py-2.5 text-xs text-red-400 overflow-hidden">
+                    <span className="truncate block" title={r.error_message || ""}>
+                      {r.error_message ? r.error_message.slice(0, 30) + (r.error_message.length > 30 ? "…" : "") : "—"}
+                    </span>
                   </td>
-                  <td className="px-4 py-2 text-right text-xs text-gray-400 whitespace-nowrap">
+                  <td className="px-4 py-2.5 text-right text-xs text-gray-400 whitespace-nowrap">
                     {new Date(r.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </td>
                 </tr>
                 {expandedId === r.id && (
                   <tr key={`${r.id}-result`}>
-                    <td colSpan={7} className="px-4 py-3 bg-gray-50">
+                    <td colSpan={7} className="px-4 py-3 bg-gray-50 border-b border-gray-100">
                       {loadingResult ? (
                         <div className="text-sm text-gray-400">결과 로딩 중...</div>
                       ) : !resultData?.length ? (
@@ -377,17 +381,22 @@ function ResultViewer({ type, data }: { type: string; data: Record<string, unkno
 function KeywordCell({ keyword, type }: { keyword: string; type: string }) {
   if (type === "instagram_profile") {
     const accounts = keyword.split(",").map((s) => s.trim()).filter(Boolean);
-    const preview = accounts.slice(0, 2).map((a) => `@${a}`).join(", ");
-    const rest = accounts.length - 2;
+    const preview = accounts[0] ? `@${accounts[0]}` : "";
+    const rest = accounts.length - 1;
     return (
-      <span className="truncate text-sm" title={accounts.map((a) => `@${a}`).join(", ")}>
-        <span className="text-gray-400 text-xs mr-1">계정</span>
-        {preview}
-        {rest > 0 && <span className="text-gray-400 text-xs ml-1">+{rest}개</span>}
-      </span>
+      <div className="overflow-hidden" title={accounts.map((a) => `@${a}`).join("\n")}>
+        <span className="text-sm font-medium text-gray-800 truncate block">{preview}</span>
+        {rest > 0 && (
+          <span className="text-[11px] text-gray-400">+{rest}개 계정</span>
+        )}
+      </div>
     );
   }
-  return <span className="truncate" title={keyword}>{keyword}</span>;
+  return (
+    <span className="truncate text-sm font-medium text-gray-800 block" title={keyword}>
+      {keyword}
+    </span>
+  );
 }
 
 const SOURCE_MAP: Record<string, { label: string; color: string }> = {
@@ -399,32 +408,29 @@ const SOURCE_MAP: Record<string, { label: string; color: string }> = {
 };
 
 function SourceBadge({ options }: { options: Record<string, unknown> | null }) {
-  if (!options) return <span className="text-xs text-gray-300">-</span>;
+  if (!options) return <span className="text-xs text-gray-300">—</span>;
 
-  // options에서 출처 판별
   let source = "";
   let purpose = "";
 
   if (options._health_check) {
     source = "health-check";
-    purpose = "자동 테스트";
+    purpose = "자동";
   } else if (options._test) {
     source = "station";
-    purpose = "수동 테스트";
+    purpose = "수동";
   } else if (options.source) {
     source = String(options.source);
   }
 
-  if (!source) return <span className="text-xs text-gray-300">-</span>;
+  if (!source) return <span className="text-xs text-gray-300">—</span>;
 
   const config = SOURCE_MAP[source] || { label: source, color: "bg-gray-50 text-gray-600" };
 
   return (
-    <span
-      className={`px-1.5 py-0.5 rounded text-xs whitespace-nowrap inline-block ${config.color}`}
-      title={purpose ? `${config.label} · ${purpose}` : config.label}
-    >
+    <span className={`px-1.5 py-0.5 rounded text-xs whitespace-nowrap inline-flex items-center gap-1 ${config.color}`}>
       {config.label}
+      {purpose && <span className="opacity-60 text-[10px]">·{purpose}</span>}
     </span>
   );
 }

@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     "deep_analysis",
     "area_analysis",
     "daily_rank",
+    "oclick_sync",
   ];
   if (!validTypes.includes(type)) {
     return NextResponse.json(
