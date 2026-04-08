@@ -290,6 +290,14 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-08
 
+### 작업 큐 페이지 — 상태 탭 + 페이지네이션
+- 상태 필터 드롭다운 → 탭으로 전환 (전체/대기/할당됨/실행중/완료/실패)
+- 각 탭에 건수 배지 표시 (5초마다 카운트 갱신)
+- 완료/실패 탭: 페이지당 30개, 페이지네이션 UI (이전/다음), 폴링 없음
+- 대기/할당됨/실행중/전체 탭: limit 200, 5초 폴링 유지
+- 결과 조회: crawl_requests.result(없는 컬럼) → crawl_results 테이블 조회로 수정
+- 실시간 폴링 인디케이터 (녹색 점)
+
 ### Oclick 동기화 핸들러 Python 워커 이식
 - \`naver-crawler/handlers/oclick.py\` — OclickSyncHandler 추가 (Playwright 기반)
 - \`oclick_sync\` 타입을 Python 워커가 직접 처리 (crawler-app 불필요)
