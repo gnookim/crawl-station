@@ -221,13 +221,13 @@ export default function QueuePage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
-                <th className="text-left px-4 py-2 font-medium">키워드</th>
-                <th className="text-left px-4 py-2 font-medium">타입</th>
-                <th className="text-left px-4 py-2 font-medium">출처</th>
-                <th className="text-left px-4 py-2 font-medium">상태</th>
-                <th className="text-left px-4 py-2 font-medium">워커</th>
+                <th className="text-left px-4 py-2 font-medium w-0 min-w-[160px] max-w-xs">키워드</th>
+                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">타입</th>
+                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">출처</th>
+                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">상태</th>
+                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">워커</th>
                 <th className="text-left px-4 py-2 font-medium">에러</th>
-                <th className="text-right px-4 py-2 font-medium">생성</th>
+                <th className="text-right px-4 py-2 font-medium whitespace-nowrap">생성</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -238,14 +238,14 @@ export default function QueuePage() {
                   className={`hover:bg-gray-50 ${r.status === "completed" ? "cursor-pointer" : ""} ${expandedId === r.id ? "bg-blue-50" : ""}`}
                   onClick={() => r.status === "completed" && toggleResult(r.id)}
                 >
-                  <td className="px-4 py-2 font-medium">
+                  <td className="px-4 py-2 font-medium max-w-xs">
                     {r.status === "completed" && (
                       <span className="text-blue-500 mr-1">{expandedId === r.id ? "▼" : "▶"}</span>
                     )}
-                    {r.keyword}
-                    {r.scope && <span className="text-xs text-gray-400 ml-1">({r.scope})</span>}
+                    <span className="truncate block" title={r.keyword}>{r.keyword}</span>
+                    {r.scope && <span className="text-xs text-gray-400">({r.scope})</span>}
                   </td>
-                  <td className="px-4 py-2 text-gray-500 text-xs">
+                  <td className="px-4 py-2 text-gray-500 text-xs whitespace-nowrap">
                     {CRAWL_TYPE_LABELS[r.type] || r.type}
                   </td>
                   <td className="px-4 py-2">

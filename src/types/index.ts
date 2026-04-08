@@ -115,6 +115,7 @@ export const CRAWL_TYPE_LABELS: Record<string, string> = {
   area_analysis: "영역 분석",
   daily_rank: "일일 순위",
   instagram_profile: "인스타 프로필",
+  oclick_sync: "Oclick 재고 동기화",
 };
 
 /** 타입별 기본 우선순위 (높을수록 먼저 처리) */
@@ -125,6 +126,7 @@ export const PRIORITY_BY_TYPE: Record<string, number> = {
   blog_serp: 5,
   area_analysis: 5,
   instagram_profile: 5,
+  oclick_sync: 1,
   rank_check: 1,
   daily_rank: 1,
 };

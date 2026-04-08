@@ -274,14 +274,14 @@ export default function WorkersPage() {
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
                 <th className="text-left px-4 py-2 font-medium">워커</th>
-                <th className="text-left px-4 py-2 font-medium">OS</th>
-                <th className="text-left px-4 py-2 font-medium">버전</th>
-                <th className="text-left px-4 py-2 font-medium">상태</th>
-                <th className="text-left px-4 py-2 font-medium">마지막</th>
-                <th className="text-left px-4 py-2 font-medium">현재 작업</th>
-                <th className="text-right px-4 py-2 font-medium">처리/에러</th>
-                <th className="text-center px-4 py-2 font-medium">테스트</th>
-                <th className="text-right px-4 py-2 font-medium">제어</th>
+                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">OS</th>
+                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">버전</th>
+                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">상태</th>
+                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">마지막</th>
+                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">현재 작업</th>
+                <th className="text-right px-4 py-2 font-medium whitespace-nowrap">처리/에러</th>
+                <th className="text-center px-4 py-2 font-medium whitespace-nowrap">테스트</th>
+                <th className="text-right px-4 py-2 font-medium whitespace-nowrap">제어</th>
               </tr>
             </thead>
             <tbody>
@@ -311,19 +311,22 @@ export default function WorkersPage() {
                       <td className="px-4 py-2 text-gray-500 text-xs">{w.os || "-"}</td>
                       <td className="px-4 py-2"><VersionBadge version={w.version} latest={latestVersion} /></td>
                       <td className="px-4 py-2">
-                        <div className="flex items-center gap-1 flex-wrap">
+                        <div className="flex items-center gap-1 flex-nowrap">
                           <WorkerStatusBadge status={displayStatus} />
                           <WorkerTypeBadge allowedTypes={w.allowed_types} />
                           <BlockBadge worker={w} />
                           {w.command && (
-                            <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-xs">{w.command}</span>
+                            <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-xs whitespace-nowrap">{w.command}</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-xs text-gray-400"><LastSeenLabel lastSeen={w.last_seen} /></td>
-                      <td className="px-4 py-2 text-xs text-gray-500">
+                      <td className="px-4 py-2 text-xs text-gray-400 whitespace-nowrap"><LastSeenLabel lastSeen={w.last_seen} /></td>
+                      <td className="px-4 py-2 text-xs text-gray-500 max-w-[200px]">
                         {w.current_keyword ? (
-                          <span>{w.current_keyword} <span className="text-gray-400">({w.current_type})</span></span>
+                          <span className="block truncate" title={`${w.current_keyword} (${w.current_type})`}>
+                            {w.current_keyword}
+                            <span className="text-gray-400 ml-1">({w.current_type})</span>
+                          </span>
                         ) : <span className="text-gray-300">-</span>}
                       </td>
                       <td className="px-4 py-2 text-right tabular-nums">

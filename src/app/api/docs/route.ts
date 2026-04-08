@@ -682,6 +682,33 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 #### 타입 시스템 확장
 - instagram_profile 타입 추가 (CrawlType, 라벨, 우선순위)
 - CRAWL_CATEGORIES 상수로 카테고리 관리 — 새 플랫폼 추가 시 한 곳만 수정
+
+### crawler-app — Oclick 재고 동기화
+
+#### 로그인 셀렉터 확정 (DOM 직접 확인)
+- 필드명 확정: \`#in_usercu\`(고객사코드), \`#in_userid\`(사용자ID), \`#in_passwd\`(비밀번호)
+- 로그인 버튼: \`button.bt_m_button01\`
+- 로그인 후 admin.oclick.co.kr 리디렉션 확인 및 실패 감지 추가
+
+#### options 파라미터 변경
+- \`company_name\` → \`user_id\` (실제 필드가 사용자 ID임을 반영)
+- 하위 호환: \`opts.user_id || opts.company_name\`으로 기존 요청도 처리
+
+#### Station 타입 등록
+- CRAWL_TYPE_LABELS에 \`oclick_sync: "Oclick 재고 동기화"\` 추가
+- PRIORITY_BY_TYPE에 \`oclick_sync: 1\` 추가
+
+### Station UI — 테이블 레이아웃 수정
+
+#### 작업 큐
+- 타입 컬럼 \`whitespace-nowrap\` 추가 — 긴 텍스트("인스타그램프로필")가 세로로 깨지던 문제 수정
+- 키워드 셀 \`max-w-xs truncate\` 적용 — 긴 쉼표 구분 목록이 행 높이를 과도하게 늘리던 문제 수정
+- 헤더 컬럼 전체 \`whitespace-nowrap\` 처리
+
+#### 워커 관리
+- 현재 작업 컬럼 \`max-w-[200px] truncate\` 적용 — 긴 인스타 username 목록 잘라서 표시
+- 상태 배지 컨테이너 \`flex-nowrap\` 으로 변경 — 배지 줄바꿈으로 행 높이가 늘어나던 문제 수정
+- 마지막 응답 셀 \`whitespace-nowrap\` 추가
 `;
 
 export async function GET(request: NextRequest) {
