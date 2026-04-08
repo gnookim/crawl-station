@@ -592,6 +592,25 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-06
 
+### 워커 v0.9.12 — 차단 감지 + 보고 시스템 (1단계)
+
+#### 차단 Level 분류
+- Level 1 (소프트): 타임아웃/빈 결과 반복 → 30분 cooldown 자동 대기
+- Level 2 (하드): 캡챠/로그인 요구/blocked 감지 → 60분 차단 + 알림
+- Level 3 (영구): 추후 계정 차단 감지 시 사용
+
+#### 워커 차단 보고
+- 차단 감지 시 workers 테이블에 block_status/block_platform/block_level/blocked_until 업데이트
+- 플랫폼별 분리 (naver / instagram)
+- 정상 결과 수신 시 자동 차단 해제
+
+#### Station UI
+- 워커 관리: 차단 배지 표시 (N 차단 L2 등)
+- Level별 색상: L1 노란색, L2 주황색, L3 빨간색
+- 테스트 버튼 N/I 분리 — 워커별 독립 테스트 결과 표시
+- 전체 N테스트 / 전체 I테스트 버튼 분리
+- 결과 ▼▲ 토글로 워커별 네이버+인스타 결과 동시 확인
+
 ### 워커 v0.9.11 — 인스타그램 릴스 수 API 인터셉트
 
 #### 릴스 수 수집 방식 전면 개선

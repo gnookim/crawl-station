@@ -20,6 +20,10 @@ export interface Worker {
   verified_at: string | null;
   last_test_result: Record<string, unknown> | null;
   allowed_types: string[] | null;
+  block_status: "cooling" | "blocked" | "banned" | null;
+  block_platform: "naver" | "instagram" | null;
+  block_level: 1 | 2 | 3 | null;
+  block_count_today: number;
   created_at: string;
   is_active?: boolean;
 }
