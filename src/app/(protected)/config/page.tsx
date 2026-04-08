@@ -25,6 +25,7 @@ interface GlobalConfig {
   typing_speed_max: number;
   scroll_min: number;
   scroll_max: number;
+  rest_hours: number[];
 }
 
 interface WorkerNetConfig {
@@ -592,6 +593,42 @@ export default function ConfigPage() {
         </div>
       </Section>
 
+      {/* 새벽 휴식 */}
+      <Section
+        title="새벽 휴식 시간대"
+        desc="선택한 시간(KST)에는 워커가 작업을 멈춥니다. 아무것도 선택 안 하면 24시간 운행."
+      >
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: 24 }, (_, h) => {
+            const active = (globalConfig.rest_hours || []).includes(h);
+            return (
+              <button
+                key={h}
+                onClick={() => {
+                  const current = globalConfig.rest_hours || [];
+                  updateGlobal(
+                    "rest_hours",
+                    active ? current.filter((x) => x !== h) : [...current, h].sort((a, b) => a - b)
+                  );
+                }}
+                className={`w-10 py-1 text-xs rounded border transition-colors ${
+                  active
+                    ? "bg-indigo-600 text-white border-indigo-600 font-medium"
+                    : "bg-white text-gray-400 border-gray-200 hover:border-gray-400"
+                }`}
+              >
+                {String(h).padStart(2, "0")}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs text-gray-400">
+          {(globalConfig.rest_hours || []).length === 0
+            ? "휴식 없음 — 24시간 운행"
+            : `휴식 시간대: ${(globalConfig.rest_hours || []).map((h) => `${h}시`).join(", ")}`}
+        </p>
+      </Section>
+
       {/* 사람 흉내 */}
       <Section
         title="사람 흉내 설정"
@@ -658,7 +695,10 @@ export default function ConfigPage() {
         {globalConfig.keyword_delay_min}~{globalConfig.keyword_delay_max}초
         딜레이, {globalConfig.batch_size}개 처리 후{" "}
         {globalConfig.batch_rest_seconds}초 휴식, 오타{" "}
-        {Math.round((globalConfig.typo_probability || 0) * 100)}%
+        {Math.round((globalConfig.typo_probability || 0) * 100)}%,{" "}
+        {(globalConfig.rest_hours || []).length === 0
+          ? "휴식 없음"
+          : `새벽 휴식 ${(globalConfig.rest_hours || []).map((h) => `${h}시`).join("·")}`}
       </div>
     </div>
   );

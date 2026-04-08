@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
           network_type: "wifi",
           daily_quota: 500,
           daily_used: 0,
+          rest_hours: [3, 4, 5],
         },
       });
     }
