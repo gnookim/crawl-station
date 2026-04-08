@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
     "area_analysis",
     "daily_rank",
     "oclick_sync",
+    "oclick_sales",
   ];
   if (!validTypes.includes(type)) {
     return cors(NextResponse.json(

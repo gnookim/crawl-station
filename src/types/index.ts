@@ -104,7 +104,8 @@ export type CrawlType =
   | "deep_analysis"
   | "area_analysis"
   | "daily_rank"
-  | "instagram_profile";
+  | "instagram_profile"
+  | "oclick_sales";
 
 export const CRAWL_TYPE_LABELS: Record<string, string> = {
   kin_analysis: "지식인 분석",
@@ -116,6 +117,7 @@ export const CRAWL_TYPE_LABELS: Record<string, string> = {
   daily_rank: "일일 순위",
   instagram_profile: "인스타 프로필",
   oclick_sync: "Oclick 재고 동기화",
+  oclick_sales: "Oclick 매출 수집",
 };
 
 /** 타입별 기본 우선순위 (높을수록 먼저 처리) */
@@ -127,6 +129,7 @@ export const PRIORITY_BY_TYPE: Record<string, number> = {
   area_analysis: 5,
   instagram_profile: 5,
   oclick_sync: 1,
+  oclick_sales: 1,
   rank_check: 1,
   daily_rank: 1,
 };
@@ -149,7 +152,7 @@ export const CRAWL_CATEGORIES: { key: CrawlCategory; label: string; types: strin
   {
     key: "oclick",
     label: "Oclick",
-    types: ["oclick_sync"],
+    types: ["oclick_sync", "oclick_sales"],
   },
 ];
 
