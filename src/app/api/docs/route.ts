@@ -812,6 +812,15 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 ### 릴리즈 시스템 — handlers/instagram.py 추가
 - GitHub 가져오기 + 릴리즈 파일 목록에 \`handlers/instagram.py\` 포함
 
+### 워커 v0.9.16 — instagram 계정 관리 Supabase 직접 호출
+- CRAWL\_STATION\_URL 환경변수 불필요 — 워커가 기보유한 SUPABASE\_URL/KEY로 instagram\_accounts 직접 조회
+- \_pick\_account / \_report\_block / \_save\_session 모두 Supabase REST API로 전환
+
+### 워커 v0.9.15 — instagram 핸들러 등록 + decoy 프로필 + SERP 개선
+- handlers/\_\_init\_\_.py: InstagramProfileHandler 등록 누락 수정
+- handlers/base.py: 워커 ID 해시 기반 5종 관심사 decoy 프로필 자동 배정
+- handlers/serp.py: URL 정규화 + urlMap 기반 중복 제거 (가장 긴 텍스트 우선)
+
 ### 워커 v0.9.14 — 인스타 로그인 게이트 감지
 - 프로필 접근 시 accounts/login 리다이렉트 또는 로그인 폼 DOM 감지
 - 로그인 게이트 → None 반환 (0 반환 대신 명확한 실패 처리)
