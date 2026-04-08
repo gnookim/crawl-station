@@ -649,7 +649,7 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 ## 2026-04-08
 
 ### Station — Vercel Hobby cron 제한 수정
-- health-check cron 표현식 `0 * * * *` (매시간) → `0 9 * * *` (매일 09시)
+- health-check cron 표현식 "0 * * * *" (매시간) → "0 9 * * *" (매일 09시)
 - Vercel Hobby 계정은 일 1회 이하 cron만 허용 — 이 제한으로 3일간 빌드 실패, 테이블 레이아웃 수정이 미배포 상태였음
 
 ## 2026-04-06
