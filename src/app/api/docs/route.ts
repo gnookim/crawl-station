@@ -814,6 +814,18 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-08 (추가)
 
+### DB — daily_rank_* 테이블 스키마 수정 (20260408_daily_rank_fix.sql)
+- daily\_rank\_schedules: keyword/type/options → name/worker\_count/slots\_per\_day/slot\_hours/updated\_at 로 재생성
+- daily\_rank\_urls: schedule\_id FK + keyword/url/memo 구조
+- daily\_rank\_dispatch\_log: schedule\_id FK + dispatch\_date/slot\_hour UNIQUE 제약
+- 기존 마이그레이션의 잘못된 스키마를 API 실제 사용 구조에 맞게 수정
+
+### 순위 대시보드 수정
+- crawl\_results 테이블 → crawl\_requests (type=daily\_rank, status=completed) 기반으로 변경
+- result JSON 파싱하여 키워드별/URL별/날짜별 순위 매트릭스 표시
+- 검색 탭(통합검색/블로그탭 등) 토글 추가
+- URL 클릭 시 원본 페이지 열기
+
 ### API — /api/crawl/complete (신규)
 - crawler-app이 크롤링 완료 후 Station에 결과 보고하는 엔드포인트
 - crawl\_requests status/result/completed\_at 업데이트
