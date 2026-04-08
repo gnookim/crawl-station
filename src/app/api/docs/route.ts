@@ -592,6 +592,14 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-06
 
+### 워커 v0.9.11 — 인스타그램 릴스 수 API 인터셉트
+
+#### 릴스 수 수집 방식 전면 개선
+- 프로필 페이지 로드 시 Instagram 내부 API(web_profile_info) 응답 가로채기
+- edge_felix_video_timeline.count 또는 clips_count 필드에서 정확한 릴스 수 추출
+- API 응답으로 팔로워/게시물/이름/bio도 더 정확하게 수집
+- API 실패 시 릴스 탭 DOM 스크롤 카운트로 fallback
+
 ### 워커 v0.9.10 — 인스타그램 게시물/릴스 수집 개선
 
 #### 게시물 수 (post_count) 3단계 파싱
