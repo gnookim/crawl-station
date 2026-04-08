@@ -290,10 +290,10 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-08
 
-### CORS 미들웨어 추가
-- \`src/middleware.ts\` — /api/* 경로에 CORS 헤더 자동 적용
-- Cloudflare Pages (*.pages.dev), sesame11210.com 도메인 허용
-- OPTIONS preflight 응답 처리
+### CORS 지원 추가
+- \`src/middleware.ts\` — /api/* 경로 CORS 미들웨어
+- \`/api/crawl\` — GET/POST/OPTIONS 핸들러에 직접 CORS 헤더 적용
+- Cloudflare Pages (*.pages.dev), sesame11210.com, localhost 허용
 
 ## 2026-03-31
 
