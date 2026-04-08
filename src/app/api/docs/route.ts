@@ -10,54 +10,88 @@ const INTEGRATION_MD = `# CrawlStation 연동 가이드
 CrawlStation은 **분산 크롤링 관제 시스템**입니다.
 여러 대의 PC(워커)에 크롤링 작업을 자동 분배하고, 결과를 중앙에서 수집합니다.
 
-- **Base URL**: \`https://crawl-station.vercel.app\`
-- **인증**: API 키 필수 (CrawlStation → 연결된 앱 → 앱 등록에서 발급)
-- **워커**: Mac/Windows PC에 설치하여 백그라운드 실행
+---
 
-## 인증 (API 키)
+## 1. 설정 (Configuration)
 
-모든 쓰기 API(POST)에는 API 키가 필요합니다.
+### 환경변수
 
-1. CrawlStation 웹 → "연결된 앱" → "앱 등록" 클릭
-2. 발급된 API 키를 복사
-3. 요청 시 \`X-API-Key\` 헤더에 포함
+\`\`\`env
+# .env.local (Next.js) 또는 .env (Python/Node)
+CRAWL_STATION_URL=https://crawl-station.vercel.app
+CRAWL_STATION_API_KEY=cs_발급받은키
+\`\`\`
+
+API 키 발급: CrawlStation 웹 → **연결된 앱** → **앱 등록** → 키 복사
+
+### TypeScript 설정 객체
+
+\`\`\`typescript
+// lib/crawl-station.ts
+export const crawlStationConfig = {
+  baseUrl: process.env.CRAWL_STATION_URL ?? "https://crawl-station.vercel.app",
+  apiKey: process.env.CRAWL_STATION_API_KEY ?? "",
+  pollInterval: 3000,   // 결과 폴링 주기 (ms)
+  timeout: 120_000,     // 최대 대기 시간 (ms)
+} as const;
+\`\`\`
+
+### Python 설정 객체
+
+\`\`\`python
+# config.py
+import os
+
+CRAWL_STATION = {
+    "url": os.getenv("CRAWL_STATION_URL", "https://crawl-station.vercel.app"),
+    "api_key": os.getenv("CRAWL_STATION_API_KEY", ""),
+    "poll_interval": 3,   # 초
+    "timeout": 120,       # 초
+}
+\`\`\`
+
+---
+
+## 2. 인증
+
+모든 쓰기 요청(POST)에는 \`X-API-Key\` 헤더가 필요합니다.
 
 \`\`\`
 X-API-Key: cs_abc123...
 \`\`\`
 
-인증 필요: \`POST /api/crawl\`, \`POST /api/dispatch\`
-인증 불필요: \`GET /api/crawl\` (결과 조회), \`GET /api/workers\`, \`POST /api/diagnose\` (인스톨러 AI 진단)
+| 엔드포인트 | 인증 필요 |
+|-----------|---------|
+| \`POST /api/crawl\` | ✅ |
+| \`POST /api/dispatch\` | ✅ |
+| \`GET /api/crawl\` (결과 조회) | ❌ |
+| \`GET /api/workers\` | ❌ |
 
-## 연동 흐름
+---
 
-\`\`\`
-1. POST /api/crawl → 크롤링 요청 등록 (키워드 + 타입 + API 키)
-2. 워커가 자동으로 작업 수행 (5초마다 큐 확인)
-3. GET /api/crawl?request_id=xxx → 결과 조회
-\`\`\`
-
-## 크롤링 타입
+## 3. 크롤링 타입
 
 ### 네이버
 
 | type | 설명 |
 |------|------|
-| \`blog_crawl\` | 네이버 블로그 검색 결과 본문/제목/URL 추출 |
-| \`blog_serp\` | 네이버 통합검색에서 블로그 SERP 순위 수집 (제목/URL/순위) |
-| \`kin_analysis\` | 네이버 지식iN 크롤링 + 질문/답변 분석 |
-| \`area_analysis\` | 네이버 통합검색 영역 분석 (파워링크/블로그/지식인/카페/쇼핑 등 순서) |
-| \`deep_analysis\` | 키워드 상위 콘텐츠 심화 분석 (통합검색+블로그+지식인+카페 탭) |
-| \`daily_rank\` | 등록된 URL의 매일 검색 순위 체크 (대규모 반복 작업) |
-| \`rank_check\` | 특정 키워드에서 특정 블로그/URL 순위 확인 |
+| \`blog_crawl\` | 블로그 검색 결과 — 본문/제목/URL 추출 |
+| \`blog_serp\` | 통합검색 블로그 SERP 순위 수집 |
+| \`kin_analysis\` | 지식iN 질문/답변 분석 |
+| \`area_analysis\` | 통합검색 영역 분석 (파워링크/블로그/지식인/카페/쇼핑 등 순서) |
+| \`deep_analysis\` | 상위 콘텐츠 심화 분석 (통합검색+블로그+지식인+카페 탭) |
+| \`daily_rank\` | URL 매일 검색 순위 체크 |
+| \`rank_check\` | 특정 URL 순위 확인 |
 
 ### 인스타그램
 
 | type | 설명 |
 |------|------|
-| \`instagram_profile\` | 인스타그램 공개 프로필 정보 수집 (팔로워/팔로잉/게시물/릴스 수, 프로필 이미지, 자기소개) |
+| \`instagram_profile\` | 공개 프로필 수집 (팔로워/팔로잉/게시물/릴스 수, 자기소개) |
 
-## API 레퍼런스
+---
+
+## 4. API 레퍼런스
 
 ### POST /api/crawl — 크롤링 요청
 
@@ -83,12 +117,10 @@ X-API-Key: cs_abc123...
 ### GET /api/crawl?request_id=uuid — 결과 조회
 
 \`\`\`json
-// Response (완료 시)
 {
   "request": { "id": "uuid", "keyword": "당뇨에 좋은 음식", "status": "completed" },
   "results": [
-    { "rank": 1, "data": { "title": "...", "url": "...", "body": "..." } },
-    { "rank": 2, "data": { "title": "...", "url": "...", "body": "..." } }
+    { "rank": 1, "data": { "title": "...", "url": "...", "body": "..." } }
   ]
 }
 \`\`\`
@@ -106,114 +138,141 @@ X-API-Key: cs_abc123...
 ### POST /api/dispatch — 작업 분배
 
 \`\`\`json
-// Request
-{ "keywords": ["키워드1", ...], "type": "blog_serp", "strategy": "round_robin" }
-
-// Response
-{ "distribution": { "worker-001": 5, "worker-002": 5 } }
+{ "keywords": ["키워드1"], "type": "blog_serp", "strategy": "round_robin" }
 \`\`\`
 
-## Next.js 연동 예제
+---
+
+## 5. TypeScript 클라이언트
 
 \`\`\`typescript
-const STATION = "https://crawl-station.vercel.app";
+// lib/crawl-station.ts
+export type CrawlType =
+  | "blog_crawl" | "blog_serp" | "kin_analysis"
+  | "area_analysis" | "deep_analysis" | "daily_rank" | "rank_check"
+  | "instagram_profile";
 
-const API_KEY = "cs_발급받은키";
+export interface CrawlResult {
+  rank: number;
+  data: Record<string, unknown>;
+}
 
-// 크롤링 요청
-const res = await fetch(\`\${STATION}/api/crawl\`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
-  body: JSON.stringify({ keywords: ["당뇨에 좋은 음식"], type: "blog_crawl" })
-});
-const { requests } = await res.json();
+const _cfg = {
+  baseUrl: process.env.CRAWL_STATION_URL ?? "https://crawl-station.vercel.app",
+  apiKey: process.env.CRAWL_STATION_API_KEY ?? "",
+  pollInterval: 3000,
+  timeout: 120_000,
+};
 
-// 결과 대기 (폴링)
-async function waitForResult(requestId: string, timeout = 120000) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const r = await fetch(\`\${STATION}/api/crawl?request_id=\${requestId}\`).then(r => r.json());
-    if (r.request.status === "completed" || r.request.status === "failed") return r;
-    await new Promise(r => setTimeout(r, 3000));
+/** 크롤링 요청 등록 */
+export async function requestCrawl(
+  keywords: string[],
+  type: CrawlType,
+  options: Record<string, unknown> = {}
+) {
+  const res = await fetch(\`\${_cfg.baseUrl}/api/crawl\`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-API-Key": _cfg.apiKey },
+    body: JSON.stringify({ keywords, type, options }),
+  });
+  if (!res.ok) throw new Error(\`CrawlStation 요청 실패: \${res.status}\`);
+  return (await res.json()).requests as { id: string; keyword: string; status: string }[];
+}
+
+/** 결과 대기 (폴링) */
+export async function waitForCrawl(requestId: string) {
+  const deadline = Date.now() + _cfg.timeout;
+  while (Date.now() < deadline) {
+    const r = await fetch(\`\${_cfg.baseUrl}/api/crawl?request_id=\${requestId}\`).then(r => r.json());
+    if (r.request?.status === "completed" || r.request?.status === "failed") return r as { request: unknown; results: CrawlResult[] };
+    await new Promise(r => setTimeout(r, _cfg.pollInterval));
   }
   return null;
 }
 
-const result = await waitForResult(requests[0].id);
-\`\`\`
-
-## Python 연동 예제
-
-\`\`\`python
-import requests, time
-
-STATION = "https://crawl-station.vercel.app"
-
-API_KEY = "cs_발급받은키"
-
-# 요청
-res = requests.post(f"{STATION}/api/crawl",
-    headers={"X-API-Key": API_KEY},
-    json={"keywords": ["당뇨에 좋은 음식"], "type": "blog_crawl"}
-)
-req_id = res.json()["requests"][0]["id"]
-
-# 대기
-while True:
-    r = requests.get(f"{STATION}/api/crawl?request_id={req_id}").json()
-    if r["request"]["status"] in ("completed", "failed"): break
-    time.sleep(3)
-
-# 결과
-for item in r["results"]:
-    print(item["data"]["title"])
-\`\`\`
-
-## 인스타그램 프로필 수집 예제
-
-인스타그램 공개 프로필에서 팔로워, 팔로잉, 게시물 수, 릴스 수를 수집합니다.
-
-### 요청
-
-\`\`\`json
-{
-  "keywords": ["username1,username2,username3"],
-  "type": "instagram_profile",
-  "options": {
-    "usernames": ["username1", "username2", "username3"],
-    "fetchReelsCount": true
-  }
+/** 단건 요청 + 대기 */
+export async function crawl(keyword: string, type: CrawlType, options?: Record<string, unknown>): Promise<CrawlResult[]> {
+  const [req] = await requestCrawl([keyword], type, options);
+  const result = await waitForCrawl(req.id);
+  return result?.results ?? [];
 }
 \`\`\`
 
-### 결과
-
-\`\`\`json
-{
-  "results": [
-    {
-      "data": {
-        "instagram_pk": 25025320,
-        "username": "instagram",
-        "full_name": "Instagram",
-        "bio": "",
-        "profile_url": "https://...",
-        "follower_count": 701000000,
-        "following_count": 234,
-        "post_count": 8390,
-        "is_verified": false,
-        "is_private": false,
-        "reels_count": 0
-      }
-    }
-  ]
-}
-\`\`\`
-
-### Next.js (Insta Desk 연동)
+**사용 예**
 
 \`\`\`typescript
-// Supabase public 스키마의 crawl_requests에 직접 등록
+import { crawl, requestCrawl } from "@/lib/crawl-station";
+
+// 단건 — 결과까지 대기
+const results = await crawl("당뇨에 좋은 음식", "blog_crawl");
+
+// 다건 — 비동기 등록 후 나중에 폴링
+const requests = await requestCrawl(["키워드1", "키워드2"], "blog_serp");
+\`\`\`
+
+---
+
+## 6. Python 클라이언트
+
+\`\`\`python
+# crawl_station.py
+import os, time
+import requests as http
+
+_BASE = os.getenv("CRAWL_STATION_URL", "https://crawl-station.vercel.app")
+_KEY  = os.getenv("CRAWL_STATION_API_KEY", "")
+_HDR  = {"X-API-Key": _KEY, "Content-Type": "application/json"}
+
+def request_crawl(keywords: list, crawl_type: str, options: dict = {}) -> list:
+    res = http.post(f"{_BASE}/api/crawl",
+        headers=_HDR, json={"keywords": keywords, "type": crawl_type, "options": options})
+    res.raise_for_status()
+    return res.json()["requests"]
+
+def wait_for_crawl(request_id: str, timeout: int = 120) -> dict | None:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        r = http.get(f"{_BASE}/api/crawl?request_id={request_id}").json()
+        if r["request"]["status"] in ("completed", "failed"):
+            return r
+        time.sleep(3)
+    return None
+
+def crawl(keyword: str, crawl_type: str, **options) -> list:
+    reqs = request_crawl([keyword], crawl_type, options)
+    result = wait_for_crawl(reqs[0]["id"])
+    return result["results"] if result else []
+\`\`\`
+
+**사용 예**
+
+\`\`\`python
+from crawl_station import crawl, request_crawl
+
+results = crawl("당뇨에 좋은 음식", "blog_crawl")
+for r in results:
+    print(r["data"]["title"])
+\`\`\`
+
+---
+
+## 7. 인스타그램 프로필 수집
+
+\`\`\`typescript
+// usernames 배열을 쉼표 구분 keyword로 전달
+const results = await crawl(
+  usernames.join(","),
+  "instagram_profile",
+  { usernames, fetchReelsCount: true, source: "my-app" }
+);
+// results[i].data = { username, full_name, bio, profile_url,
+//   follower_count, following_count, post_count, reels_count,
+//   is_verified, is_private }
+\`\`\`
+
+### Supabase 직접 등록 (Insta Desk 방식)
+
+\`\`\`typescript
 const { data } = await supabase.from("crawl_requests").insert({
   type: "instagram_profile",
   keyword: usernames.join(","),
@@ -222,11 +281,8 @@ const { data } = await supabase.from("crawl_requests").insert({
   priority: 5,
 }).select("id").single();
 
-// 결과 폴링
 const { data: results } = await supabase
-  .from("crawl_results")
-  .select("data")
-  .eq("request_id", data.id);
+  .from("crawl_results").select("data").eq("request_id", data.id);
 \`\`\`
 `;
 

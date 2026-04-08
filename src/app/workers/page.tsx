@@ -381,19 +381,17 @@ export default function WorkersPage() {
             등록된 워커가 없습니다.
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
-                <th className="text-left px-4 py-2 font-medium">워커</th>
-                <th className="text-left px-4 py-2 font-medium">OS</th>
-                <th className="text-left px-4 py-2 font-medium">버전</th>
-                <th className="text-left px-4 py-2 font-medium">상태</th>
-                <th className="text-left px-4 py-2 font-medium">
-                  마지막 응답
-                </th>
+                <th className="text-left px-4 py-2 font-medium w-[180px]">워커</th>
+                <th className="text-left px-4 py-2 font-medium w-[108px]">OS</th>
+                <th className="text-left px-4 py-2 font-medium w-[80px]">버전</th>
+                <th className="text-left px-4 py-2 font-medium w-[120px]">상태</th>
+                <th className="text-left px-4 py-2 font-medium w-[68px]">마지막</th>
                 <th className="text-left px-4 py-2 font-medium">현재 작업</th>
-                <th className="text-right px-4 py-2 font-medium">처리/에러</th>
-                <th className="text-right px-4 py-2 font-medium">제어</th>
+                <th className="text-right px-4 py-2 font-medium w-[76px]">처리/에러</th>
+                <th className="text-right px-4 py-2 font-medium w-[112px]">제어</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -441,14 +439,12 @@ export default function WorkersPage() {
                     <td className="px-4 py-2 text-xs text-gray-400">
                       <LastSeenLabel lastSeen={w.last_seen} />
                     </td>
-                    <td className="px-4 py-2 text-xs text-gray-500">
+                    <td className="px-4 py-2 text-xs text-gray-500 overflow-hidden">
                       {w.current_keyword ? (
-                        <span>
+                        <span className="block truncate" title={`${w.current_keyword} (${w.current_type || ""})`}>
                           {w.current_keyword}
                           {w.current_type && (
-                            <span className="text-gray-400 ml-1">
-                              ({w.current_type})
-                            </span>
+                            <span className="text-gray-400 ml-1">({w.current_type})</span>
                           )}
                         </span>
                       ) : (
