@@ -277,9 +277,9 @@ export default function WorkersPage() {
                 <th className="text-left px-4 py-2 font-medium w-[108px]">OS</th>
                 <th className="text-left px-4 py-2 font-medium w-[80px]">버전</th>
                 <th className="text-left px-4 py-2 font-medium w-[140px]">상태</th>
-                <th className="text-left px-4 py-2 font-medium w-[68px]">마지막</th>
+                <th className="text-left px-4 py-2 font-medium w-[80px]">마지막</th>
                 <th className="text-left px-4 py-2 font-medium">현재 작업</th>
-                <th className="text-right px-4 py-2 font-medium w-[76px]">처리/에러</th>
+                <th className="text-right px-4 py-2 font-medium w-[84px]">처리/에러</th>
                 <th className="text-center px-4 py-2 font-medium w-[80px]">테스트</th>
                 <th className="text-right px-4 py-2 font-medium w-[112px]">제어</th>
               </tr>
