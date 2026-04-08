@@ -371,11 +371,115 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Oclick 자격증명 */}
+      <OclickCredentialsSection />
+
       {/* AI 크롤링 회피 분석 */}
       <AiEvasionSection />
 
       {/* 헬스체크 스케줄 */}
       <HealthCheckScheduleSection />
+    </div>
+  );
+}
+
+function OclickCredentialsSection() {
+  const FIELDS = [
+    { key: "oclick_company_code", label: "고객사 코드", placeholder: "00677" },
+    { key: "oclick_user_id",      label: "사용자 ID",   placeholder: "라이프앤바이오" },
+    { key: "oclick_password",     label: "비밀번호",    placeholder: "••••••••", secret: true },
+  ];
+
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<Record<string, string>>({});  // 마스킹된 현재값
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      for (const f of FIELDS) {
+        try {
+          const res = await fetch(`/api/settings?key=${f.key}`);
+          const data: SettingEntry = await res.json();
+          if (data.value) setSaved((prev) => ({ ...prev, [f.key]: data.value! }));
+        } catch {}
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      for (const f of FIELDS) {
+        const v = values[f.key]?.trim();
+        if (!v) continue;
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: f.key, value: v }),
+        });
+        setSaved((prev) => ({ ...prev, [f.key]: f.secret ? "••••••" : v }));
+      }
+      setValues({});
+      setMsg({ ok: true, text: "저장 완료" });
+    } catch (e) {
+      setMsg({ ok: false, text: String(e) });
+    }
+    setSaving(false);
+  }
+
+  const allSaved = FIELDS.every((f) => saved[f.key]);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-5 mt-6">
+      <div className="flex items-center gap-2 mb-1">
+        <h3 className="text-sm font-bold text-gray-900">Oclick 자격증명</h3>
+        {allSaved ? (
+          <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">설정됨</span>
+        ) : (
+          <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-500 rounded">미설정</span>
+        )}
+      </div>
+      <p className="text-xs text-gray-500 mb-4">
+        워커 관리 페이지의 O테스트 버튼에서 사용됩니다. Oclick(admin.oclick.co.kr) 로그인 정보를 입력하세요.
+      </p>
+
+      <div className="space-y-3">
+        {FIELDS.map((f) => (
+          <div key={f.key} className="flex items-center gap-3">
+            <label className="w-24 shrink-0 text-xs text-gray-600 font-medium">{f.label}</label>
+            <div className="flex-1 flex items-center gap-2">
+              {saved[f.key] && (
+                <span className="text-xs text-gray-400 font-mono">
+                  현재: {f.secret ? "••••••" : saved[f.key]}
+                </span>
+              )}
+              <input
+                type={f.secret ? "password" : "text"}
+                value={values[f.key] || ""}
+                onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                placeholder={saved[f.key] ? "변경할 경우 입력" : f.placeholder}
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-3 mt-4">
+        <button
+          onClick={save}
+          disabled={saving || FIELDS.every((f) => !values[f.key]?.trim())}
+          className="px-4 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 whitespace-nowrap"
+        >
+          {saving ? "저장 중..." : "저장"}
+        </button>
+        {msg && (
+          <span className={`text-xs ${msg.ok ? "text-green-600" : "text-red-600"}`}>{msg.text}</span>
+        )}
+      </div>
     </div>
   );
 }
