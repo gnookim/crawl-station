@@ -173,27 +173,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 완료된 경우 결과도 함께 반환
+    // 완료된 경우 result 필드를 파싱하여 반환
     let results = null;
-    if (req.status === "completed") {
-      const { data } = await sb
-        .from("crawl_results")
-        .select("*")
-        .eq("request_id", requestId)
-        .order("rank");
-      results = data;
+    if (req.status === "completed" && req.result) {
+      try {
+        results = typeof req.result === "string" ? JSON.parse(req.result) : req.result;
+      } catch { results = null; }
     }
 
     return NextResponse.json({ request: req, results });
   }
 
-  // 키워드+타입으로 결과 조회
+  // 키워드+타입으로 결과 조회 — crawl_requests 에서 직접
   if (keyword) {
     let query = sb
-      .from("crawl_results")
-      .select("*")
+      .from("crawl_requests")
+      .select("id, keyword, type, result, completed_at, options")
       .eq("keyword", keyword)
-      .order("created_at", { ascending: false })
+      .eq("status", "completed")
+      .order("completed_at", { ascending: false })
       .limit(50);
 
     if (type) {
@@ -203,13 +201,20 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ keyword, results: data });
+    // result JSON 파싱
+    const parsed = (data || []).map((row) => {
+      try {
+        return {
+          ...row,
+          result: typeof row.result === "string" ? JSON.parse(row.result) : row.result,
+        };
+      } catch { return row; }
+    });
+
+    return NextResponse.json({ keyword, results: parsed });
   }
 
   return NextResponse.json(

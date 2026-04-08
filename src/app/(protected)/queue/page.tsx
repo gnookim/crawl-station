@@ -80,11 +80,16 @@ export default function QueuePage() {
     setExpandedId(requestId);
     setLoadingResult(true);
     const { data } = await supabase
-      .from("crawl_results")
-      .select("*")
-      .eq("request_id", requestId)
-      .order("rank");
-    setResultData((data || []) as Record<string, unknown>[]);
+      .from("crawl_requests")
+      .select("result, type")
+      .eq("id", requestId)
+      .single();
+    try {
+      const items = data?.result
+        ? (typeof data.result === "string" ? JSON.parse(data.result) : data.result)
+        : [];
+      setResultData(Array.isArray(items) ? items : [items]);
+    } catch { setResultData([]); }
     setLoadingResult(false);
   }
 

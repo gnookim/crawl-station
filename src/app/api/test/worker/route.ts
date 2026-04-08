@@ -84,23 +84,26 @@ export async function POST(request: NextRequest) {
     if (!check) continue;
 
     if (check.status === "completed") {
-      // 결과 조회
-      const { data: results } = await sb
-        .from("crawl_results")
-        .select("data")
-        .eq("request_id", req.id)
-        .order("rank")
-        .limit(5);
+      // crawl_requests.result에서 직접 파싱
+      const { data: completed } = await sb
+        .from("crawl_requests")
+        .select("result")
+        .eq("id", req.id)
+        .single();
 
       const elapsed = Date.now() - startTime;
-      const items = (results || []).map((r) => {
-        const d = (r.data || {}) as Record<string, unknown>;
-        return {
-          rank: d.rank,
-          title: String(d.title || "").slice(0, 60),
-          url: String(d.url || "").slice(0, 80),
-        };
-      });
+      let rawItems: Record<string, unknown>[] = [];
+      try {
+        const parsed = typeof completed?.result === "string"
+          ? JSON.parse(completed.result)
+          : completed?.result;
+        rawItems = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+      } catch { rawItems = []; }
+      const items = rawItems.slice(0, 5).map((d) => ({
+        rank: d.rank,
+        title: String(d.title || "").slice(0, 60),
+        url: String(d.url || "").slice(0, 80),
+      }));
 
       // 검증 — 크롤링이 실행되고 완료됐으면 기본 통과
       // 결과가 있으면 제목/URL도 체크
@@ -186,14 +189,11 @@ export async function GET(request: NextRequest) {
   }
 
   let results = null;
-  if (req.status === "completed") {
-    const { data } = await sb
-      .from("crawl_results")
-      .select("data")
-      .eq("request_id", requestId)
-      .order("rank")
-      .limit(5);
-    results = (data || []).map((r) => (r.data || {}) as Record<string, unknown>);
+  if (req.status === "completed" && req.result) {
+    try {
+      const parsed = typeof req.result === "string" ? JSON.parse(req.result) : req.result;
+      results = Array.isArray(parsed) ? parsed.slice(0, 5) : [parsed];
+    } catch { results = null; }
   }
 
   return NextResponse.json({ request: req, results });

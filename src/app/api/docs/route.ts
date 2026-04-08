@@ -814,6 +814,11 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-08 (추가)
 
+### crawl_results 테이블 참조 전면 제거
+- crawl\_requests.result JSON 필드로 통합 (별도 crawl\_results 테이블 불필요)
+- 영향: /api/crawl GET, /api/test/worker, queue 페이지 결과 조회, health-check 결과 확인
+- 외부 연동(lnb-insta 등)도 result 필드 직접 파싱으로 안내
+
 ### Cron 시간 수정
 - health-check: `0 9 * * *` UTC(KST 18시) → `0 0 * * *` UTC(KST 9시) 수정
 - health-check route: crawl\_results 대신 crawl\_requests.result JSON 파싱으로 변경
