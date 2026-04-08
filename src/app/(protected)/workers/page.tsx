@@ -596,12 +596,15 @@ function BlockBadge({ worker: w }: { worker: Worker }) {
 /* ── 타입 배지 ── */
 function WorkerTypeBadge({ allowedTypes }: { allowedTypes: string[] | null | undefined }) {
   if (!allowedTypes || allowedTypes.length === 0) return null;
-  const naverTypes = ["kin_analysis", "blog_crawl", "blog_serp", "rank_check", "deep_analysis", "area_analysis", "daily_rank"];
-  const instaTypes = ["instagram_profile"];
-  const isNaver = allowedTypes.every((t) => naverTypes.includes(t));
-  const isInsta = allowedTypes.every((t) => instaTypes.includes(t));
-  if (isNaver) return <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">네이버</span>;
-  if (isInsta) return <span className="px-1.5 py-0.5 text-xs bg-pink-100 text-pink-700 rounded">인스타</span>;
+  const naverTypes  = ["kin_analysis", "blog_crawl", "blog_serp", "rank_check", "deep_analysis", "area_analysis", "daily_rank"];
+  const instaTypes  = ["instagram_profile"];
+  const oclickTypes = ["oclick_sync"];
+  const isNaver  = allowedTypes.every((t) => naverTypes.includes(t));
+  const isInsta  = allowedTypes.every((t) => instaTypes.includes(t));
+  const isOclick = allowedTypes.every((t) => oclickTypes.includes(t));
+  if (isNaver)  return <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">네이버</span>;
+  if (isInsta)  return <span className="px-1.5 py-0.5 text-xs bg-pink-100 text-pink-700 rounded">인스타</span>;
+  if (isOclick) return <span className="px-1.5 py-0.5 text-xs bg-orange-100 text-orange-700 rounded">Oclick</span>;
   return <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-500 rounded">혼합</span>;
 }
 

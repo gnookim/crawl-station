@@ -459,10 +459,12 @@ export default function ConfigPage() {
                   // 현재 선택된 카테고리 계산
                   const currentCat = (() => {
                     if (!cfg.allowed_types || cfg.allowed_types.length === 0) return "all";
-                    const naverTypes = CRAWL_CATEGORIES.find(c => c.key === "naver")?.types || [];
-                    const instaTypes = CRAWL_CATEGORIES.find(c => c.key === "instagram")?.types || [];
-                    if (cfg.allowed_types.every(t => naverTypes.includes(t))) return "naver";
-                    if (cfg.allowed_types.every(t => instaTypes.includes(t))) return "instagram";
+                    const naverTypes   = CRAWL_CATEGORIES.find(c => c.key === "naver")?.types || [];
+                    const instaTypes   = CRAWL_CATEGORIES.find(c => c.key === "instagram")?.types || [];
+                    const oclickTypes  = CRAWL_CATEGORIES.find(c => c.key === "oclick")?.types || [];
+                    if (cfg.allowed_types.every(t => naverTypes.includes(t)))  return "naver";
+                    if (cfg.allowed_types.every(t => instaTypes.includes(t)))  return "instagram";
+                    if (cfg.allowed_types.every(t => oclickTypes.includes(t))) return "oclick";
                     return "all";
                   })();
 
@@ -483,18 +485,17 @@ export default function ConfigPage() {
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           {[
-                            { key: "all", label: "전체", color: "gray" },
-                            { key: "naver", label: "네이버", color: "green" },
-                            { key: "instagram", label: "인스타그램", color: "pink" },
-                          ].map(({ key, label, color }) => (
+                            { key: "all",       label: "전체",      active: "bg-gray-700 text-white border-gray-700" },
+                            { key: "naver",     label: "네이버",    active: "bg-green-600 text-white border-green-600" },
+                            { key: "instagram", label: "인스타그램", active: "bg-pink-500 text-white border-pink-500" },
+                            { key: "oclick",    label: "Oclick",   active: "bg-orange-500 text-white border-orange-500" },
+                          ].map(({ key, label, active }) => (
                             <button
                               key={key}
                               onClick={() => selectCategory(key)}
                               className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
                                 currentCat === key
-                                  ? color === "gray" ? "bg-gray-700 text-white border-gray-700"
-                                    : color === "green" ? "bg-green-600 text-white border-green-600"
-                                    : "bg-pink-500 text-white border-pink-500"
+                                  ? active
                                   : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
                               }`}
                             >
