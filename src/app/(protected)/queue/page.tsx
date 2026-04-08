@@ -223,7 +223,7 @@ export default function QueuePage() {
               <tr>
                 <th className="text-left px-4 py-2 font-medium">키워드</th>
                 <th className="text-left px-4 py-2 font-medium w-[116px]">타입</th>
-                <th className="text-left px-4 py-2 font-medium w-[88px]">출처</th>
+                <th className="text-left px-4 py-2 font-medium w-[112px]">출처</th>
                 <th className="text-left px-4 py-2 font-medium w-[76px]">상태</th>
                 <th className="text-left px-4 py-2 font-medium w-[120px]">워커</th>
                 <th className="text-left px-4 py-2 font-medium w-[120px]">에러</th>
@@ -239,10 +239,12 @@ export default function QueuePage() {
                   onClick={() => r.status === "completed" && toggleResult(r.id)}
                 >
                   <td className="px-4 py-2 font-medium overflow-hidden">
-                    {r.status === "completed" && (
-                      <span className="text-blue-500 mr-1">{expandedId === r.id ? "▼" : "▶"}</span>
-                    )}
-                    <span className="truncate block" title={r.keyword}>{r.keyword}</span>
+                    <div className="flex items-center gap-1 overflow-hidden">
+                      {r.status === "completed" && (
+                        <span className="text-blue-500 shrink-0">{expandedId === r.id ? "▼" : "▶"}</span>
+                      )}
+                      <span className="truncate" title={r.keyword}>{r.keyword}</span>
+                    </div>
                     {r.scope && <span className="text-xs text-gray-400">({r.scope})</span>}
                   </td>
                   <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden">
@@ -402,13 +404,11 @@ function SourceBadge({ options }: { options: Record<string, unknown> | null }) {
   const config = SOURCE_MAP[source] || { label: source, color: "bg-gray-50 text-gray-600" };
 
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className={`px-1.5 py-0.5 rounded text-xs ${config.color}`}>
-        {config.label}
-      </span>
-      {purpose && (
-        <span className="text-xs text-gray-400">{purpose}</span>
-      )}
-    </div>
+    <span
+      className={`px-1.5 py-0.5 rounded text-xs whitespace-nowrap inline-block ${config.color}`}
+      title={purpose ? `${config.label} · ${purpose}` : config.label}
+    >
+      {config.label}
+    </span>
   );
 }

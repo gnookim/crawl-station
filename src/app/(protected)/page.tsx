@@ -209,7 +209,7 @@ function WorkerRow({ worker: w }: { worker: Worker }) {
         )}
       </td>
       <td className="px-4 py-2">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-nowrap">
           <WorkerStatusBadge status={w.is_active ? w.status : "offline"} />
           <WorkerTypeBadge allowedTypes={w.allowed_types} />
         </div>

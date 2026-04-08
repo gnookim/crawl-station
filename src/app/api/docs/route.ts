@@ -648,6 +648,12 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-08
 
+### Station — 작업 큐 테이블 레이아웃 수정
+- 출처 배지 2줄 → 1줄 수정: flex-col 제거, whitespace-nowrap 적용, 목적(자동/수동 테스트)은 툴팁으로 이동
+- 키워드 셀: 완료 ▶ 버튼과 키워드가 별도 줄로 분리되던 문제 수정 (flex 정렬로 한 줄 처리)
+- 출처 컬럼 너비 88px → 112px 확장
+- 대시보드 워커 상태 셀 flex-nowrap 추가
+
 ### Station — Vercel Hobby cron 제한 수정
 - health-check cron 표현식 "0 * * * *" (매시간) → "0 9 * * *" (매일 09시)
 - Vercel Hobby 계정은 일 1회 이하 cron만 허용 — 이 제한으로 3일간 빌드 실패, 테이블 레이아웃 수정이 미배포 상태였음
