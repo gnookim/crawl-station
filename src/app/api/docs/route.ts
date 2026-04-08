@@ -866,6 +866,23 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 ### 크롤 타입 — oclick\_sync 추가
 - /api/crawl POST 유효 타입에 oclick\_sync 추가 (핸들러 구현 예정)
 
+### Oclick 테스트 기능
+
+#### Station — /api/test/oclick (신규)
+- POST /api/test/oclick — oclick\_sync 작업 요청 후 crawler-app 결과 대기 (최대 3분 폴링)
+- 자격증명을 body에 직접 전달하거나 station\_settings의 oclick\_company\_code/oclick\_user\_id/oclick\_password 자동 로드
+- 응답: ok, item\_count, sample(5개), elapsed\_ms
+
+#### Station UI — 워커 관리 O테스트 버튼
+- 상단에 "O테스트" 버튼 추가 (주황색) — crawler-app의 Oclick 재고 수집 즉시 테스트
+- 테스트 결과 패널: 수집 상품 수 + 샘플 5개 (SKU, 상품명, 재고 상태, 재고량, 가격)
+- 상태 범례에 O = Oclick 재고 항목 추가
+
+#### crawler-app — Oclick 버그 수정 (worker/index.js)
+- total\_count 파싱 실패 수정: total\_count/rows/\<total\> 3가지 XML 패턴 fallback
+- total\_count=0이면 totalPages=99로 설정 → 빈 페이지 나올 때까지 수집
+- price/stock\_qty 파싱 오류 수정: 빈 셀 guard + /[^0-9]/g replace로 안전하게 처리
+
 ### 워커 v0.9.16 — instagram 계정 관리 Supabase 직접 호출
 - CRAWL\_STATION\_URL 환경변수 불필요 — 워커가 기보유한 SUPABASE\_URL/KEY로 instagram\_accounts 직접 조회
 - \_pick\_account / \_report\_block / \_save\_session 모두 Supabase REST API로 전환

@@ -12,6 +12,7 @@ type WorkerTestState = {
   naver: { loading: boolean; result: TestResult };
   instagram: { loading: boolean; result: TestResult };
 };
+type OclickTestState = { loading: boolean; result: TestResult };
 
 export default function WorkersPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
@@ -22,6 +23,7 @@ export default function WorkersPage() {
   const [commandLoading, setCommandLoading] = useState<string | null>(null);
   const [testStates, setTestStates] = useState<Record<string, WorkerTestState>>({});
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
+  const [oclickTest, setOclickTest] = useState<OclickTestState>({ loading: false, result: null });
   const [refreshInterval, setRefreshInterval] = useState(10);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -159,6 +161,17 @@ export default function WorkersPage() {
     await Promise.all(targets.map((w) => runTest(w.id, category)));
   }
 
+  async function runOclickTest() {
+    setOclickTest({ loading: true, result: null });
+    try {
+      const res = await fetch("/api/test/oclick", { method: "POST" });
+      const data = await res.json();
+      setOclickTest({ loading: false, result: data });
+    } catch (e) {
+      setOclickTest({ loading: false, result: { ok: false, error: String(e) } });
+    }
+  }
+
   const outdatedCount = workers.filter((w) => latestVersion && w.version !== latestVersion).length;
   const activeWorkers = workers.filter((w) => w.is_active);
   const offlineWorkers = workers.filter((w) => !w.is_active);
@@ -184,6 +197,9 @@ export default function WorkersPage() {
               </button>
               <button onClick={() => runTestAll("instagram")} className="px-2.5 py-1.5 text-xs bg-pink-500 text-white rounded-md hover:bg-pink-600 disabled:opacity-50">
                 전체 I테스트
+              </button>
+              <button onClick={runOclickTest} disabled={oclickTest.loading} className="px-2.5 py-1.5 text-xs bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50">
+                {oclickTest.loading ? "O테스트..." : "O테스트"}
               </button>
               <button onClick={() => sendCommand("update")} disabled={commandLoading !== null} className="px-2.5 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">
                 전체 업데이트
@@ -250,6 +266,49 @@ export default function WorkersPage() {
         </div>
       )}
 
+      {/* Oclick 테스트 결과 */}
+      {(oclickTest.loading || oclickTest.result) && (
+        <div className={`mb-4 border rounded-lg p-3 text-sm ${
+          oclickTest.loading ? "bg-orange-50 border-orange-200" :
+          oclickTest.result?.ok ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+        }`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-semibold text-orange-700 text-xs">Oclick 재고 테스트</span>
+            {!oclickTest.loading && oclickTest.result && (
+              <span className={`text-xs font-bold ${oclickTest.result.ok ? "text-green-700" : "text-red-700"}`}>
+                {oclickTest.result.ok ? "✓ 통과" : "✕ 실패"}
+              </span>
+            )}
+            {!oclickTest.loading && oclickTest.result && (
+              <span className="text-xs text-gray-400">{String(oclickTest.result.elapsed_ms || 0)}ms</span>
+            )}
+            {!oclickTest.loading && (
+              <button onClick={() => setOclickTest({ loading: false, result: null })} className="ml-auto text-xs text-gray-400 hover:text-gray-600">✕</button>
+            )}
+          </div>
+          {oclickTest.loading ? (
+            <p className="text-xs text-orange-600 animate-pulse">crawler-app에 작업 요청 중... (최대 3분)</p>
+          ) : oclickTest.result?.ok ? (
+            <>
+              <p className="text-xs text-green-700 mb-1">
+                상품 수집 완료 — {String(oclickTest.result.item_count)}개
+              </p>
+              {Array.isArray(oclickTest.result.sample) && oclickTest.result.sample.length > 0 && (
+                <div className="space-y-0.5">
+                  {(oclickTest.result.sample as Record<string, unknown>[]).map((item, i) => (
+                    <div key={i} className="text-xs text-gray-600">
+                      [{String(item.sku)}] {String(item.name)} · {String(item.stock_status)} · 재고 {String(item.stock_qty)} · {item.price ? Number(item.price).toLocaleString() + "원" : "-"}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-red-600">{String(oclickTest.result?.error || "알 수 없는 오류")}</p>
+          )}
+        </div>
+      )}
+
       {/* 상태 범례 */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 px-1 text-xs text-gray-500">
         <span className="font-medium text-gray-600">상태:</span>
@@ -263,6 +322,8 @@ export default function WorkersPage() {
         <span>네이버 blog_serp</span>
         <span className="px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded text-xs">I</span>
         <span>인스타 프로필</span>
+        <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-xs">O</span>
+        <span>Oclick 재고</span>
       </div>
 
       {/* 워커 목록 */}
