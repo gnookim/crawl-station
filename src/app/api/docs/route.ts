@@ -807,6 +807,10 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 크롤링 완료 후 최신 storageState를 Station에 저장
 - 차단 감지 시 Station에 block 보고 → 해당 계정 쿨다운 처리
 - 계정 없거나 발급 실패 시 익명 모드로 자동 fallback (기존 동작 유지)
+- instagram_profile 작업 시 options에 worker_id 자동 주입
+
+### 릴리즈 시스템 — handlers/instagram.py 추가
+- GitHub 가져오기 + 릴리즈 파일 목록에 \`handlers/instagram.py\` 포함
 
 ### 워커 — 차단 자동 대응 Stage 3 (작업 재배분)
 

@@ -14,6 +14,7 @@ const WORKER_FILES = [
   "handlers/area.py",
   "handlers/deep.py",
   "handlers/rank.py",
+  "handlers/instagram.py",
   "supabase_rest.py",
 ];
 
