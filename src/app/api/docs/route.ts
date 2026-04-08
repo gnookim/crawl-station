@@ -646,6 +646,12 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - lnb-insta(Insta Desk) 연동 — crawl_requests로 작업 요청, crawl_results로 결과 반환
 - 기존 네이버 크롤링 워커에 추가 설치 없이 통합 운영
 
+## 2026-04-08
+
+### Station — Vercel Hobby cron 제한 수정
+- health-check cron 표현식 `0 * * * *` (매시간) → `0 9 * * *` (매일 09시)
+- Vercel Hobby 계정은 일 1회 이하 cron만 허용 — 이 제한으로 3일간 빌드 실패, 테이블 레이아웃 수정이 미배포 상태였음
+
 ## 2026-04-06
 
 ### 워커 v0.9.12 — 차단 감지 + 보고 시스템 (1단계)
