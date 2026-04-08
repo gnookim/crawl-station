@@ -833,7 +833,7 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 외부 연동(lnb-insta 등)도 result 필드 직접 파싱으로 안내
 
 ### Cron 시간 수정
-- health-check: `0 9 * * *` UTC(KST 18시) → `0 0 * * *` UTC(KST 9시) 수정
+- health-check: "0 9 * * *" UTC(KST 18시) → "0 0 * * *" UTC(KST 9시) 수정
 - health-check route: crawl\_results 대신 crawl\_requests.result JSON 파싱으로 변경
 
 ### DB — daily_rank_* 테이블 스키마 수정 (20260408_daily_rank_fix.sql)
