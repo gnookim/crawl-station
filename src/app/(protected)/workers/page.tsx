@@ -17,6 +17,7 @@ export default function WorkersPage() {
   const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
   const [testAllResults, setTestAllResults] = useState<Record<string, Record<string, unknown>> | null>(null);
   const [testingAll, setTestingAll] = useState(false);
+  const [testCategory, setTestCategory] = useState<"naver" | "instagram">("naver");
   const [refreshInterval, setRefreshInterval] = useState(10);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -152,10 +153,10 @@ export default function WorkersPage() {
       const res = await fetch("/api/test/worker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ worker_id: workerId }),
+        body: JSON.stringify({ worker_id: workerId, category: testCategory }),
       });
       const data = await res.json();
-      setTestResult(data);
+      setTestResult({ ...data, _category: testCategory });
     } catch (e) {
       setTestResult({ ok: false, error: String(e) });
     }
@@ -168,7 +169,7 @@ export default function WorkersPage() {
       alert("활성 워커가 없습니다.");
       return;
     }
-    if (!confirm(`활성 워커 ${targets.length}대를 동시에 테스트하시겠습니까?`)) return;
+    if (!confirm(`활성 워커 ${targets.length}대를 동시에 테스트하시겠습니까? (${testCategory === "naver" ? "네이버" : "인스타그램"})`)) return;
     setTestingAll(true);
     setTestAllResults({});
     setTestResult(null);
@@ -178,7 +179,7 @@ export default function WorkersPage() {
         const res = await fetch("/api/test/worker", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ worker_id: w.id }),
+          body: JSON.stringify({ worker_id: w.id, category: testCategory }),
         });
         const data = await res.json();
         setTestAllResults((prev) => ({ ...prev, [w.id]: data }));
@@ -221,6 +222,25 @@ export default function WorkersPage() {
         <div className="flex gap-2">
           {activeWorkers.length > 0 && (
             <div className="flex gap-1">
+              {/* 테스트 카테고리 토글 */}
+              <div className="flex bg-gray-100 rounded-md p-0.5">
+                <button
+                  onClick={() => setTestCategory("naver")}
+                  className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                    testCategory === "naver" ? "bg-white text-gray-900 shadow-sm font-medium" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  네이버
+                </button>
+                <button
+                  onClick={() => setTestCategory("instagram")}
+                  className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                    testCategory === "instagram" ? "bg-white text-gray-900 shadow-sm font-medium" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  인스타
+                </button>
+              </div>
               <button
                 onClick={runTestAll}
                 disabled={testingAll || testingWorker !== null}
@@ -386,6 +406,9 @@ export default function WorkersPage() {
             <div className="flex items-center gap-2">
               <span className={`text-sm font-bold ${testResult.ok ? "text-green-700" : "text-red-700"}`}>
                 {testResult.ok ? "테스트 통과" : "테스트 실패"}
+              </span>
+              <span className={`px-1.5 py-0.5 text-xs rounded ${testResult._category === "instagram" ? "bg-pink-100 text-pink-700" : "bg-green-100 text-green-700"}`}>
+                {testResult._category === "instagram" ? "인스타그램" : "네이버"}
               </span>
               <span className="text-xs text-gray-500">
                 {String(testResult.worker_id || "")} | {String(testResult.elapsed_ms || 0)}ms

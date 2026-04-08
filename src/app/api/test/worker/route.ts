@@ -9,8 +9,11 @@ import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
  * GET  /api/test/worker?id=xxx — 테스트 요청 결과 확인
  */
 
-const TEST_KEYWORD = "맛집 추천";
-const TEST_TYPE = "blog_serp";
+const TEST_CONFIGS: Record<string, { keyword: string; type: string }> = {
+  naver: { keyword: "맛집 추천", type: "blog_serp" },
+  instagram: { keyword: "nike", type: "instagram_profile" },
+};
+
 const TIMEOUT_MS = 120_000; // 2분
 const POLL_INTERVAL_MS = 3_000;
 
@@ -18,6 +21,10 @@ export async function POST(request: NextRequest) {
   const sb = createServerClient();
   const body = await request.json();
   const workerId = body.worker_id;
+  const testCategory: string = body.category || "naver";
+  const testCfg = TEST_CONFIGS[testCategory] || TEST_CONFIGS.naver;
+  const TEST_KEYWORD = testCfg.keyword;
+  const TEST_TYPE = testCfg.type;
 
   if (!workerId) {
     return NextResponse.json({ error: "worker_id 필요" }, { status: 400 });
