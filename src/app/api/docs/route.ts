@@ -781,6 +781,32 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 현재 작업 컬럼 \`max-w-[200px] truncate\` 적용 — 긴 인스타 username 목록 잘라서 표시
 - 상태 배지 컨테이너 \`flex-nowrap\` 으로 변경 — 배지 줄바꿈으로 행 높이가 늘어나던 문제 수정
 - 마지막 응답 셀 \`whitespace-nowrap\` 추가
+
+## 2026-04-08
+
+### Instagram 계정 풀 관리 시스템
+
+#### Station — instagram_accounts 테이블 + API
+- \`instagram_accounts\` 테이블 추가 (id, username, password, status, session_state, blocked_until, assigned_worker_id 등)
+- GET/POST/PATCH/DELETE: 계정 CRUD
+- \`?action=pick\`: 워커에서 사용 가능한 계정 1개 발급 (LRU 방식, 전용 워커 우선)
+- \`?action=session\`: 로그인 후 storageState 저장
+- \`?action=block\`: 차단 보고 → status=cooling, blocked_until 설정, session 초기화
+
+#### Station — Instagram 계정 관리 UI (/instagram-accounts)
+- 계정 목록 (상태, 마지막 사용, 로그인/차단 횟수)
+- 계정 추가 (username, password, 전용 워커 ID, 메모)
+- 활성/비활성 토글, 차단 수동 해제, 편집, 삭제
+- 요약 카드: 활성/쿨다운/차단 계정 수
+- 사이드바에 "Instagram 계정" 메뉴 추가
+
+#### 워커 — instagram.py 계정 세션 로직
+- 크롤링 시작 시 Station \`/api/instagram-accounts?action=pick\`으로 계정 발급
+- 저장된 storageState 복원 후 로그인 상태 확인
+- 미로그인 시 자동 재로그인 시도 (로그인 폼 자동 입력)
+- 크롤링 완료 후 최신 storageState를 Station에 저장
+- 차단 감지 시 Station에 block 보고 → 해당 계정 쿨다운 처리
+- 계정 없거나 발급 실패 시 익명 모드로 자동 fallback (기존 동작 유지)
 `;
 
 export async function GET(request: NextRequest) {
