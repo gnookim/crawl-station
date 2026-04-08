@@ -227,7 +227,7 @@ export default function QueuePage() {
                 <th className="text-left px-4 py-2 font-medium w-[76px]">상태</th>
                 <th className="text-left px-4 py-2 font-medium w-[120px]">워커</th>
                 <th className="text-left px-4 py-2 font-medium w-[120px]">에러</th>
-                <th className="text-right px-4 py-2 font-medium w-[132px]">생성</th>
+                <th className="text-right px-4 py-2 font-medium w-[120px]">생성</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -243,7 +243,7 @@ export default function QueuePage() {
                       {r.status === "completed" && (
                         <span className="text-blue-500 shrink-0">{expandedId === r.id ? "▼" : "▶"}</span>
                       )}
-                      <span className="truncate" title={r.keyword}>{r.keyword}</span>
+                      <KeywordCell keyword={r.keyword} type={r.type} />
                     </div>
                     {r.scope && <span className="text-xs text-gray-400">({r.scope})</span>}
                   </td>
@@ -263,7 +263,7 @@ export default function QueuePage() {
                     <span className="truncate block">{r.error_message || "-"}</span>
                   </td>
                   <td className="px-4 py-2 text-right text-xs text-gray-400 whitespace-nowrap">
-                    {new Date(r.created_at).toLocaleString("ko")}
+                    {new Date(r.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </td>
                 </tr>
                 {expandedId === r.id && (
@@ -372,6 +372,22 @@ function ResultViewer({ type, data }: { type: string; data: Record<string, unkno
       })}
     </div>
   );
+}
+
+function KeywordCell({ keyword, type }: { keyword: string; type: string }) {
+  if (type === "instagram_profile") {
+    const accounts = keyword.split(",").map((s) => s.trim()).filter(Boolean);
+    const preview = accounts.slice(0, 2).map((a) => `@${a}`).join(", ");
+    const rest = accounts.length - 2;
+    return (
+      <span className="truncate text-sm" title={accounts.map((a) => `@${a}`).join(", ")}>
+        <span className="text-gray-400 text-xs mr-1">계정</span>
+        {preview}
+        {rest > 0 && <span className="text-gray-400 text-xs ml-1">+{rest}개</span>}
+      </span>
+    );
+  }
+  return <span className="truncate" title={keyword}>{keyword}</span>;
 }
 
 const SOURCE_MAP: Record<string, { label: string; color: string }> = {
