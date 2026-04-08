@@ -394,6 +394,8 @@ function OclickCredentialsSection() {
   const [saved, setSaved] = useState<Record<string, string>>({});  // 마스킹된 현재값
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string; detail?: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -428,6 +430,23 @@ function OclickCredentialsSection() {
       setMsg({ ok: false, text: String(e) });
     }
     setSaving(false);
+  }
+
+  async function test() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/test/oclick", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setTestResult({ ok: true, text: `연결 성공 — 상품 ${data.item_count}개 수집 (${data.elapsed_ms}ms)` });
+      } else {
+        setTestResult({ ok: false, text: data.error || "테스트 실패" });
+      }
+    } catch (e) {
+      setTestResult({ ok: false, text: String(e) });
+    }
+    setTesting(false);
   }
 
   const allSaved = FIELDS.every((f) => saved[f.key]);
@@ -468,7 +487,7 @@ function OclickCredentialsSection() {
         ))}
       </div>
 
-      <div className="flex items-center gap-3 mt-4">
+      <div className="flex items-center gap-3 mt-4 flex-wrap">
         <button
           onClick={save}
           disabled={saving || FIELDS.every((f) => !values[f.key]?.trim())}
@@ -476,10 +495,24 @@ function OclickCredentialsSection() {
         >
           {saving ? "저장 중..." : "저장"}
         </button>
+        <button
+          onClick={test}
+          disabled={testing || !allSaved}
+          title={!allSaved ? "자격증명을 먼저 저장하세요" : ""}
+          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+        >
+          {testing ? "테스트 중... (최대 3분)" : "연결 테스트"}
+        </button>
         {msg && (
           <span className={`text-xs ${msg.ok ? "text-green-600" : "text-red-600"}`}>{msg.text}</span>
         )}
       </div>
+
+      {testResult && (
+        <div className={`mt-3 p-3 rounded-md text-xs ${testResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+          {testResult.ok ? "✓ " : "✕ "}{testResult.text}
+        </div>
+      )}
     </div>
   );
 }
