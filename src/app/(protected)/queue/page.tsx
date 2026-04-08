@@ -218,16 +218,16 @@ export default function QueuePage() {
             작업이 없습니다.
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
-                <th className="text-left px-4 py-2 font-medium w-0 min-w-[160px] max-w-xs">키워드</th>
-                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">타입</th>
-                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">출처</th>
-                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">상태</th>
-                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">워커</th>
-                <th className="text-left px-4 py-2 font-medium">에러</th>
-                <th className="text-right px-4 py-2 font-medium whitespace-nowrap">생성</th>
+                <th className="text-left px-4 py-2 font-medium">키워드</th>
+                <th className="text-left px-4 py-2 font-medium w-[116px]">타입</th>
+                <th className="text-left px-4 py-2 font-medium w-[88px]">출처</th>
+                <th className="text-left px-4 py-2 font-medium w-[76px]">상태</th>
+                <th className="text-left px-4 py-2 font-medium w-[120px]">워커</th>
+                <th className="text-left px-4 py-2 font-medium w-[120px]">에러</th>
+                <th className="text-right px-4 py-2 font-medium w-[132px]">생성</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -238,29 +238,29 @@ export default function QueuePage() {
                   className={`hover:bg-gray-50 ${r.status === "completed" ? "cursor-pointer" : ""} ${expandedId === r.id ? "bg-blue-50" : ""}`}
                   onClick={() => r.status === "completed" && toggleResult(r.id)}
                 >
-                  <td className="px-4 py-2 font-medium max-w-xs">
+                  <td className="px-4 py-2 font-medium overflow-hidden">
                     {r.status === "completed" && (
                       <span className="text-blue-500 mr-1">{expandedId === r.id ? "▼" : "▶"}</span>
                     )}
                     <span className="truncate block" title={r.keyword}>{r.keyword}</span>
                     {r.scope && <span className="text-xs text-gray-400">({r.scope})</span>}
                   </td>
-                  <td className="px-4 py-2 text-gray-500 text-xs whitespace-nowrap">
-                    {CRAWL_TYPE_LABELS[r.type] || r.type}
+                  <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden">
+                    <span className="truncate block">{CRAWL_TYPE_LABELS[r.type] || r.type}</span>
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2 overflow-hidden">
                     <SourceBadge options={r.options} />
                   </td>
                   <td className="px-4 py-2">
                     <TaskStatusBadge status={r.status} />
                   </td>
-                  <td className="px-4 py-2 text-xs text-gray-400">
-                    {r.assigned_worker ? (r.assigned_worker.slice(0, 15)) : "-"}
+                  <td className="px-4 py-2 text-xs text-gray-400 overflow-hidden">
+                    <span className="truncate block">{r.assigned_worker ? r.assigned_worker.slice(0, 20) : "-"}</span>
                   </td>
-                  <td className="px-4 py-2 text-xs text-red-500 max-w-48 truncate">
-                    {r.error_message || "-"}
+                  <td className="px-4 py-2 text-xs text-red-500 overflow-hidden">
+                    <span className="truncate block">{r.error_message || "-"}</span>
                   </td>
-                  <td className="px-4 py-2 text-right text-xs text-gray-400">
+                  <td className="px-4 py-2 text-right text-xs text-gray-400 whitespace-nowrap">
                     {new Date(r.created_at).toLocaleString("ko")}
                   </td>
                 </tr>

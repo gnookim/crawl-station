@@ -270,18 +270,18 @@ export default function WorkersPage() {
         {workers.length === 0 ? (
           <div className="p-8 text-center text-gray-400 text-sm">등록된 워커가 없습니다.</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
-                <th className="text-left px-4 py-2 font-medium">워커</th>
-                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">OS</th>
-                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">버전</th>
-                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">상태</th>
-                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">마지막</th>
-                <th className="text-left px-4 py-2 font-medium whitespace-nowrap">현재 작업</th>
-                <th className="text-right px-4 py-2 font-medium whitespace-nowrap">처리/에러</th>
-                <th className="text-center px-4 py-2 font-medium whitespace-nowrap">테스트</th>
-                <th className="text-right px-4 py-2 font-medium whitespace-nowrap">제어</th>
+                <th className="text-left px-4 py-2 font-medium w-[180px]">워커</th>
+                <th className="text-left px-4 py-2 font-medium w-[108px]">OS</th>
+                <th className="text-left px-4 py-2 font-medium w-[80px]">버전</th>
+                <th className="text-left px-4 py-2 font-medium w-[140px]">상태</th>
+                <th className="text-left px-4 py-2 font-medium w-[68px]">마지막</th>
+                <th className="text-left px-4 py-2 font-medium">현재 작업</th>
+                <th className="text-right px-4 py-2 font-medium w-[76px]">처리/에러</th>
+                <th className="text-center px-4 py-2 font-medium w-[80px]">테스트</th>
+                <th className="text-right px-4 py-2 font-medium w-[112px]">제어</th>
               </tr>
             </thead>
             <tbody>
@@ -308,7 +308,7 @@ export default function WorkersPage() {
                         </div>
                         <div className="text-xs text-gray-400">{w.id}</div>
                       </td>
-                      <td className="px-4 py-2 text-gray-500 text-xs">{w.os || "-"}</td>
+                      <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden"><span className="truncate block">{w.os || "-"}</span></td>
                       <td className="px-4 py-2"><VersionBadge version={w.version} latest={latestVersion} /></td>
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-1 flex-nowrap">
@@ -321,7 +321,7 @@ export default function WorkersPage() {
                         </div>
                       </td>
                       <td className="px-4 py-2 text-xs text-gray-400 whitespace-nowrap"><LastSeenLabel lastSeen={w.last_seen} /></td>
-                      <td className="px-4 py-2 text-xs text-gray-500 max-w-[200px]">
+                      <td className="px-4 py-2 text-xs text-gray-500 overflow-hidden">
                         {w.current_keyword ? (
                           <span className="block truncate" title={`${w.current_keyword} (${w.current_type})`}>
                             {w.current_keyword}
