@@ -807,6 +807,23 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 크롤링 완료 후 최신 storageState를 Station에 저장
 - 차단 감지 시 Station에 block 보고 → 해당 계정 쿨다운 처리
 - 계정 없거나 발급 실패 시 익명 모드로 자동 fallback (기존 동작 유지)
+
+### 워커 — 차단 자동 대응 Stage 3 (작업 재배분)
+
+#### crawl_request pending 복원
+- 캡챠/로그인 요구 차단 감지 시 진행 중이던 작업을 pending으로 되돌림
+- assigned_worker=null 해제 → 다른 온라인 워커가 자동으로 이어받아 처리
+- timeout 에러는 네트워크 문제로 간주 → 실패 처리 (재배분 안 함)
+
+#### 쿨다운 중 폴링 중단
+- blocked_until 시각 전이면 새 작업을 가져오지 않고 대기
+- 30초 간격으로 남은 시간 체크, 1분마다 로그 출력
+- 쿨다운 만료 시 자동 차단 해제 + 작업 재개
+
+#### 재배분 범위
+- Level 2 (하드 차단): 캡챠, 로그인 요구 → 재배분 O
+- Level 1 (소프트 차단): 빈 결과 반복 → 완료 처리 (재배분 X)
+- timeout: 실패 처리 (재배분 X)
 `;
 
 export async function GET(request: NextRequest) {
