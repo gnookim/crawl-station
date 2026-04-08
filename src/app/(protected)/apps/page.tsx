@@ -83,7 +83,7 @@ export default function AppsPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold">연결된 앱 관리</h2>
@@ -212,7 +212,7 @@ export default function AppsPage() {
             등록된 앱이 없습니다. 앱을 등록하면 API 키가 발급됩니다.
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
                 <th className="text-left px-4 py-2 font-medium">앱</th>
@@ -280,7 +280,7 @@ export default function AppsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

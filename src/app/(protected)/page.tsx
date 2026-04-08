@@ -89,7 +89,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold">대시보드</h2>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
@@ -138,7 +138,7 @@ export default function DashboardPage() {
             등록된 워커가 없습니다. 크롤링 워커를 설치해주세요.
           </div>
         ) : (
-          <table className="w-full text-sm table-fixed">
+          <div className="overflow-x-auto"><table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
                 <th className="text-left px-4 py-2 font-medium w-[180px]">워커</th>
@@ -155,7 +155,7 @@ export default function DashboardPage() {
                 <WorkerRow key={w.id} worker={w} />
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

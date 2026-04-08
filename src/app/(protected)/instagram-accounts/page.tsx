@@ -121,7 +121,7 @@ export default function InstagramAccountsPage() {
   const blockedCount = accounts.filter((a) => a.status === "blocked" || a.status === "banned").length;
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold">Instagram 계정 관리</h2>
@@ -217,7 +217,7 @@ export default function InstagramAccountsPage() {
             <span className="text-xs">계정을 추가하면 워커가 차단 시 자동으로 다른 계정으로 전환합니다.</span>
           </div>
         ) : (
-          <table className="w-full text-sm table-fixed">
+          <div className="overflow-x-auto"><table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
                 <th className="text-left px-4 py-2 font-medium w-[160px]">계정</th>
@@ -340,7 +340,7 @@ export default function InstagramAccountsPage() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

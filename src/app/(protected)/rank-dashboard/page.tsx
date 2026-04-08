@@ -90,7 +90,7 @@ export default function RankDashboardPage() {
     r <= 30 ? "text-orange-500" : "text-gray-400";
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold">일일 순위 대시보드</h2>

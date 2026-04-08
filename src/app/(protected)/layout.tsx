@@ -12,7 +12,11 @@ export default function ProtectedLayout({
     <AuthGuard>
       <div className="flex h-full">
         <Sidebar />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto min-w-0">
+          {/* 모바일 햄버거 버튼 공간 */}
+          <div className="h-12 lg:hidden" />
+          {children}
+        </main>
       </div>
     </AuthGuard>
   );

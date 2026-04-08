@@ -164,7 +164,7 @@ export default function WorkersPage() {
   const offlineWorkers = workers.filter((w) => !w.is_active);
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -270,7 +270,7 @@ export default function WorkersPage() {
         {workers.length === 0 ? (
           <div className="p-8 text-center text-gray-400 text-sm">등록된 워커가 없습니다.</div>
         ) : (
-          <table className="w-full text-sm table-fixed">
+          <div className="overflow-x-auto"><table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
                 <th className="text-left px-4 py-2 font-medium w-[180px]">워커</th>
@@ -424,7 +424,7 @@ export default function WorkersPage() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

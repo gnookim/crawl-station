@@ -115,7 +115,7 @@ export default function ReleasesPage() {
   );
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold">릴리즈 관리</h2>
@@ -177,7 +177,7 @@ export default function ReleasesPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">
                 버전 *

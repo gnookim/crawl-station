@@ -138,7 +138,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl">
+    <div className="p-4 sm:p-6">
       <h2 className="text-xl font-bold mb-1">시스템 설정</h2>
       <p className="text-sm text-gray-500 mb-6">
         CrawlStation 시스템 전역 설정을 관리합니다.
@@ -658,7 +658,7 @@ function AiEvasionSection() {
       </p>
 
       {/* 모델 선택 */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
         {MODELS.map((m) => (
           <button
             key={m.id}

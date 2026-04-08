@@ -821,6 +821,12 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-08 (추가)
 
+### UI — 전체 페이지 풀 너비 반응형 개편
+- 모든 페이지 최상위 컨테이너 max-w 제거 → 화면 전체 사용 (p-4 sm:p-6)
+- 사이드바: lg 전체 / 접기 토글 / sm 모바일 드로어 + 햄버거 버튼
+- 테이블 전체에 overflow-x-auto 래퍼 추가 (가로 스크롤 지원)
+- 고정 그리드 반응형 변환: grid-cols-N → grid-cols-1 sm:grid-cols-N
+
 ### crawl_results 테이블 참조 전면 제거
 - crawl\_requests.result JSON 필드로 통합 (별도 crawl\_results 테이블 불필요)
 - 영향: /api/crawl GET, /api/test/worker, queue 페이지 결과 조회, health-check 결과 확인

@@ -117,7 +117,7 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-4 sm:p-6">
       <h2 className="text-xl font-bold mb-6">회원 관리</h2>
 
       {/* 승인 대기 */}
@@ -127,7 +127,7 @@ export default function UsersPage() {
             승인 대기 ({pendingUsers.length}명)
           </h3>
           <div className="bg-orange-50 border border-orange-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead className="bg-orange-100 text-orange-800 text-xs">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">이름</th>
@@ -167,7 +167,7 @@ export default function UsersPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
       )}
@@ -182,7 +182,7 @@ export default function UsersPage() {
             등록된 회원이 없습니다.
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
                 <th className="text-left px-4 py-2 font-medium">이름</th>
@@ -257,7 +257,7 @@ export default function UsersPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

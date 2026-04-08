@@ -9,7 +9,7 @@ interface ReleaseInfo {
 
 export default function InstallPage() {
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-4 sm:p-6">
       <WorkerInstall />
     </div>
   );

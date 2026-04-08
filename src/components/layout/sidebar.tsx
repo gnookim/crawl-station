@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthGuard";
 import { ssoLogout } from "@/lib/sso";
 
@@ -27,68 +28,137 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // 페이지 이동 시 모바일 메뉴 닫기
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   async function handleLogout() {
     await ssoLogout();
     router.push("/login");
   }
 
+  const NavLink = ({ item }: { item: typeof NAV_ITEMS[0] }) => {
+    const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+    return (
+      <Link
+        href={item.href}
+        title={collapsed ? item.label : undefined}
+        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+          collapsed ? "justify-center px-2" : ""
+        } ${
+          isActive
+            ? "bg-blue-50 text-blue-700 font-medium"
+            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+        }`}
+      >
+        <span className="shrink-0 text-base">{item.icon}</span>
+        {!collapsed && <span className="truncate">{item.label}</span>}
+      </Link>
+    );
+  };
+
   return (
-    <aside className="w-56 border-r border-gray-200 bg-white flex flex-col shrink-0">
-      <div className="p-4 border-b border-gray-200">
-        <h1 className="text-lg font-bold text-gray-900">CrawlStation</h1>
-        <p className="text-xs text-gray-500 mt-0.5">크롤링 관제 시스템</p>
-      </div>
-      <nav className="flex-1 p-2 space-y-0.5">
-        {NAV_ITEMS.map((item) => {
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
-                isActive
-                  ? "bg-blue-50 text-blue-700 font-medium"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="border-t border-gray-200">
-        {user && (
-          <div className="p-3 space-y-2">
-            <Link
-              href="/my-account"
-              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 transition-colors"
-            >
-              <div className="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
-                {(user.name || user.email)[0].toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-700 truncate">
-                  {user.name || "이름 없음"}
-                </div>
-                <div className="text-xs text-gray-400 truncate">
-                  {user.email}
-                </div>
-              </div>
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="w-full text-left px-2 py-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-            >
-              로그아웃
-            </button>
-          </div>
-        )}
-      </div>
-    </aside>
+    <>
+      {/* 모바일 오버레이 */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* 모바일 햄버거 버튼 */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed top-3 left-3 z-40 lg:hidden bg-white border border-gray-200 rounded-md p-2 shadow-sm"
+      >
+        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* 사이드바 */}
+      <aside
+        className={`
+          flex flex-col shrink-0 border-r border-gray-200 bg-white h-full transition-all duration-200
+          ${collapsed ? "w-14" : "w-56"}
+          fixed lg:relative z-40 lg:z-auto
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        `}
+      >
+        {/* 헤더 */}
+        <div className={`border-b border-gray-200 flex items-center ${collapsed ? "p-2 justify-center" : "p-4"}`}>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <h1 className="text-base font-bold text-gray-900 truncate">CrawlStation</h1>
+              <p className="text-xs text-gray-500 mt-0.5">크롤링 관제 시스템</p>
+            </div>
+          )}
+          {/* 접기/펼치기 버튼 (데스크탑만) */}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 shrink-0 transition-colors"
+            title={collapsed ? "펼치기" : "접기"}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {collapsed ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              )}
+            </svg>
+          </button>
+        </div>
+
+        {/* 네비게이션 */}
+        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+          {NAV_ITEMS.map((item) => (
+            <NavLink key={item.href} item={item} />
+          ))}
+        </nav>
+
+        {/* 사용자 영역 */}
+        <div className="border-t border-gray-200">
+          {user && (
+            <div className={`p-2 space-y-1 ${collapsed ? "flex flex-col items-center" : ""}`}>
+              {!collapsed && (
+                <Link
+                  href="/my-account"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  <div className="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
+                    {(user.name || user.email)[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-700 truncate">{user.name || "이름 없음"}</div>
+                    <div className="text-xs text-gray-400 truncate">{user.email}</div>
+                  </div>
+                </Link>
+              )}
+              {collapsed && (
+                <Link
+                  href="/my-account"
+                  title={user.name || user.email}
+                  className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold hover:bg-blue-200 transition-colors"
+                >
+                  {(user.name || user.email)[0].toUpperCase()}
+                </Link>
+              )}
+              <button
+                onClick={handleLogout}
+                className={`text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors ${
+                  collapsed ? "w-8 h-7 flex items-center justify-center" : "w-full text-left px-2 py-1.5"
+                }`}
+                title={collapsed ? "로그아웃" : undefined}
+              >
+                {collapsed ? "↩" : "로그아웃"}
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }

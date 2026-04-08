@@ -216,7 +216,7 @@ export default function ConfigPage() {
   /* ── render ── */
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-4 sm:p-6">
       <div className="mb-6">
         <h2 className="text-xl font-bold">워커 설정</h2>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -233,7 +233,7 @@ export default function ConfigPage() {
           <p className="text-sm text-gray-400">등록된 워커가 없습니다.</p>
         ) : (
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">워커</th>
@@ -346,7 +346,7 @@ export default function ConfigPage() {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
 
@@ -366,7 +366,7 @@ export default function ConfigPage() {
           <p className="text-sm text-gray-400">등록된 워커가 없습니다.</p>
         ) : (
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">워커</th>
@@ -428,7 +428,7 @@ export default function ConfigPage() {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </Section>
@@ -442,7 +442,7 @@ export default function ConfigPage() {
           <p className="text-sm text-gray-400">등록된 워커가 없습니다.</p>
         ) : (
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">워커</th>
@@ -523,7 +523,7 @@ export default function ConfigPage() {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
         <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -559,7 +559,7 @@ export default function ConfigPage() {
 
       {/* 크롤링 속도 */}
       <Section title="크롤링 속도" desc="키워드 간 딜레이, 배치 크기, 휴식 시간">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumberInput
             label="키워드 딜레이 (최소 초)"
             value={globalConfig.keyword_delay_min}
@@ -596,7 +596,7 @@ export default function ConfigPage() {
         title="사람 흉내 설정"
         desc="타이핑 속도, 스크롤, 오타 등 자연스러운 행동 패턴"
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumberInput
             label="타이핑 속도 (최소 ms)"
             value={globalConfig.typing_speed_min}
