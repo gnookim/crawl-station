@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     const { data: check } = await sb
       .from("crawl_requests")
-      .select("status, result, error_message, completed_at")
+      .select("status, error_message, completed_at")
       .eq("id", req.id)
       .single();
 
@@ -78,11 +78,13 @@ export async function POST(request: NextRequest) {
     const elapsed = Date.now() - startTime;
 
     if (check.status === "completed") {
-      let items: Record<string, unknown>[] = [];
-      try {
-        const parsed = typeof check.result === "string" ? JSON.parse(check.result) : check.result;
-        items = parsed?.items || (Array.isArray(parsed) ? parsed : []);
-      } catch { /* ignore */ }
+      const { data: resultRows } = await sb
+        .from("crawl_results")
+        .select("data")
+        .eq("request_id", req.id)
+        .order("id", { ascending: true });
+
+      const items = (resultRows || []).map((r) => r.data as Record<string, unknown>);
 
       return NextResponse.json({
         ok: true,

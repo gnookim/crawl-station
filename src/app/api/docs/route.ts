@@ -290,6 +290,25 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-08
 
+### Oclick 동기화 핸들러 Python 워커 이식
+- \`naver-crawler/handlers/oclick.py\` — OclickSyncHandler 추가 (Playwright 기반)
+- \`oclick_sync\` 타입을 Python 워커가 직접 처리 (crawler-app 불필요)
+- \`PYTHON_EXCLUDED_TYPES\` 에서 oclick_sync 제거
+- 핸들러 return 값 리스트로 수정 (dict 반환 시 worker.py 파싱 오류 수정)
+
+### 워커 관리 페이지 개선
+- 버튼/배지 줄바꿈 방지 (whitespace-nowrap, shrink-0)
+- 버전 표시 수정 (SELECT 절 누락 컬럼 추가)
+- O테스트 버튼 추가 (Oclick 연결 테스트)
+
+### 설정 페이지 — Oclick 자격증명 섹션 추가
+- oclick_company_code, oclick_user_id, oclick_password 저장
+- 연결 테스트 버튼 (/api/test/oclick 호출)
+
+### 큐 페이지 개선
+- Oclick 탭 추가 (oclick_sync 타입)
+- ResultViewer — oclick_sync 결과 뷰어 추가
+
 ### CORS 지원 추가
 - \`src/middleware.ts\` — /api/* 경로 CORS 미들웨어
 - \`/api/crawl\` — GET/POST/OPTIONS 핸들러에 직접 CORS 헤더 적용
