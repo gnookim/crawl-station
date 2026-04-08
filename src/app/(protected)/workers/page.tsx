@@ -342,7 +342,7 @@ export default function WorkersPage() {
                 <th className="text-left px-4 py-2 font-medium">현재 작업</th>
                 <th className="text-right px-4 py-2 font-medium w-[84px]">처리/에러</th>
                 <th className="text-center px-4 py-2 font-medium w-[80px]">테스트</th>
-                <th className="text-right px-4 py-2 font-medium w-[112px]">제어</th>
+                <th className="text-right px-4 py-2 font-medium w-[160px]">제어</th>
               </tr>
             </thead>
             <tbody>
@@ -358,13 +358,13 @@ export default function WorkersPage() {
                     <tr key={w.id} className="border-t border-gray-100 hover:bg-gray-50">
                       {/* 워커 이름 */}
                       <td className="px-4 py-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium">{w.name || w.id}</span>
+                        <div className="flex items-center gap-1.5 flex-nowrap">
+                          <span className="font-medium min-w-0 truncate">{w.name || w.id}</span>
                           {w.verified_at ? (
                             <span title={`테스트 통과: ${new Date(w.verified_at).toLocaleString("ko")}`}
-                              className="px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs cursor-help">검증됨</span>
+                              className="shrink-0 whitespace-nowrap px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs cursor-help">검증됨</span>
                           ) : (
-                            <span className="px-1 py-0.5 bg-gray-100 text-gray-400 rounded text-xs">미검증</span>
+                            <span className="shrink-0 whitespace-nowrap px-1 py-0.5 bg-gray-100 text-gray-400 rounded text-xs">미검증</span>
                           )}
                         </div>
                         <div className="text-xs text-gray-400">{w.id}</div>
@@ -439,16 +439,16 @@ export default function WorkersPage() {
                             {latestVersion && (
                               <button onClick={() => sendCommand("update", [w.id])} disabled={commandLoading !== null}
                                 title={w.version === latestVersion ? "최신 버전 — 강제 재설치" : `v${w.version} → v${latestVersion}`}
-                                className={`px-1.5 py-0.5 text-xs rounded disabled:opacity-50 ${w.version !== latestVersion ? "bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}>
+                                className={`whitespace-nowrap px-1.5 py-0.5 text-xs rounded disabled:opacity-50 ${w.version !== latestVersion ? "bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}>
                                 업데이트
                               </button>
                             )}
                             <button onClick={() => sendCommand("restart", [w.id])} disabled={commandLoading !== null}
-                              className="px-1.5 py-0.5 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 disabled:opacity-50">
+                              className="whitespace-nowrap px-1.5 py-0.5 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 disabled:opacity-50">
                               재시작
                             </button>
                             <button onClick={() => sendCommand("stop", [w.id])} disabled={commandLoading !== null}
-                              className="px-1.5 py-0.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 disabled:opacity-50">
+                              className="whitespace-nowrap px-1.5 py-0.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 disabled:opacity-50">
                               정지
                             </button>
                           </div>
