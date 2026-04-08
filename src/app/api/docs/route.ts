@@ -814,6 +814,10 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-08 (추가)
 
+### Cron 시간 수정
+- health-check: `0 9 * * *` UTC(KST 18시) → `0 0 * * *` UTC(KST 9시) 수정
+- health-check route: crawl\_results 대신 crawl\_requests.result JSON 파싱으로 변경
+
 ### DB — daily_rank_* 테이블 스키마 수정 (20260408_daily_rank_fix.sql)
 - daily\_rank\_schedules: keyword/type/options → name/worker\_count/slots\_per\_day/slot\_hours/updated\_at 로 재생성
 - daily\_rank\_urls: schedule\_id FK + keyword/url/memo 구조

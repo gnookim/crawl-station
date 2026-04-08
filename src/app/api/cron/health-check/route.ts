@@ -120,11 +120,17 @@ export async function GET() {
       if (!check) continue;
 
       if (check.status === "completed") {
-        const { data: crawlResults } = await sb
-          .from("crawl_results")
-          .select("id")
-          .eq("request_id", req.id);
-        resultCount = crawlResults?.length || 0;
+        const { data: completed } = await sb
+          .from("crawl_requests")
+          .select("result")
+          .eq("id", req.id)
+          .single();
+        try {
+          const items = typeof completed?.result === "string"
+            ? JSON.parse(completed.result)
+            : completed?.result;
+          resultCount = Array.isArray(items) ? items.length : (items ? 1 : 0);
+        } catch { resultCount = 0; }
         testOk = resultCount >= test.minResults;
         if (!testOk) {
           errorMsg = `결과 ${resultCount}개 (최소 ${test.minResults}개 필요)`;
