@@ -812,6 +812,17 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 ### 릴리즈 시스템 — handlers/instagram.py 추가
 - GitHub 가져오기 + 릴리즈 파일 목록에 \`handlers/instagram.py\` 포함
 
+### 워커 v0.9.14 — 인스타 로그인 게이트 감지
+- 프로필 접근 시 accounts/login 리다이렉트 또는 로그인 폼 DOM 감지
+- 로그인 게이트 → None 반환 (0 반환 대신 명확한 실패 처리)
+- 익명 상태에서 게이트 감지 시 나머지 계정도 중단 + 로그 안내
+
+### DB — 통합 누락 마이그레이션 (20260408_full_catchup.sql)
+- workers: allowed\_types, block\_status/platform/level, blocked\_until, block\_count\_today, command, verified\_at 등 누락 컬럼 일괄 추가
+- station\_settings, crawl\_blocks, crawl\_metadata, ai\_analysis\_log, install\_sessions 테이블 생성
+- instagram\_accounts 테이블 최종 스키마 통합
+- RPC 함수: increment\_daily\_used, reset\_daily\_quota\_if\_needed, increment\_instagram\_login/block
+
 ### 워커 — 차단 자동 대응 Stage 3 (작업 재배분)
 
 #### crawl_request pending 복원
