@@ -11,6 +11,10 @@ export default function AppsPage() {
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const baseUrl = typeof window !== "undefined"
+    ? window.location.origin
+    : "https://crawl-station.vercel.app";
+
   const loadApps = useCallback(async () => {
     const res = await fetch("/api/apps");
     const data = await res.json();
@@ -86,6 +90,15 @@ export default function AppsPage() {
           <p className="text-xs text-gray-400 mt-0.5">
             외부 앱에서 CrawlStation API를 사용하려면 API 키가 필요합니다
           </p>
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <span className="text-xs text-gray-400">연결 URL:</span>
+            <code className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono select-all">{baseUrl}</code>
+            <button
+              onClick={() => { navigator.clipboard.writeText(baseUrl); }}
+              className="text-xs text-gray-400 hover:text-blue-600"
+              title="복사"
+            >⎘</button>
+          </div>
         </div>
         <button
           onClick={() => {
@@ -122,11 +135,13 @@ export default function AppsPage() {
             </button>
           </div>
           <div className="mt-3 bg-green-100 rounded p-3">
-            <p className="text-xs text-green-700 font-semibold mb-1">
-              사용 방법
-            </p>
+            <p className="text-xs text-green-700 font-semibold mb-1">연결 URL + 사용 방법</p>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-green-700">Base URL:</span>
+              <code className="text-xs text-green-900 font-mono bg-green-200 px-2 py-0.5 rounded select-all">{baseUrl}</code>
+            </div>
             <code className="text-xs text-green-800 font-mono">
-              {`curl -X POST https://crawl-station.vercel.app/api/crawl \\`}
+              {`curl -X POST ${baseUrl}/api/crawl \\`}
               <br />
               {`  -H "X-API-Key: ${newApiKey}" \\`}
               <br />
@@ -271,15 +286,17 @@ export default function AppsPage() {
 
       {/* 사용 안내 */}
       <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">
-          API 키 사용법
-        </h4>
+        <h4 className="text-sm font-semibold text-gray-700 mb-2">API 키 사용법</h4>
         <div className="text-xs text-gray-500 space-y-1.5">
+          <p className="flex items-center gap-2">
+            <span className="font-medium text-gray-600">연결 URL:</span>
+            <code className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono select-all">{baseUrl}</code>
+          </p>
           <p>
             모든 외부 API 호출 시 <code className="bg-gray-200 px-1 rounded">X-API-Key</code> 헤더에 발급받은 키를 포함하세요.
           </p>
           <p>
-            인증이 필요한 API: <code className="bg-gray-200 px-1 rounded">POST /api/crawl</code>, <code className="bg-gray-200 px-1 rounded">POST /api/dispatch</code>
+            인증 필요: <code className="bg-gray-200 px-1 rounded">POST /api/crawl</code>, <code className="bg-gray-200 px-1 rounded">POST /api/dispatch</code>
           </p>
           <p>
             인증 불필요: <code className="bg-gray-200 px-1 rounded">GET /api/crawl</code> (결과 조회), <code className="bg-gray-200 px-1 rounded">GET /api/workers</code>
