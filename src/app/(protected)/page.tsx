@@ -138,16 +138,16 @@ export default function DashboardPage() {
             등록된 워커가 없습니다. 크롤링 워커를 설치해주세요.
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
-                <th className="text-left px-4 py-2 font-medium">워커</th>
-                <th className="text-left px-4 py-2 font-medium">OS</th>
-                <th className="text-left px-4 py-2 font-medium">버전</th>
-                <th className="text-left px-4 py-2 font-medium">상태</th>
+                <th className="text-left px-4 py-2 font-medium w-[180px]">워커</th>
+                <th className="text-left px-4 py-2 font-medium w-[108px]">OS</th>
+                <th className="text-left px-4 py-2 font-medium w-[72px]">버전</th>
+                <th className="text-left px-4 py-2 font-medium w-[120px]">상태</th>
                 <th className="text-left px-4 py-2 font-medium">현재 작업</th>
-                <th className="text-right px-4 py-2 font-medium">처리/에러</th>
-                <th className="text-right px-4 py-2 font-medium">마지막</th>
+                <th className="text-right px-4 py-2 font-medium w-[80px]">처리/에러</th>
+                <th className="text-right px-4 py-2 font-medium w-[72px]">마지막</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -198,7 +198,7 @@ function WorkerRow({ worker: w }: { worker: Worker }) {
         <div className="font-medium">{w.name || w.id}</div>
         <div className="text-xs text-gray-400">{w.id}</div>
       </td>
-      <td className="px-4 py-2 text-gray-500 text-xs">{w.os || "-"}</td>
+      <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden"><span className="truncate block">{w.os || "-"}</span></td>
       <td className="px-4 py-2">
         {w.version && w.version !== "0.0.0" ? (
           <span className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">
@@ -214,9 +214,9 @@ function WorkerRow({ worker: w }: { worker: Worker }) {
           <WorkerTypeBadge allowedTypes={w.allowed_types} />
         </div>
       </td>
-      <td className="px-4 py-2 text-gray-500 text-xs">
+      <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden">
         {w.current_keyword ? (
-          <span>
+          <span className="block truncate" title={`[${w.current_type}] ${w.current_keyword}`}>
             <span className="text-gray-400">[{w.current_type}]</span>{" "}
             {w.current_keyword}
           </span>
