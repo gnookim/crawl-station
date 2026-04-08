@@ -229,7 +229,7 @@ export default function QueuePage() {
                 <th className="text-left px-4 py-2.5 font-medium w-[220px]">키워드</th>
                 <th className="text-left px-4 py-2.5 font-medium w-[120px]">타입</th>
                 <th className="text-left px-4 py-2.5 font-medium w-[100px]">출처</th>
-                <th className="text-left px-4 py-2.5 font-medium w-[68px]">상태</th>
+                <th className="text-left px-4 py-2.5 font-medium w-[80px]">상태</th>
                 <th className="text-left px-4 py-2.5 font-medium w-[110px]">워커</th>
                 <th className="text-left px-4 py-2.5 font-medium">에러</th>
                 <th className="text-right px-4 py-2.5 font-medium w-[110px] whitespace-nowrap">생성</th>

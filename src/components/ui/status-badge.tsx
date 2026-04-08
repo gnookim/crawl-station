@@ -36,7 +36,7 @@ export function TaskStatusBadge({ status }: { status: string }) {
   const c = config[status] || config.pending;
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${c.color}`}>
+    <span className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-medium ${c.color}`}>
       {c.label}
     </span>
   );
