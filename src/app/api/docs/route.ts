@@ -883,6 +883,11 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - total\_count=0이면 totalPages=99로 설정 → 빈 페이지 나올 때까지 수집
 - price/stock\_qty 파싱 오류 수정: 빈 셀 guard + /[^0-9]/g replace로 안전하게 처리
 
+### 워커 v0.9.17 — oclick\_sync 타입 제외
+- Python 워커가 oclick\_sync 작업을 집어가지 않도록 PYTHON\_EXCLUDED\_TYPES 상수 추가
+- allowed\_types 미설정(전체) 시 oclick\_sync를 쿼리에서 제외 (not.in\_ 필터)
+- oclick\_sync는 crawler-app(Electron) 전용 — Python 워커가 실패 처리하던 문제 수정
+
 ### 워커 v0.9.16 — instagram 계정 관리 Supabase 직접 호출
 - CRAWL\_STATION\_URL 환경변수 불필요 — 워커가 기보유한 SUPABASE\_URL/KEY로 instagram\_accounts 직접 조회
 - \_pick\_account / \_report\_block / \_save\_session 모두 Supabase REST API로 전환
