@@ -59,10 +59,9 @@ export async function POST(request: NextRequest) {
     await sb.from("instagram_accounts").update({
       session_state,
       last_login_at: new Date().toISOString(),
-      login_count: sb.rpc ? undefined : undefined,  // increment는 RPC 사용 필요 → SQL로 처리
     }).eq("id", account_id);
-    // login_count increment (raw SQL 방식)
-    await sb.rpc("increment_instagram_login", { p_id: account_id }).catch(() => null);
+    // login_count increment
+    try { await sb.rpc("increment_instagram_login", { p_id: account_id }); } catch { /* ignore */ }
     return NextResponse.json({ ok: true });
   }
 
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
       session_state: null,  // 세션 초기화
     }).eq("id", account_id);
     // block_count increment
-    await sb.rpc("increment_instagram_block", { p_id: account_id }).catch(() => null);
+    try { await sb.rpc("increment_instagram_block", { p_id: account_id }); } catch { /* ignore */ }
     return NextResponse.json({ ok: true, blocked_until: blockedUntil });
   }
 

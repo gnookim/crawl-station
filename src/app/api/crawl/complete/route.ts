@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       .then(() => {});
 
     // total_processed atomic increment
-    await sb.rpc("increment_worker_processed", { wid: workerId }).catch(() => null);
+    try { await sb.rpc("increment_worker_processed", { wid: workerId }); } catch { /* ignore */ }
   }
 
   // 3. callback_url이 있으면 crawl-station이 직접 발송

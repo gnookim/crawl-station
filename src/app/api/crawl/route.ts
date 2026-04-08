@@ -3,6 +3,30 @@ import { createServerClient } from "@/lib/supabase";
 import { authenticateApiKey } from "@/lib/auth";
 import { PRIORITY_BY_TYPE } from "@/types";
 
+function corsHeaders(req: NextRequest): Record<string, string> {
+  const origin = req.headers.get("origin") || "";
+  const allowed =
+    /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+    /^https:\/\/[a-z0-9-]+\.pages\.dev$/.test(origin) ||
+    /^https:\/\/[a-z0-9-]+\.sesame11210\.com$/.test(origin) ||
+    origin === "https://sesame11210.com";
+  return {
+    "Access-Control-Allow-Origin": allowed ? origin : "",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-API-Key, Authorization",
+  };
+}
+
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, { status: 204, headers: corsHeaders(req) });
+}
+
+function withCors(req: NextRequest, res: NextResponse): NextResponse {
+  const h = corsHeaders(req);
+  Object.entries(h).forEach(([k, v]) => { if (v) res.headers.set(k, v); });
+  return res;
+}
+
 /**
  * CrawlStation 연동 API — 외부 앱에서 크롤링 요청/결과 조회
  *
@@ -21,13 +45,14 @@ import { PRIORITY_BY_TYPE } from "@/types";
  * GET /api/crawl?keyword=xxx&type=xxx — 키워드+타입으로 결과 조회
  */
 export async function POST(request: NextRequest) {
+  const cors = (res: NextResponse) => withCors(request, res);
   // API 키 인증
   const auth = await authenticateApiKey(request);
   if (!auth) {
-    return NextResponse.json(
+    return cors(NextResponse.json(
       { error: "유효한 API 키가 필요합니다. X-API-Key 헤더를 확인하세요." },
       { status: 401 }
-    );
+    ));
   }
 
   const sb = createServerClient();
@@ -41,10 +66,10 @@ export async function POST(request: NextRequest) {
   } = body;
 
   if (!keywords?.length || !type) {
-    return NextResponse.json(
+    return cors(NextResponse.json(
       { error: "keywords(배열)와 type이 필요합니다" },
       { status: 400 }
-    );
+    ));
   }
 
   const validTypes = [
@@ -58,10 +83,10 @@ export async function POST(request: NextRequest) {
     "oclick_sync",
   ];
   if (!validTypes.includes(type)) {
-    return NextResponse.json(
+    return cors(NextResponse.json(
       { error: `type은 ${validTypes.join(", ")} 중 하나여야 합니다` },
       { status: 400 }
-    );
+    ));
   }
 
   // 요청 등록 (priority 미지정 시 타입별 기본값 적용)
@@ -85,10 +110,10 @@ export async function POST(request: NextRequest) {
       .select("id, keyword");
 
     if (parentErr || !parents) {
-      return NextResponse.json(
+      return cors(NextResponse.json(
         { error: `등록 실패: ${parentErr?.message}` },
         { status: 500 }
-      );
+      ));
     }
 
     // 각 부모 요청 → 4개 서브태스크 생성
@@ -112,11 +137,11 @@ export async function POST(request: NextRequest) {
       .update({ status: "assigned" })
       .in("id", parents.map((p) => p.id));
 
-    return NextResponse.json({
+    return cors(NextResponse.json({
       message: `${parents.length}개 심화분석 요청 → ${subtaskRows.length}개 서브태스크로 분할`,
       requests: parents,
       subtasks_per_keyword: SCOPES.length,
-    });
+    }));
   }
 
   // 일반 요청 등록
@@ -138,19 +163,20 @@ export async function POST(request: NextRequest) {
     .select("id, keyword, type, status, created_at");
 
   if (error) {
-    return NextResponse.json(
+    return cors(NextResponse.json(
       { error: `등록 실패: ${error.message}` },
       { status: 500 }
-    );
+    ));
   }
 
-  return NextResponse.json({
+  return cors(NextResponse.json({
     message: `${data.length}개 크롤링 요청 등록 완료`,
     requests: data,
-  });
+  }));
 }
 
 export async function GET(request: NextRequest) {
+  const cors = (res: NextResponse) => withCors(request, res);
   const sb = createServerClient();
   const { searchParams } = new URL(request.url);
 
@@ -167,10 +193,10 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (!req) {
-      return NextResponse.json(
+      return cors(NextResponse.json(
         { error: "요청을 찾을 수 없습니다" },
         { status: 404 }
-      );
+      ));
     }
 
     // 완료된 경우 result 필드를 파싱하여 반환
@@ -181,7 +207,7 @@ export async function GET(request: NextRequest) {
       } catch { results = null; }
     }
 
-    return NextResponse.json({ request: req, results });
+    return cors(NextResponse.json({ request: req, results }));
   }
 
   // 키워드+타입으로 결과 조회 — crawl_requests 에서 직접
@@ -201,7 +227,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return cors(NextResponse.json({ error: error.message }, { status: 500 }));
     }
 
     // result JSON 파싱
@@ -214,11 +240,11 @@ export async function GET(request: NextRequest) {
       } catch { return row; }
     });
 
-    return NextResponse.json({ keyword, results: parsed });
+    return cors(NextResponse.json({ keyword, results: parsed }));
   }
 
-  return NextResponse.json(
+  return cors(NextResponse.json(
     { error: "request_id 또는 keyword 파라미터가 필요합니다" },
     { status: 400 }
-  );
+  ));
 }
