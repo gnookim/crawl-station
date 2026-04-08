@@ -226,13 +226,13 @@ export default function QueuePage() {
           <table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
               <tr>
-                <th className="text-left px-4 py-2.5 font-medium">키워드</th>
-                <th className="text-left px-4 py-2.5 font-medium w-[110px]">타입</th>
+                <th className="text-left px-4 py-2.5 font-medium w-[220px]">키워드</th>
+                <th className="text-left px-4 py-2.5 font-medium w-[120px]">타입</th>
                 <th className="text-left px-4 py-2.5 font-medium w-[100px]">출처</th>
-                <th className="text-left px-4 py-2.5 font-medium w-[72px]">상태</th>
+                <th className="text-left px-4 py-2.5 font-medium w-[68px]">상태</th>
                 <th className="text-left px-4 py-2.5 font-medium w-[110px]">워커</th>
-                <th className="text-left px-4 py-2.5 font-medium w-[130px]">에러</th>
-                <th className="text-right px-4 py-2.5 font-medium w-[110px]">생성</th>
+                <th className="text-left px-4 py-2.5 font-medium">에러</th>
+                <th className="text-right px-4 py-2.5 font-medium w-[110px] whitespace-nowrap">생성</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -361,6 +361,25 @@ function ResultViewer({ type, data }: { type: string; data: Record<string, unkno
             </details>
           );
         })}
+      </div>
+    );
+  }
+
+  if (type === "oclick_sync") {
+    return (
+      <div className="space-y-1">
+        <div className="text-xs font-semibold text-gray-600 mb-2">Oclick 재고 ({data.length}개)</div>
+        {data.map((item, i) => (
+          <div key={i} className="flex items-center gap-3 text-xs">
+            <span className="font-mono text-gray-500 w-20 shrink-0">{String(item.sku || "-")}</span>
+            <span className="font-medium truncate max-w-xs">{String(item.name || "-")}</span>
+            <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] ${item.stock_status === "판매" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+              {String(item.stock_status || "-")}
+            </span>
+            <span className="shrink-0 text-gray-400">재고 {String(item.stock_qty ?? "-")}</span>
+            {item.price != null && <span className="shrink-0 text-gray-400">{Number(item.price).toLocaleString()}원</span>}
+          </div>
+        ))}
       </div>
     );
   }

@@ -132,7 +132,7 @@ export const PRIORITY_BY_TYPE: Record<string, number> = {
 };
 
 /** 작업 카테고리 — 탭 구분용 */
-export type CrawlCategory = "all" | "naver" | "instagram";
+export type CrawlCategory = "all" | "naver" | "instagram" | "oclick";
 
 export const CRAWL_CATEGORIES: { key: CrawlCategory; label: string; types: string[] }[] = [
   { key: "all", label: "전체", types: [] },
@@ -146,10 +146,16 @@ export const CRAWL_CATEGORIES: { key: CrawlCategory; label: string; types: strin
     label: "인스타그램",
     types: ["instagram_profile"],
   },
+  {
+    key: "oclick",
+    label: "Oclick",
+    types: ["oclick_sync"],
+  },
 ];
 
 export function getCrawlCategory(type: string): CrawlCategory {
   if (CRAWL_CATEGORIES[2].types.includes(type)) return "instagram";
+  if (CRAWL_CATEGORIES[3].types.includes(type)) return "oclick";
   return "naver";
 }
 
