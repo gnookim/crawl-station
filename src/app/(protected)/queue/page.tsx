@@ -378,7 +378,18 @@ export default function QueuePage() {
                           {loadingResult ? (
                             <div className="text-sm text-gray-400">결과 로딩 중...</div>
                           ) : !resultData?.length ? (
-                            <div className="text-sm text-gray-400">결과 없음</div>
+                            r.callback_url ? (
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span className="text-blue-400">↗</span>
+                                <span>결과가 외부로 전송됨</span>
+                                <span className="text-gray-300">|</span>
+                                <span className="font-mono text-gray-400 truncate max-w-sm" title={r.callback_url}>
+                                  {new URL(r.callback_url).hostname}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-400">결과 없음</div>
+                            )
                           ) : (
                             <ResultViewer type={r.type} data={resultData} />
                           )}
