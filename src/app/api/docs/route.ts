@@ -962,6 +962,14 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - total\_count=0이면 totalPages=99로 설정 → 빈 페이지 나올 때까지 수집
 - price/stock\_qty 파싱 오류 수정: 빈 셀 guard + /[^0-9]/g replace로 안전하게 처리
 
+### Station v0.9.9 — AI 분석 전용 페이지
+
+- `/ai-analysis` 신규 페이지 추가
+- 블로그/네이버 + Instagram 탭 분리
+- 모델 선택 (Haiku/Sonnet/Opus), 자동 조정 토글, 즉시 분석 실행
+- Risk 레벨 배지, 분석 요약, 권고사항, 최근 20건 로그 테이블
+- 사이드바에 "AI 분석 🤖" 항목 추가
+
 ### Station v0.9.8 — Instagram 확장 (알림·AI분석·워커드롭다운)
 
 #### 알림 채널 설정 (설정 페이지)
