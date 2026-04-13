@@ -1,12 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import type {
-  NetworkType,
-  TetheringCarrier,
-  TetheringReconnectInterval,
-} from "@/types";
-import { CRAWL_CATEGORIES } from "@/types";
 
 /* ── local types (page-only) ── */
 
@@ -28,72 +22,12 @@ interface GlobalConfig {
   rest_hours: number[];
 }
 
-interface WorkerNetConfig {
-  network_type: NetworkType;
-  proxy_url: string;
-  proxy_rotate: boolean;
-  tethering_carrier: TetheringCarrier;
-  tethering_auto_reconnect: boolean;
-  tethering_reconnect_interval: TetheringReconnectInterval;
-  daily_quota: number;
-  daily_used: number;
-  allowed_types: string[];
-}
-
-interface WorkerInfo {
-  id: string;
-  name: string | null;
-  status: string;
-  ip_address: string | null;
-}
-
-const NETWORK_LABELS: Record<NetworkType, string> = {
-  wifi: "자체 IP (WiFi/LAN)",
-  tethering: "모바일 테더링",
-  proxy_static: "프록시 (고정 IP)",
-  proxy_rotate: "프록시 (회전 IP)",
-};
-
-const CARRIER_LABELS: Record<TetheringCarrier, string> = {
-  skt: "SKT",
-  kt: "KT",
-  lgu: "LG U+",
-  other: "기타",
-};
-
-const RECONNECT_LABELS: Record<TetheringReconnectInterval, string> = {
-  per_batch: "배치마다",
-  "3min": "3분마다",
-  "5min": "5분마다",
-  "10min": "10분마다",
-};
-
-const DEFAULT_NET_CONFIG: WorkerNetConfig = {
-  network_type: "wifi",
-  proxy_url: "",
-  proxy_rotate: false,
-  tethering_carrier: "skt",
-  tethering_auto_reconnect: false,
-  tethering_reconnect_interval: "per_batch",
-  daily_quota: 500,
-  daily_used: 0,
-  allowed_types: [],
-};
-
 /* ── page component ── */
 
 export default function ConfigPage() {
   const [globalConfig, setGlobalConfig] = useState<GlobalConfig | null>(null);
-  const [workers, setWorkers] = useState<WorkerInfo[]>([]);
-  const [workerConfigs, setWorkerConfigs] = useState<
-    Record<string, WorkerNetConfig>
-  >({});
   const [savingGlobal, setSavingGlobal] = useState(false);
   const [savedGlobal, setSavedGlobal] = useState(false);
-  const [savingWorkers, setSavingWorkers] = useState<Record<string, boolean>>(
-    {}
-  );
-  const [savedWorkers, setSavedWorkers] = useState<Record<string, boolean>>({});
 
   /* ── data loading ── */
 
@@ -103,54 +37,9 @@ export default function ConfigPage() {
     setGlobalConfig(data.config);
   }, []);
 
-  const loadWorkers = useCallback(async () => {
-    const res = await fetch("/api/workers");
-    const data = await res.json();
-    const list: WorkerInfo[] = (data.workers || []).map(
-      (w: WorkerInfo) => ({
-        id: w.id,
-        name: w.name,
-        status: w.status,
-        ip_address: w.ip_address,
-      })
-    );
-    setWorkers(list);
-
-    // load per-worker configs in parallel
-    const entries = await Promise.all(
-      list.map(async (w) => {
-        try {
-          const r = await fetch(`/api/config?id=${w.id}`);
-          if (!r.ok) return [w.id, { ...DEFAULT_NET_CONFIG }] as const;
-          const d = await r.json();
-          const c = d.config;
-          return [
-            w.id,
-            {
-              network_type: c.network_type || "wifi",
-              proxy_url: c.proxy_url || "",
-              proxy_rotate: c.proxy_rotate || false,
-              tethering_carrier: c.tethering_carrier || "skt",
-              tethering_auto_reconnect: c.tethering_auto_reconnect || false,
-              tethering_reconnect_interval:
-                c.tethering_reconnect_interval || "per_batch",
-              daily_quota: c.daily_quota ?? 500,
-              daily_used: c.daily_used ?? 0,
-              allowed_types: Array.isArray(c.allowed_types) ? c.allowed_types : [],
-            } satisfies WorkerNetConfig,
-          ] as const;
-        } catch {
-          return [w.id, { ...DEFAULT_NET_CONFIG }] as const;
-        }
-      })
-    );
-    setWorkerConfigs(Object.fromEntries(entries));
-  }, []);
-
   useEffect(() => {
     loadGlobal();
-    loadWorkers();
-  }, [loadGlobal, loadWorkers]);
+  }, [loadGlobal]);
 
   /* ── save helpers ── */
 
@@ -165,36 +54,6 @@ export default function ConfigPage() {
     setSavingGlobal(false);
     setSavedGlobal(true);
     setTimeout(() => setSavedGlobal(false), 2000);
-  }
-
-  async function saveWorkerConfig(workerId: string) {
-    const cfg = workerConfigs[workerId];
-    if (!cfg) return;
-    setSavingWorkers((p) => ({ ...p, [workerId]: true }));
-    await fetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: workerId, ...cfg }),
-    });
-    setSavingWorkers((p) => ({ ...p, [workerId]: false }));
-    setSavedWorkers((p) => ({ ...p, [workerId]: true }));
-    setTimeout(
-      () => setSavedWorkers((p) => ({ ...p, [workerId]: false })),
-      2000
-    );
-  }
-
-  /* ── worker config updater ── */
-
-  function updateWorkerNet(
-    workerId: string,
-    key: keyof WorkerNetConfig,
-    value: unknown
-  ) {
-    setWorkerConfigs((prev) => ({
-      ...prev,
-      [workerId]: { ...(prev[workerId] || DEFAULT_NET_CONFIG), [key]: value },
-    }));
   }
 
   /* ── global config updater ── */
@@ -219,325 +78,16 @@ export default function ConfigPage() {
   return (
     <div className="p-4 sm:p-6">
       <div className="mb-6">
-        <h2 className="text-xl font-bold">워커 설정</h2>
+        <h2 className="text-xl font-bold">크롤링 전략</h2>
         <p className="text-xs text-gray-400 mt-0.5">
-          워커별 네트워크 설정 + 글로벌 크롤링 설정
+          글로벌 크롤링 딜레이 · 배치 설정 · 새벽 휴식
         </p>
       </div>
 
-      {/* ═══════ 워커별 네트워크 설정 ═══════ */}
-      <Section
-        title="워커 네트워크 설정"
-        desc="워커마다 다른 네트워크를 사용하면 IP가 분산됩니다."
-      >
-        {workers.length === 0 ? (
-          <p className="text-sm text-gray-400">등록된 워커가 없습니다.</p>
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium">워커</th>
-                  <th className="text-left px-4 py-2 font-medium">네트워크</th>
-                  <th className="text-left px-4 py-2 font-medium">설정</th>
-                  <th className="text-right px-4 py-2 font-medium w-16"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {workers.map((w) => {
-                  const cfg = workerConfigs[w.id] || DEFAULT_NET_CONFIG;
-                  const isSaving = savingWorkers[w.id];
-                  const isSaved = savedWorkers[w.id];
-
-                  return (
-                    <tr key={w.id} className="hover:bg-gray-50">
-                      {/* 워커 이름 */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${
-                            ["online","idle","crawling"].includes(w.status) ? "bg-green-500" : "bg-gray-300"
-                          }`} />
-                          <div>
-                            <div className="font-medium text-sm">{w.name || w.id}</div>
-                            {w.ip_address && (
-                              <div className="text-xs text-gray-400 font-mono">{w.ip_address}</div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 네트워크 유형 */}
-                      <td className="px-4 py-3">
-                        <select
-                          value={cfg.network_type}
-                          onChange={(e) => updateWorkerNet(w.id, "network_type", e.target.value)}
-                          className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          {(Object.entries(NETWORK_LABELS) as [NetworkType, string][]).map(([v, l]) => (
-                            <option key={v} value={v}>{l}</option>
-                          ))}
-                        </select>
-                      </td>
-
-                      {/* 하위 설정 (유형별) */}
-                      <td className="px-4 py-3">
-                        {cfg.network_type === "wifi" && (
-                          <span className="text-xs text-gray-400">추가 설정 없음</span>
-                        )}
-
-                        {cfg.network_type === "tethering" && (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <select
-                              value={cfg.tethering_carrier}
-                              onChange={(e) => updateWorkerNet(w.id, "tethering_carrier", e.target.value)}
-                              className="px-2 py-1 text-xs border border-gray-300 rounded-md"
-                            >
-                              {(Object.entries(CARRIER_LABELS) as [TetheringCarrier, string][]).map(([v, l]) => (
-                                <option key={v} value={v}>{l}</option>
-                              ))}
-                            </select>
-                            <button
-                              onClick={() => updateWorkerNet(w.id, "tethering_auto_reconnect", !cfg.tethering_auto_reconnect)}
-                              className={`px-2 py-1 text-xs rounded-md border ${
-                                cfg.tethering_auto_reconnect
-                                  ? "border-green-500 bg-green-50 text-green-700"
-                                  : "border-gray-300 text-gray-400"
-                              }`}
-                            >
-                              자동 IP변경 {cfg.tethering_auto_reconnect ? "ON" : "OFF"}
-                            </button>
-                            {cfg.tethering_auto_reconnect && (
-                              <select
-                                value={cfg.tethering_reconnect_interval}
-                                onChange={(e) => updateWorkerNet(w.id, "tethering_reconnect_interval", e.target.value)}
-                                className="px-2 py-1 text-xs border border-gray-300 rounded-md"
-                              >
-                                {(Object.entries(RECONNECT_LABELS) as [TetheringReconnectInterval, string][]).map(([v, l]) => (
-                                  <option key={v} value={v}>{l}</option>
-                                ))}
-                              </select>
-                            )}
-                          </div>
-                        )}
-
-                        {(cfg.network_type === "proxy_static" || cfg.network_type === "proxy_rotate") && (
-                          <input
-                            type="text"
-                            value={cfg.proxy_url}
-                            onChange={(e) => updateWorkerNet(w.id, "proxy_url", e.target.value)}
-                            placeholder="http://user:pass@host:port"
-                            className="w-full max-w-xs px-2 py-1 text-xs border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        )}
-                      </td>
-
-                      {/* 저장 */}
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => saveWorkerConfig(w.id)}
-                          disabled={isSaving}
-                          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                            isSaved ? "bg-green-600 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
-                          } disabled:opacity-50`}
-                        >
-                          {isSaved ? "OK" : isSaving ? "..." : "저장"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table></div>
-          </div>
-        )}
-
-        <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <p className="text-xs text-blue-700">
-            <strong>IP 분산:</strong> 테더링 시 통신사를 다양화하면 IP 대역이 달라집니다. 프록시는 residential proxy를 권장합니다.
-          </p>
-        </div>
-      </Section>
-
-      {/* ═══════ 워커별 일일 할당량 ═══════ */}
-      <Section
-        title="일일 할당량"
-        desc="워커당 하루 최대 작업 수를 제한하여 차단을 방지합니다. 자정(KST) 자동 리셋."
-      >
-        {workers.length === 0 ? (
-          <p className="text-sm text-gray-400">등록된 워커가 없습니다.</p>
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium">워커</th>
-                  <th className="text-left px-4 py-2 font-medium">오늘 사용</th>
-                  <th className="text-left px-4 py-2 font-medium">일일 한도</th>
-                  <th className="text-right px-4 py-2 font-medium w-16"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {workers.map((w) => {
-                  const cfg = workerConfigs[w.id] || DEFAULT_NET_CONFIG;
-                  const pct = cfg.daily_quota > 0 ? Math.min(100, Math.round((cfg.daily_used / cfg.daily_quota) * 100)) : 0;
-                  const isExhausted = cfg.daily_used >= cfg.daily_quota;
-                  const isSaving = savingWorkers[w.id];
-                  const isSaved = savedWorkers[w.id];
-
-                  return (
-                    <tr key={w.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-sm">{w.name || w.id}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                isExhausted ? "bg-red-500" : pct > 70 ? "bg-yellow-500" : "bg-green-500"
-                              }`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <span className={`text-xs font-mono ${isExhausted ? "text-red-600 font-bold" : "text-gray-500"}`}>
-                            {cfg.daily_used} / {cfg.daily_quota}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="number"
-                          value={cfg.daily_quota}
-                          onChange={(e) => updateWorkerNet(w.id, "daily_quota" as keyof WorkerNetConfig, parseInt(e.target.value) || 100)}
-                          min={10}
-                          max={5000}
-                          className="w-24 px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => saveWorkerConfig(w.id)}
-                          disabled={isSaving}
-                          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                            isSaved ? "bg-green-600 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
-                          } disabled:opacity-50`}
-                        >
-                          {isSaved ? "OK" : isSaving ? "..." : "저장"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table></div>
-          </div>
-        )}
-      </Section>
-
-      {/* ═══════ 워커 타입 분류 ═══════ */}
-      <Section
-        title="워커 타입 분류"
-        desc="워커가 처리할 크롤링 카테고리를 지정합니다. '전체'는 모든 타입을 처리합니다."
-      >
-        {workers.length === 0 ? (
-          <p className="text-sm text-gray-400">등록된 워커가 없습니다.</p>
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium">워커</th>
-                  <th className="text-left px-4 py-2 font-medium">타입</th>
-                  <th className="text-right px-4 py-2 font-medium w-16"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {workers.map((w) => {
-                  const cfg = workerConfigs[w.id] || DEFAULT_NET_CONFIG;
-                  const isSaving = savingWorkers[w.id];
-                  const isSaved = savedWorkers[w.id];
-
-                  // 현재 선택된 카테고리 계산
-                  const currentCat = (() => {
-                    if (!cfg.allowed_types || cfg.allowed_types.length === 0) return "all";
-                    const naverTypes   = CRAWL_CATEGORIES.find(c => c.key === "naver")?.types || [];
-                    const instaTypes   = CRAWL_CATEGORIES.find(c => c.key === "instagram")?.types || [];
-                    const oclickTypes  = CRAWL_CATEGORIES.find(c => c.key === "oclick")?.types || [];
-                    if (cfg.allowed_types.every(t => naverTypes.includes(t)))  return "naver";
-                    if (cfg.allowed_types.every(t => instaTypes.includes(t)))  return "instagram";
-                    if (cfg.allowed_types.every(t => oclickTypes.includes(t))) return "oclick";
-                    return "all";
-                  })();
-
-                  function selectCategory(catKey: string) {
-                    const types = catKey === "all"
-                      ? []
-                      : CRAWL_CATEGORIES.find(c => c.key === catKey)?.types || [];
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    updateWorkerNet(w.id, "allowed_types" as any, types);
-                  }
-
-                  return (
-                    <tr key={w.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-sm">{w.name || w.id}</div>
-                        <div className="text-xs text-gray-400">{w.id}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1">
-                          {[
-                            { key: "all",       label: "전체",      active: "bg-gray-700 text-white border-gray-700" },
-                            { key: "naver",     label: "네이버",    active: "bg-green-600 text-white border-green-600" },
-                            { key: "instagram", label: "인스타그램", active: "bg-pink-500 text-white border-pink-500" },
-                            { key: "oclick",    label: "Oclick",   active: "bg-orange-500 text-white border-orange-500" },
-                          ].map(({ key, label, active }) => (
-                            <button
-                              key={key}
-                              onClick={() => selectCategory(key)}
-                              className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-                                currentCat === key
-                                  ? active
-                                  : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                        {cfg.allowed_types && cfg.allowed_types.length > 0 && (
-                          <div className="text-xs text-gray-400 mt-1">
-                            {cfg.allowed_types.join(", ")}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => saveWorkerConfig(w.id)}
-                          disabled={isSaving}
-                          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                            isSaved ? "bg-green-600 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
-                          } disabled:opacity-50`}
-                        >
-                          {isSaved ? "OK" : isSaving ? "..." : "저장"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table></div>
-          </div>
-        )}
-        <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <p className="text-xs text-blue-700">
-            <strong>네이버 전용</strong> 워커는 인스타 작업을 무시하고, <strong>인스타 전용</strong> 워커는 네이버 작업을 무시합니다.
-            저장 후 최대 30초 내에 워커에 자동 반영됩니다.
-          </p>
-        </div>
-      </Section>
+      <p className="text-xs text-blue-600 bg-blue-50 px-3 py-2 rounded-md mb-4">워커별 네트워크·할당량·타입 설정은 <a href="/workers" className="underline">워커 관리</a> 페이지에서 관리합니다.</p>
 
       {/* ═══════ 글로벌 크롤링 설정 ═══════ */}
-      <div className="flex items-center justify-between mb-4 mt-10">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-bold text-gray-800">
             글로벌 크롤링 설정

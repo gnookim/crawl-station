@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import type { Worker } from "@/types";
-import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
+import type { Worker, TetheringCarrier, TetheringReconnectInterval } from "@/types";
+import { WORKER_ONLINE_THRESHOLD_MS, CRAWL_CATEGORIES } from "@/types";
 import { WorkerStatusBadge } from "@/components/ui/status-badge";
 
 /* ── 워커별 테스트 상태 ── */
@@ -13,6 +13,71 @@ type WorkerTestState = {
   instagram: { loading: boolean; result: TestResult };
 };
 type OclickTestState = { loading: boolean; result: TestResult };
+
+/* ── 워커별 네트워크/설정 ── */
+interface WorkerNetConfig {
+  network_type: string;
+  proxy_url: string;
+  proxy_rotate: boolean;
+  tethering_carrier: string;
+  tethering_auto_reconnect: boolean;
+  tethering_reconnect_interval: string;
+  daily_quota: number;
+  daily_used: number;
+  allowed_types: string[];
+}
+
+const DEFAULT_NET_CONFIG: WorkerNetConfig = {
+  network_type: "wifi",
+  proxy_url: "",
+  proxy_rotate: false,
+  tethering_carrier: "skt",
+  tethering_auto_reconnect: false,
+  tethering_reconnect_interval: "per_batch",
+  daily_quota: 500,
+  daily_used: 0,
+  allowed_types: [],
+};
+
+const NETWORK_LABELS: Record<string, string> = {
+  wifi: "자체 IP (WiFi/LAN)",
+  tethering: "모바일 테더링",
+  proxy_static: "프록시 (고정 IP)",
+  proxy_rotate: "프록시 (회전 IP)",
+};
+
+const CARRIER_LABELS: Record<TetheringCarrier, string> = {
+  skt: "SKT",
+  kt: "KT",
+  lgu: "LG U+",
+  other: "기타",
+};
+
+const RECONNECT_LABELS: Record<TetheringReconnectInterval, string> = {
+  per_batch: "배치마다",
+  "3min": "3분마다",
+  "5min": "5분마다",
+  "10min": "10분마다",
+};
+
+/* ── 타입 카테고리 버튼 설정 ── */
+const CAT_BUTTONS = [
+  { key: "all",       label: "전체",      active: "bg-gray-700 text-white border-gray-700" },
+  { key: "naver",     label: "네이버",    active: "bg-green-600 text-white border-green-600" },
+  { key: "instagram", label: "인스타그램", active: "bg-pink-500 text-white border-pink-500" },
+  { key: "oclick",    label: "Oclick",   active: "bg-orange-500 text-white border-orange-500" },
+];
+
+function getWorkerCat(allowed_types: string[]): string {
+  if (!allowed_types || allowed_types.length === 0) return "all";
+  const naverTypes  = CRAWL_CATEGORIES.find(c => c.key === "naver")?.types || [];
+  const instaTypes  = CRAWL_CATEGORIES.find(c => c.key === "instagram")?.types || [];
+  const oclickTypes = CRAWL_CATEGORIES.find(c => c.key === "oclick")?.types || [];
+  if (allowed_types.every(t => naverTypes.includes(t)))  return "naver";
+  if (allowed_types.every(t => instaTypes.includes(t)))  return "instagram";
+  if (allowed_types.every(t => oclickTypes.includes(t))) return "oclick";
+  return "all";
+}
 
 export default function WorkersPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
@@ -28,6 +93,18 @@ export default function WorkersPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  /* ── 체크박스 + 인라인 설정 상태 ── */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedSettings, setExpandedSettings] = useState<Set<string>>(new Set());
+  const [workerConfigs, setWorkerConfigs] = useState<Record<string, WorkerNetConfig>>({});
+  const [savingWorkers, setSavingWorkers] = useState<Record<string, boolean>>({});
+  const [savedWorkers, setSavedWorkers] = useState<Record<string, boolean>>({});
+
+  /* ── 일괄 편집 상태 ── */
+  const [bulkNetworkType, setBulkNetworkType] = useState<string>("");
+  const [bulkQuota, setBulkQuota] = useState<string>("");
+  const [bulkCategory, setBulkCategory] = useState<string>("");
 
   const loadData = useCallback(async (showSpinner = false) => {
     if (showSpinner) setIsRefreshing(true);
@@ -48,6 +125,35 @@ export default function WorkersPage() {
     if (releaseRes.data?.[0]) setLatestVersion(releaseRes.data[0].version);
     setLastUpdated(new Date());
     if (showSpinner) setTimeout(() => setIsRefreshing(false), 300);
+
+    // 워커별 설정 로드 (병렬)
+    const configEntries = await Promise.all(
+      enriched.map(async (w) => {
+        try {
+          const r = await fetch(`/api/config?id=${w.id}`);
+          if (!r.ok) return [w.id, { ...DEFAULT_NET_CONFIG }] as const;
+          const d = await r.json();
+          const c = d.config;
+          return [
+            w.id,
+            {
+              network_type: c.network_type || "wifi",
+              proxy_url: c.proxy_url || "",
+              proxy_rotate: c.proxy_rotate || false,
+              tethering_carrier: c.tethering_carrier || "skt",
+              tethering_auto_reconnect: c.tethering_auto_reconnect || false,
+              tethering_reconnect_interval: c.tethering_reconnect_interval || "per_batch",
+              daily_quota: c.daily_quota ?? 500,
+              daily_used: c.daily_used ?? 0,
+              allowed_types: Array.isArray(c.allowed_types) ? c.allowed_types : [],
+            } satisfies WorkerNetConfig,
+          ] as const;
+        } catch {
+          return [w.id, { ...DEFAULT_NET_CONFIG }] as const;
+        }
+      })
+    );
+    setWorkerConfigs(Object.fromEntries(configEntries));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -148,7 +254,6 @@ export default function WorkersPage() {
     if (targets.length === 0) { alert("활성 워커가 없습니다."); return; }
     if (!confirm(`활성 워커 ${targets.length}대 ${category === "naver" ? "네이버" : "인스타그램"} 테스트 실행?`)) return;
 
-    // 모든 워커 loading 상태로
     setTestStates((prev) => {
       const next = { ...prev };
       targets.forEach((w) => {
@@ -172,9 +277,88 @@ export default function WorkersPage() {
     }
   }
 
+  /* ── 워커 설정 저장 ── */
+  function updateWorkerNet(workerId: string, key: keyof WorkerNetConfig, value: unknown) {
+    setWorkerConfigs((prev) => ({
+      ...prev,
+      [workerId]: { ...(prev[workerId] || DEFAULT_NET_CONFIG), [key]: value },
+    }));
+  }
+
+  async function saveWorkerConfig(workerId: string) {
+    const cfg = workerConfigs[workerId];
+    if (!cfg) return;
+    setSavingWorkers((p) => ({ ...p, [workerId]: true }));
+    await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: workerId, ...cfg }),
+    });
+    setSavingWorkers((p) => ({ ...p, [workerId]: false }));
+    setSavedWorkers((p) => ({ ...p, [workerId]: true }));
+    setTimeout(() => setSavedWorkers((p) => ({ ...p, [workerId]: false })), 2000);
+  }
+
+  /* ── 일괄 적용 ── */
+  async function applyBulk() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    await Promise.all(ids.map(async (wid) => {
+      const base = workerConfigs[wid] || DEFAULT_NET_CONFIG;
+      const updated: WorkerNetConfig = { ...base };
+      if (bulkNetworkType) updated.network_type = bulkNetworkType;
+      if (bulkQuota) updated.daily_quota = parseInt(bulkQuota) || base.daily_quota;
+      if (bulkCategory) {
+        updated.allowed_types = bulkCategory === "all"
+          ? []
+          : CRAWL_CATEGORIES.find(c => c.key === bulkCategory)?.types || [];
+      }
+      await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: wid, ...updated }),
+      });
+      setWorkerConfigs((prev) => ({ ...prev, [wid]: updated }));
+    }));
+
+    setBulkNetworkType(""); setBulkQuota(""); setBulkCategory("");
+    setSelectedIds(new Set());
+    alert(`${ids.length}개 워커에 일괄 적용 완료`);
+  }
+
+  /* ── 체크박스 ── */
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === workers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(workers.map(w => w.id)));
+    }
+  }
+
+  /* ── 설정 토글 ── */
+  function toggleSettings(id: string) {
+    setExpandedSettings((prev) => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  }
+
   const outdatedCount = workers.filter((w) => latestVersion && w.version !== latestVersion).length;
   const activeWorkers = workers.filter((w) => w.is_active);
   const offlineWorkers = workers.filter((w) => !w.is_active);
+
+  // 테이블 총 컬럼 수 (체크박스 포함)
+  const TABLE_COLS = 10;
 
   return (
     <div className="p-4 sm:p-6">
@@ -334,6 +518,15 @@ export default function WorkersPage() {
           <div className="overflow-x-auto"><table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
+                <th className="px-3 py-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={workers.length > 0 && selectedIds.size === workers.length}
+                    ref={(el) => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < workers.length; }}
+                    onChange={toggleSelectAll}
+                    className="rounded"
+                  />
+                </th>
                 <th className="text-left px-4 py-2 font-medium w-[180px]">워커</th>
                 <th className="text-left px-4 py-2 font-medium w-[108px]">OS</th>
                 <th className="text-left px-4 py-2 font-medium w-[80px]">버전</th>
@@ -342,7 +535,7 @@ export default function WorkersPage() {
                 <th className="text-left px-4 py-2 font-medium">현재 작업</th>
                 <th className="text-right px-4 py-2 font-medium w-[84px]">처리/에러</th>
                 <th className="text-center px-4 py-2 font-medium w-[80px]">테스트</th>
-                <th className="text-right px-4 py-2 font-medium w-[160px]">제어</th>
+                <th className="text-right px-4 py-2 font-medium w-[190px]">제어</th>
               </tr>
             </thead>
             <tbody>
@@ -352,10 +545,25 @@ export default function WorkersPage() {
                 const ts = testStates[w.id];
                 const hasResults = ts && (ts.naver.result || ts.instagram.result);
                 const isExpanded = expandedResults.has(w.id);
+                const isSettingsExpanded = expandedSettings.has(w.id);
+                const isSelected = selectedIds.has(w.id);
+                const cfg = workerConfigs[w.id] || DEFAULT_NET_CONFIG;
+                const isSaving = savingWorkers[w.id];
+                const isSaved = savedWorkers[w.id];
 
                 return (
                   <>
-                    <tr key={w.id} className="border-t border-gray-100 hover:bg-gray-50">
+                    <tr key={w.id} className={`border-t border-gray-100 hover:bg-gray-50 ${isSelected ? "bg-blue-50" : ""}`}>
+                      {/* 체크박스 */}
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(w.id)}
+                          className="rounded"
+                        />
+                      </td>
+
                       {/* 워커 이름 */}
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-1.5 flex-nowrap">
@@ -432,51 +640,193 @@ export default function WorkersPage() {
                         ) : <span className="text-gray-300 text-xs">-</span>}
                       </td>
 
-                      {/* 제어 버튼 */}
+                      {/* 제어 버튼 + 설정 버튼 */}
                       <td className="px-4 py-2 text-right">
-                        {isActive ? (
-                          <div className="flex justify-end gap-1">
-                            {latestVersion && (
-                              <button onClick={() => sendCommand("update", [w.id])} disabled={commandLoading !== null}
-                                title={w.version === latestVersion ? "최신 버전 — 강제 재설치" : `v${w.version} → v${latestVersion}`}
-                                className={`whitespace-nowrap px-1.5 py-0.5 text-xs rounded disabled:opacity-50 ${w.version !== latestVersion ? "bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}>
-                                업데이트
+                        <div className="flex justify-end gap-1 flex-wrap">
+                          {isActive ? (
+                            <>
+                              {latestVersion && (
+                                <button onClick={() => sendCommand("update", [w.id])} disabled={commandLoading !== null}
+                                  title={w.version === latestVersion ? "최신 버전 — 강제 재설치" : `v${w.version} → v${latestVersion}`}
+                                  className={`whitespace-nowrap px-1.5 py-0.5 text-xs rounded disabled:opacity-50 ${w.version !== latestVersion ? "bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}>
+                                  업데이트
+                                </button>
+                              )}
+                              <button onClick={() => sendCommand("restart", [w.id])} disabled={commandLoading !== null}
+                                className="whitespace-nowrap px-1.5 py-0.5 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 disabled:opacity-50">
+                                재시작
                               </button>
-                            )}
-                            <button onClick={() => sendCommand("restart", [w.id])} disabled={commandLoading !== null}
-                              className="whitespace-nowrap px-1.5 py-0.5 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 disabled:opacity-50">
-                              재시작
-                            </button>
-                            <button onClick={() => sendCommand("stop", [w.id])} disabled={commandLoading !== null}
-                              className="whitespace-nowrap px-1.5 py-0.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 disabled:opacity-50">
-                              정지
-                            </button>
-                          </div>
-                        ) : (
-                          <button onClick={() => deleteWorker(w.id)} className="text-xs text-red-500 hover:text-red-700">삭제</button>
-                        )}
+                              <button onClick={() => sendCommand("stop", [w.id])} disabled={commandLoading !== null}
+                                className="whitespace-nowrap px-1.5 py-0.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 disabled:opacity-50">
+                                정지
+                              </button>
+                            </>
+                          ) : (
+                            <button onClick={() => deleteWorker(w.id)} className="text-xs text-red-500 hover:text-red-700">삭제</button>
+                          )}
+                          <button
+                            onClick={() => toggleSettings(w.id)}
+                            className={`whitespace-nowrap px-1.5 py-0.5 text-xs rounded border transition-colors ${
+                              isSettingsExpanded
+                                ? "bg-indigo-100 text-indigo-700 border-indigo-300"
+                                : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                            }`}
+                          >
+                            ⚙ 설정
+                          </button>
+                        </div>
                       </td>
                     </tr>
 
                     {/* 테스트 결과 확장 행 */}
                     {isExpanded && hasResults && (
                       <tr key={`${w.id}-results`} className="bg-gray-50 border-t border-gray-100">
-                        <td colSpan={9} className="px-4 py-3">
+                        <td colSpan={TABLE_COLS} className="px-4 py-3">
                           <div className="flex gap-4">
-                            {/* 네이버 결과 */}
                             <TestResultPanel
                               category="naver"
                               label="네이버"
                               colorClass="green"
                               state={ts?.naver}
                             />
-                            {/* 인스타 결과 */}
                             <TestResultPanel
                               category="instagram"
                               label="인스타그램"
                               colorClass="pink"
                               state={ts?.instagram}
                             />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* 인라인 설정 확장 행 */}
+                    {isSettingsExpanded && (
+                      <tr key={`${w.id}-settings`} className="border-t border-indigo-100 bg-indigo-50/40">
+                        <td colSpan={TABLE_COLS} className="px-4 py-4">
+                          <div className="flex flex-wrap items-start gap-6">
+                            {/* 네트워크 타입 */}
+                            <div className="min-w-[160px]">
+                              <label className="block text-xs text-gray-500 mb-1 font-medium">네트워크 타입</label>
+                              <select
+                                value={cfg.network_type}
+                                onChange={(e) => updateWorkerNet(w.id, "network_type", e.target.value)}
+                                className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                              >
+                                {Object.entries(NETWORK_LABELS).map(([v, l]) => (
+                                  <option key={v} value={v}>{l}</option>
+                                ))}
+                              </select>
+                              {/* 하위 설정 */}
+                              {cfg.network_type === "tethering" && (
+                                <div className="mt-2 flex flex-col gap-1">
+                                  <select
+                                    value={cfg.tethering_carrier}
+                                    onChange={(e) => updateWorkerNet(w.id, "tethering_carrier", e.target.value)}
+                                    className="px-2 py-1 text-xs border border-gray-300 rounded-md bg-white"
+                                  >
+                                    {(Object.entries(CARRIER_LABELS) as [TetheringCarrier, string][]).map(([v, l]) => (
+                                      <option key={v} value={v}>{l}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => updateWorkerNet(w.id, "tethering_auto_reconnect", !cfg.tethering_auto_reconnect)}
+                                    className={`px-2 py-1 text-xs rounded-md border ${
+                                      cfg.tethering_auto_reconnect
+                                        ? "border-green-500 bg-green-50 text-green-700"
+                                        : "border-gray-300 text-gray-400 bg-white"
+                                    }`}
+                                  >
+                                    자동 IP변경 {cfg.tethering_auto_reconnect ? "ON" : "OFF"}
+                                  </button>
+                                  {cfg.tethering_auto_reconnect && (
+                                    <select
+                                      value={cfg.tethering_reconnect_interval}
+                                      onChange={(e) => updateWorkerNet(w.id, "tethering_reconnect_interval", e.target.value)}
+                                      className="px-2 py-1 text-xs border border-gray-300 rounded-md bg-white"
+                                    >
+                                      {(Object.entries(RECONNECT_LABELS) as [TetheringReconnectInterval, string][]).map(([v, l]) => (
+                                        <option key={v} value={v}>{l}</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
+                              )}
+                              {(cfg.network_type === "proxy_static" || cfg.network_type === "proxy_rotate") && (
+                                <input
+                                  type="text"
+                                  value={cfg.proxy_url}
+                                  onChange={(e) => updateWorkerNet(w.id, "proxy_url", e.target.value)}
+                                  placeholder="http://user:pass@host:port"
+                                  className="mt-2 w-full px-2 py-1 text-xs border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                />
+                              )}
+                            </div>
+
+                            {/* 일일 한도 */}
+                            <div className="min-w-[140px]">
+                              <label className="block text-xs text-gray-500 mb-1 font-medium">일일 한도</label>
+                              <input
+                                type="number"
+                                value={cfg.daily_quota}
+                                onChange={(e) => updateWorkerNet(w.id, "daily_quota", parseInt(e.target.value) || 100)}
+                                min={10}
+                                max={5000}
+                                className="w-24 px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                              />
+                              <div className="text-xs text-gray-400 mt-1">
+                                오늘 사용: <span className={cfg.daily_used >= cfg.daily_quota ? "text-red-600 font-bold" : "text-gray-600"}>
+                                  {cfg.daily_used}
+                                </span> / {cfg.daily_quota}
+                              </div>
+                            </div>
+
+                            {/* 타입 분류 */}
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1 font-medium">타입 분류</label>
+                              <div className="flex gap-1 flex-wrap">
+                                {CAT_BUTTONS.map(({ key, label, active }) => {
+                                  const currentCat = getWorkerCat(cfg.allowed_types);
+                                  return (
+                                    <button
+                                      key={key}
+                                      onClick={() => {
+                                        const types = key === "all"
+                                          ? []
+                                          : CRAWL_CATEGORIES.find(c => c.key === key)?.types || [];
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        updateWorkerNet(w.id, "allowed_types" as any, types);
+                                      }}
+                                      className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                                        currentCat === key
+                                          ? active
+                                          : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {cfg.allowed_types && cfg.allowed_types.length > 0 && (
+                                <div className="text-xs text-gray-400 mt-1 max-w-xs truncate">
+                                  {cfg.allowed_types.join(", ")}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* 저장 버튼 */}
+                            <div className="flex items-end">
+                              <button
+                                onClick={() => saveWorkerConfig(w.id)}
+                                disabled={isSaving}
+                                className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
+                                  isSaved ? "bg-green-600 text-white" : "bg-indigo-600 text-white hover:bg-indigo-700"
+                                } disabled:opacity-50`}
+                              >
+                                {isSaved ? "저장됨" : isSaving ? "저장 중..." : "저장"}
+                              </button>
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -488,6 +838,73 @@ export default function WorkersPage() {
           </table></div>
         )}
       </div>
+
+      {/* 일괄 편집 바 — 선택된 항목이 있을 때 표시 */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-white border border-gray-300 rounded-xl shadow-2xl px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
+          <span className="font-semibold text-gray-700 whitespace-nowrap">선택 {selectedIds.size}개</span>
+          <div className="w-px h-5 bg-gray-200" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500 whitespace-nowrap">네트워크:</span>
+            <select
+              value={bulkNetworkType}
+              onChange={(e) => setBulkNetworkType(e.target.value)}
+              className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">변경 안 함</option>
+              {Object.entries(NETWORK_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500 whitespace-nowrap">일일 한도:</span>
+            <input
+              type="number"
+              value={bulkQuota}
+              onChange={(e) => setBulkQuota(e.target.value)}
+              placeholder="변경 안 함"
+              min={10}
+              max={5000}
+              className="w-28 px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500 whitespace-nowrap">타입:</span>
+            <div className="flex gap-1">
+              {[{ key: "", label: "변경 안 함" }, ...CAT_BUTTONS].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setBulkCategory(key)}
+                  className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+                    bulkCategory === key
+                      ? "bg-gray-700 text-white border-gray-700"
+                      : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={applyBulk}
+            className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium whitespace-nowrap"
+          >
+            일괄 적용
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="px-3 py-1.5 text-xs border border-gray-300 text-gray-500 rounded-md hover:bg-gray-50 whitespace-nowrap"
+          >
+            선택 해제
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -13,7 +13,7 @@ const NAV_ITEMS = [
   { href: "/releases", label: "릴리즈", icon: "🚀" },
   { href: "/schedule", label: "일일 순위", icon: "🕐" },
   { href: "/rank-dashboard", label: "순위 대시보드", icon: "📈" },
-  { href: "/config", label: "워커 설정", icon: "⚙️" },
+  { href: "/config", label: "크롤링 전략", icon: "⚙️" },
   { href: "/install", label: "워커 설치", icon: "⬇️" },
   { href: "/installs", label: "설치 모니터링", icon: "📡" },
   { href: "/instagram-accounts", label: "Instagram 계정", icon: "📷" },
