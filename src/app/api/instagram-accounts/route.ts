@@ -67,17 +67,40 @@ export async function POST(request: NextRequest) {
 
   // ── 워커 전용: 차단 보고 ──
   if (action === "block") {
-    const { account_id, cooldown_minutes = 120 } = body;
+    const { account_id, cooldown_minutes = 120, worker_id: wid } = body;
     if (!account_id) return NextResponse.json({ error: "account_id 필요" }, { status: 400 });
     const blockedUntil = new Date(Date.now() + cooldown_minutes * 60 * 1000).toISOString();
+
+    // 계정 이름 조회 후 업데이트
+    const { data: acc } = await sb
+      .from("instagram_accounts")
+      .select("username, block_count")
+      .eq("id", account_id)
+      .single();
+
     await sb.from("instagram_accounts").update({
       status: "cooling",
       last_blocked_at: new Date().toISOString(),
       blocked_until: blockedUntil,
-      session_state: null,  // 세션 초기화
+      session_state: null,
     }).eq("id", account_id);
-    // block_count increment
     try { await sb.rpc("increment_instagram_block", { p_id: account_id }); } catch { /* ignore */ }
+
+    // 알림 발송 (비동기, 실패 무시)
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+      fetch(`${baseUrl}/api/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "block",
+          title: `Instagram 계정 차단 — @${acc?.username || account_id}`,
+          message: `차단 횟수: ${(acc?.block_count || 0) + 1}회 | 쿨다운: ${cooldown_minutes}분${wid ? ` | 워커: ${String(wid).slice(0, 12)}` : ""}`,
+        }),
+      }).catch(() => null);
+    } catch { /* ignore */ }
+
     return NextResponse.json({ ok: true, blocked_until: blockedUntil });
   }
 

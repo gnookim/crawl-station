@@ -380,6 +380,9 @@ export default function SettingsPage() {
       {/* AI 크롤링 회피 분석 */}
       <AiEvasionSection />
 
+      {/* Instagram AI 회피 분석 */}
+      <InstagramAiSection />
+
       {/* 헬스체크 스케줄 */}
       <HealthCheckScheduleSection />
     </div>
@@ -1067,6 +1070,187 @@ function AiEvasionSection() {
               <div key={i} className="flex items-center gap-2 text-xs text-gray-600 py-1 border-b border-gray-100">
                 <span className={`px-1.5 py-0.5 rounded text-xs ${
                   log.model === "skip" ? "bg-gray-100" : "bg-purple-50 text-purple-700"
+                }`}>
+                  {String(log.model)}
+                </span>
+                <span className="text-gray-400">{String(log.trigger_reason)}</span>
+                <span className="flex-1 truncate">{String(log.analysis || "").slice(0, 80)}</span>
+                <span className="text-gray-400 shrink-0">
+                  {new Date(String(log.created_at)).toLocaleString("ko", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InstagramAiSection() {
+  const [model, setModel] = useState("haiku");
+  const [autoAdjust, setAutoAdjust] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [lastResult, setLastResult] = useState<Record<string, unknown> | null>(null);
+  const [logs, setLogs] = useState<Record<string, unknown>[]>([]);
+  const [savingModel, setSavingModel] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [modelRes, autoRes] = await Promise.all([
+          fetch("/api/settings?key=insta_ai_model"),
+          fetch("/api/settings?key=insta_ai_auto_adjust"),
+        ]);
+        const modelData = await modelRes.json();
+        const autoData = await autoRes.json();
+        if (modelData.value) setModel(modelData.value);
+        if (autoData.value !== undefined) setAutoAdjust(autoData.value !== "false");
+      } catch {}
+      loadLogs();
+    })();
+  }, []);
+
+  async function loadLogs() {
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const { data } = await supabase
+        .from("ai_analysis_log")
+        .select("*")
+        .eq("platform", "instagram")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      setLogs((data || []) as Record<string, unknown>[]);
+    } catch {}
+  }
+
+  async function saveModelSetting(newModel: string) {
+    setModel(newModel);
+    setSavingModel(true);
+    await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "insta_ai_model", value: newModel }),
+    });
+    setSavingModel(false);
+  }
+
+  async function toggleAutoAdjust() {
+    const newVal = !autoAdjust;
+    setAutoAdjust(newVal);
+    await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "insta_ai_auto_adjust", value: String(newVal) }),
+    });
+  }
+
+  async function runAnalysis() {
+    setAnalyzing(true);
+    setLastResult(null);
+    try {
+      const res = await fetch("/api/ai/analyze-instagram", { method: "POST" });
+      const data = await res.json();
+      setLastResult(data);
+      loadLogs();
+    } catch (e) {
+      setLastResult({ error: String(e) });
+    }
+    setAnalyzing(false);
+  }
+
+  const MODELS = [
+    { id: "haiku", label: "Haiku", desc: "빠름/저렴 — 일상 분석용" },
+    { id: "sonnet", label: "Sonnet", desc: "균형 — 차단 발생 시 에스컬레이션" },
+    { id: "opus", label: "Opus", desc: "최고 성능 — 복잡한 패턴 분석" },
+  ];
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-5 mt-6">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-bold text-gray-900">Instagram AI 회피 분석</h3>
+        <button
+          onClick={runAnalysis}
+          disabled={analyzing}
+          className="px-3 py-1.5 text-xs bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
+        >
+          {analyzing ? "분석 중..." : "지금 분석 실행"}
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 mb-4">
+        Instagram 계정 차단 패턴을 AI가 분석하여 크롤링 회피 전략을 자동 조정합니다.
+      </p>
+
+      {/* 모델 선택 */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+        {MODELS.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => saveModelSetting(m.id)}
+            disabled={savingModel}
+            className={`p-3 rounded-md border text-left transition-colors ${
+              model === m.id
+                ? "border-pink-500 bg-pink-50"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <div className="text-sm font-medium">{m.label}</div>
+            <div className="text-xs text-gray-500">{m.desc}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* 자동 조정 토글 */}
+      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md mb-4">
+        <div>
+          <div className="text-sm font-medium">자동 config 조정</div>
+          <div className="text-xs text-gray-500">
+            AI 분석 결과에 따라 딜레이/배치/decoy 비율을 자동 변경
+          </div>
+        </div>
+        <button
+          onClick={toggleAutoAdjust}
+          className={`px-3 py-1 text-xs rounded-full font-medium ${
+            autoAdjust
+              ? "bg-green-100 text-green-700"
+              : "bg-gray-200 text-gray-500"
+          }`}
+        >
+          {autoAdjust ? "ON" : "OFF"}
+        </button>
+      </div>
+
+      {/* 즉시 분석 결과 */}
+      {lastResult && (
+        <div className={`p-3 rounded-md mb-4 text-xs ${
+          lastResult.error ? "bg-red-50 text-red-700" :
+          lastResult.status === "critical" ? "bg-red-50 text-red-700" :
+          lastResult.status === "high" ? "bg-orange-50 text-orange-700" :
+          "bg-green-50 text-green-700"
+        }`}>
+          <div className="font-bold mb-1">
+            {lastResult.error ? "오류" : `위험도: ${lastResult.status} | 모델: ${lastResult.model}`}
+          </div>
+          <div>{String(lastResult.analysis || lastResult.error || lastResult.message || "")}</div>
+          {(lastResult.recommendations as string[] || []).length > 0 && (
+            <ul className="mt-1 space-y-0.5">
+              {(lastResult.recommendations as string[]).map((r, i) => (
+                <li key={i}>- {r}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* 최근 분석 로그 */}
+      {logs.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 mb-2">최근 분석 ({logs.length})</h4>
+          <div className="space-y-1">
+            {logs.map((log, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs text-gray-600 py-1 border-b border-gray-100">
+                <span className={`px-1.5 py-0.5 rounded text-xs ${
+                  log.model === "skip" ? "bg-gray-100" : "bg-pink-50 text-pink-700"
                 }`}>
                   {String(log.model)}
                 </span>

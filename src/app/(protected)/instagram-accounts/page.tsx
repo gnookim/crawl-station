@@ -4,6 +4,12 @@ import { useEffect, useState, useCallback } from "react";
 
 type AccountStatus = "active" | "cooling" | "blocked" | "banned";
 
+interface Worker {
+  id: string;
+  name?: string;
+  is_active: boolean;
+}
+
 interface InstagramAccount {
   id: string;
   username: string;
@@ -36,7 +42,9 @@ export default function InstagramAccountsPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editNote, setEditNote] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editWorkerId, setEditWorkerId] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState<Set<string>>(new Set());
+  const [workers, setWorkers] = useState<Worker[]>([]);
 
   const loadAccounts = useCallback(async () => {
     const res = await fetch("/api/instagram-accounts");
@@ -50,6 +58,10 @@ export default function InstagramAccountsPage() {
     const timer = setInterval(loadAccounts, 15000);
     return () => clearInterval(timer);
   }, [loadAccounts]);
+
+  useEffect(() => {
+    fetch("/api/workers").then(r => r.json()).then(d => setWorkers(d.workers || []));
+  }, []);
 
   async function addAccount() {
     if (!form.username.trim() || !form.password.trim()) return;
@@ -98,15 +110,17 @@ export default function InstagramAccountsPage() {
   }
 
   async function saveEdit(id: string) {
-    const updates: Record<string, string> = {};
+    const updates: Record<string, string | null> = {};
     if (editNote !== "") updates.note = editNote;
     if (editPassword !== "") updates.password = editPassword;
+    if (editWorkerId !== null) updates.assigned_worker_id = editWorkerId || null;
     await fetch(`/api/instagram-accounts?id=${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     });
     setEditId(null);
+    setEditWorkerId(null);
     loadAccounts();
   }
 
@@ -168,14 +182,19 @@ export default function InstagramAccountsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">전용 워커 ID (선택)</label>
-              <input
-                type="text"
+              <label className="block text-xs text-gray-500 mb-1">전용 워커 (선택)</label>
+              <select
                 value={form.assigned_worker_id}
                 onChange={(e) => setForm((f) => ({ ...f, assigned_worker_id: e.target.value }))}
-                placeholder="특정 워커에만 사용 (비워두면 공용)"
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400"
-              />
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white"
+              >
+                <option value="">공용 (미지정)</option>
+                {workers.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name || w.id.slice(0, 12)} {w.is_active ? "● 온라인" : "○ 오프라인"}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">메모 (선택)</label>
@@ -258,8 +277,28 @@ export default function InstagramAccountsPage() {
 
                     {/* 전용 워커 */}
                     <td className="px-4 py-2 text-xs text-gray-500">
-                      {acc.assigned_worker_id ? (
-                        <span className="font-mono">{acc.assigned_worker_id.slice(0, 12)}...</span>
+                      {isEditing ? (
+                        <select
+                          value={editWorkerId ?? acc.assigned_worker_id ?? ""}
+                          onChange={(e) => setEditWorkerId(e.target.value)}
+                          className="w-full px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400 bg-white"
+                        >
+                          <option value="">공용 (미지정)</option>
+                          {workers.map((w) => (
+                            <option key={w.id} value={w.id}>
+                              {w.name || w.id.slice(0, 12)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : acc.assigned_worker_id ? (
+                        (() => {
+                          const w = workers.find(x => x.id === acc.assigned_worker_id);
+                          return (
+                            <span className={`font-mono ${w?.is_active ? "text-green-600" : "text-gray-400"}`}>
+                              {w?.name || acc.assigned_worker_id.slice(0, 12)}
+                            </span>
+                          );
+                        })()
                       ) : (
                         <span className="text-gray-300">공용</span>
                       )}
@@ -311,7 +350,7 @@ export default function InstagramAccountsPage() {
                       {isEditing ? (
                         <div className="flex justify-end gap-1">
                           <button onClick={() => saveEdit(acc.id)} className="text-xs text-blue-600 hover:text-blue-800">저장</button>
-                          <button onClick={() => setEditId(null)} className="text-xs text-gray-400 hover:text-gray-600">취소</button>
+                          <button onClick={() => { setEditId(null); setEditWorkerId(null); }} className="text-xs text-gray-400 hover:text-gray-600">취소</button>
                         </div>
                       ) : (
                         <div className="flex justify-end gap-1">
@@ -322,7 +361,7 @@ export default function InstagramAccountsPage() {
                             {acc.is_active ? "비활성" : "활성화"}
                           </button>
                           <button
-                            onClick={() => { setEditId(acc.id); setEditNote(acc.note || ""); setEditPassword(""); }}
+                            onClick={() => { setEditId(acc.id); setEditNote(acc.note || ""); setEditPassword(""); setEditWorkerId(acc.assigned_worker_id || ""); }}
                             className="text-xs text-blue-500 hover:text-blue-700"
                           >
                             편집

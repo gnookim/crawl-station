@@ -962,6 +962,33 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - total\_count=0이면 totalPages=99로 설정 → 빈 페이지 나올 때까지 수집
 - price/stock\_qty 파싱 오류 수정: 빈 셀 guard + /[^0-9]/g replace로 안전하게 처리
 
+### Station v0.9.8 — Instagram 확장 (알림·AI분석·워커드롭다운)
+
+#### 알림 채널 설정 (설정 페이지)
+- Slack Webhook, Telegram Bot, 카카오워크 Webhook 설정 지원
+- 테스트 발송 버튼으로 연결 확인
+- Instagram 계정 차단 시 `/api/notify` 자동 호출
+
+#### Instagram 계정 관리 — 워커 드롭다운
+- 전용 워커 ID 텍스트 입력 → 활성 워커 목록 드롭다운으로 교체
+- 인라인 편집 시에도 워커 선택 가능
+- 테이블에서 워커 이름/온라인 상태 표시
+
+#### Instagram AI 회피 분석
+- 설정 페이지 "Instagram AI 회피 분석" 섹션 추가
+- `POST /api/ai/analyze-instagram` — 최근 6시간 차단/에러 패턴 AI 분석
+- 차단 없으면 AI 호출 생략 (비용 절약)
+- `ai_analysis_log.platform = 'instagram'`으로 블로그 분석과 구분
+
+#### `/api/instagram-accounts` 차단 알림
+- `action=block` 호출 시 워커 ID + 차단 횟수 포함한 알림 자동 발송
+
+### 워커 v0.9.25 — Instagram 봇 회피 행동 패턴 개선
+- `instagram_post.py`: 게시물 URL 직접 접근 대신 홈 피드 경유 후 이동
+- 모든 지연에 정규분포(`gauss`) 적용 — 균일분포보다 자연스러운 패턴
+- 로그인 폼 입력 딜레이도 정규분포 기반으로 교체
+- `_nd(mu, sigma, lo, hi)` 헬퍼 함수 추가
+
 ### 워커 v0.9.17 — oclick\_sync 타입 제외
 - Python 워커가 oclick\_sync 작업을 집어가지 않도록 PYTHON\_EXCLUDED\_TYPES 상수 추가
 - allowed\_types 미설정(전체) 시 oclick\_sync를 쿼리에서 제외 (not.in\_ 필터)
