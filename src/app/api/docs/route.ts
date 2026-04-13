@@ -983,7 +983,7 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ### Station v0.9.9 — AI 분석 전용 페이지
 
-- `/ai-analysis` 신규 페이지 추가
+- \`/ai-analysis\` 신규 페이지 추가
 - 블로그/네이버 + Instagram 탭 분리
 - 모델 선택 (Haiku/Sonnet/Opus), 자동 조정 토글, 즉시 분석 실행
 - Risk 레벨 배지, 분석 요약, 권고사항, 최근 20건 로그 테이블
@@ -994,7 +994,7 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 #### 알림 채널 설정 (설정 페이지)
 - Slack Webhook, Telegram Bot, 카카오워크 Webhook 설정 지원
 - 테스트 발송 버튼으로 연결 확인
-- Instagram 계정 차단 시 `/api/notify` 자동 호출
+- Instagram 계정 차단 시 \`/api/notify\` 자동 호출
 
 #### Instagram 계정 관리 — 워커 드롭다운
 - 전용 워커 ID 텍스트 입력 → 활성 워커 목록 드롭다운으로 교체
@@ -1003,18 +1003,18 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 #### Instagram AI 회피 분석
 - 설정 페이지 "Instagram AI 회피 분석" 섹션 추가
-- `POST /api/ai/analyze-instagram` — 최근 6시간 차단/에러 패턴 AI 분석
+- \`POST /api/ai/analyze-instagram\` — 최근 6시간 차단/에러 패턴 AI 분석
 - 차단 없으면 AI 호출 생략 (비용 절약)
-- `ai_analysis_log.platform = 'instagram'`으로 블로그 분석과 구분
+- \`ai_analysis_log.platform = 'instagram'\`으로 블로그 분석과 구분
 
-#### `/api/instagram-accounts` 차단 알림
-- `action=block` 호출 시 워커 ID + 차단 횟수 포함한 알림 자동 발송
+#### \`/api/instagram-accounts\` 차단 알림
+- \`action=block\` 호출 시 워커 ID + 차단 횟수 포함한 알림 자동 발송
 
 ### 워커 v0.9.25 — Instagram 봇 회피 행동 패턴 개선
-- `instagram_post.py`: 게시물 URL 직접 접근 대신 홈 피드 경유 후 이동
-- 모든 지연에 정규분포(`gauss`) 적용 — 균일분포보다 자연스러운 패턴
+- \`instagram_post.py\`: 게시물 URL 직접 접근 대신 홈 피드 경유 후 이동
+- 모든 지연에 정규분포(\`gauss\`) 적용 — 균일분포보다 자연스러운 패턴
 - 로그인 폼 입력 딜레이도 정규분포 기반으로 교체
-- `_nd(mu, sigma, lo, hi)` 헬퍼 함수 추가
+- \`_nd(mu, sigma, lo, hi)\` 헬퍼 함수 추가
 
 ### 워커 v0.9.17 — oclick\_sync 타입 제외
 - Python 워커가 oclick\_sync 작업을 집어가지 않도록 PYTHON\_EXCLUDED\_TYPES 상수 추가
