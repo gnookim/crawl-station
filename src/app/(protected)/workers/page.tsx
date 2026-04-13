@@ -101,6 +101,15 @@ export default function WorkersPage() {
   const [savingWorkers, setSavingWorkers] = useState<Record<string, boolean>>({});
   const [savedWorkers, setSavedWorkers] = useState<Record<string, boolean>>({});
 
+  /* ── 이름 인라인 편집 ── */
+  const [editingName, setEditingName] = useState<{ id: string; value: string } | null>(null);
+
+  async function saveWorkerName(id: string, name: string) {
+    await supabase.from("workers").update({ name: name.trim() || null }).eq("id", id);
+    setEditingName(null);
+    loadData();
+  }
+
   /* ── 일괄 편집 상태 ── */
   const [bulkNetworkType, setBulkNetworkType] = useState<string>("");
   const [bulkQuota, setBulkQuota] = useState<string>("");
@@ -566,15 +575,36 @@ export default function WorkersPage() {
 
                       {/* 워커 이름 */}
                       <td className="px-4 py-2">
-                        <div className="flex items-center gap-1.5 flex-nowrap">
-                          <span className="font-medium min-w-0 truncate">{w.name || w.id}</span>
-                          {w.verified_at ? (
-                            <span title={`테스트 통과: ${new Date(w.verified_at).toLocaleString("ko")}`}
-                              className="shrink-0 whitespace-nowrap px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs cursor-help">검증됨</span>
-                          ) : (
-                            <span className="shrink-0 whitespace-nowrap px-1 py-0.5 bg-gray-100 text-gray-400 rounded text-xs">미검증</span>
-                          )}
-                        </div>
+                        {editingName?.id === w.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              value={editingName.value}
+                              onChange={(e) => setEditingName({ id: w.id, value: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveWorkerName(w.id, editingName.value);
+                                if (e.key === "Escape") setEditingName(null);
+                              }}
+                              className="px-2 py-0.5 text-sm border border-indigo-400 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 w-32"
+                            />
+                            <button onClick={() => saveWorkerName(w.id, editingName.value)} className="text-xs text-indigo-600 hover:text-indigo-800">저장</button>
+                            <button onClick={() => setEditingName(null)} className="text-xs text-gray-400 hover:text-gray-600">취소</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 flex-nowrap">
+                            <span
+                              className="font-medium min-w-0 truncate cursor-pointer hover:text-indigo-600"
+                              title="클릭하여 이름 편집"
+                              onClick={() => setEditingName({ id: w.id, value: w.name || "" })}
+                            >{w.name || w.id}</span>
+                            {w.verified_at ? (
+                              <span title={`테스트 통과: ${new Date(w.verified_at).toLocaleString("ko")}`}
+                                className="shrink-0 whitespace-nowrap px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs cursor-help">검증됨</span>
+                            ) : (
+                              <span className="shrink-0 whitespace-nowrap px-1 py-0.5 bg-gray-100 text-gray-400 rounded text-xs">미검증</span>
+                            )}
+                          </div>
+                        )}
                         <div className="text-xs text-gray-400">{w.id}</div>
                       </td>
                       <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden"><span className="truncate block">{w.os || "-"}</span></td>
