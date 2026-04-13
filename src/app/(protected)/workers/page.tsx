@@ -702,6 +702,16 @@ export default function WorkersPage() {
                       {/* 제어 버튼 + 설정 버튼 */}
                       <td className="px-4 py-2 text-right">
                         <div className="flex justify-end gap-1 flex-wrap">
+                          <button
+                            onClick={() => toggleSettings(w.id)}
+                            className={`whitespace-nowrap px-1.5 py-0.5 text-xs rounded border transition-colors ${
+                              isSettingsExpanded
+                                ? "bg-indigo-100 text-indigo-700 border-indigo-300"
+                                : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                            }`}
+                          >
+                            ⚙ 설정
+                          </button>
                           {isActive ? (
                             <>
                               {latestVersion && (
@@ -723,16 +733,6 @@ export default function WorkersPage() {
                           ) : (
                             <button onClick={() => deleteWorker(w.id)} className="text-xs text-red-500 hover:text-red-700">삭제</button>
                           )}
-                          <button
-                            onClick={() => toggleSettings(w.id)}
-                            className={`whitespace-nowrap px-1.5 py-0.5 text-xs rounded border transition-colors ${
-                              isSettingsExpanded
-                                ? "bg-indigo-100 text-indigo-700 border-indigo-300"
-                                : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                            }`}
-                          >
-                            ⚙ 설정
-                          </button>
                         </div>
                       </td>
                     </tr>

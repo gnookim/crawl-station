@@ -327,6 +327,10 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-14
 
+### Station — 워커 관리 ⚙ 설정 버튼 위치 수정
+- 제어 컬럼 너비 부족으로 ⚙ 설정 버튼이 잘리던 문제 수정
+- ⚙ 설정 버튼을 제어 버튼 앞으로 이동 (항상 표시 보장)
+
 ### Station — 회원 관리 API 프록시 추가
 - \`GET /api/users\` — SSO 앱 멤버 + 대기중 사용자 목록 반환 (SSO_APP_SECRET 지원)
 - \`POST /api/users/[userId]\` — 승인/거부/정지/토글/세션만료 액션 프록시
