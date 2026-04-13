@@ -3,9 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { getAuthHeaders } from "@/lib/sso";
 
-const SSO_BASE =
-  process.env.NEXT_PUBLIC_SSO_URL ?? "https://lifenbio-sso.fly.dev";
-
 interface SSOUser {
   id: string;
   email: string;
@@ -13,6 +10,7 @@ interface SSOUser {
   role: string;
   is_active: boolean;
   is_approved: boolean;
+  status: string;
   created_at: string;
   last_login_at: string | null;
 }
@@ -27,28 +25,16 @@ export default function UsersPage() {
   const loadData = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
-
-      const APP_SLUG = process.env.NEXT_PUBLIC_APP_ID ?? "crawl-station";
-      const [usersRes, pendingRes] = await Promise.all([
-        fetch(`${SSO_BASE}/admin/users`, { headers }),
-        fetch(`${SSO_BASE}/admin/pending-users?app_slug=${APP_SLUG}`, { headers }),
-      ]);
-
-      if (!usersRes.ok) {
-        const errBody = await usersRes.text().catch(() => "");
-        setError(`회원 목록 조회 실패 (${usersRes.status}): ${errBody.slice(0, 200)}`);
+      const res = await fetch("/api/users", { headers });
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        setError(`회원 목록 조회 실패 (${res.status}): ${errBody.slice(0, 200)}`);
         setLoading(false);
         return;
       }
-
-      if (usersRes.ok) {
-        const data = await usersRes.json();
-        setUsers(Array.isArray(data) ? data : data.users || []);
-      }
-      if (pendingRes.ok) {
-        const data = await pendingRes.json();
-        setPendingUsers(Array.isArray(data) ? data : data.users || []);
-      }
+      const data = await res.json();
+      setUsers(data.members ?? []);
+      setPendingUsers(data.pending ?? []);
     } catch (e) {
       setError(`로드 실패: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -65,30 +51,12 @@ export default function UsersPage() {
   ) {
     setActionLoading(userId);
     try {
-      const headers = {
-        ...(await getAuthHeaders()),
-        "Content-Type": "application/json",
-      };
-      const methodMap: Record<string, string> = {
-        approve: "POST",
-        reject: "POST",
-        suspend: "POST",
-        toggle: "PATCH",
-        revoke: "POST",
-      };
-      const pathMap: Record<string, string> = {
-        approve: `/admin/users/${userId}/approve`,
-        reject: `/admin/users/${userId}/reject`,
-        suspend: `/admin/users/${userId}/suspend`,
-        toggle: `/admin/users/${userId}/toggle`,
-        revoke: `/admin/users/${userId}/revoke`,
-      };
-
-      const res = await fetch(`${SSO_BASE}${pathMap[action]}`, {
-        method: methodMap[action],
-        headers,
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`/api/users/${userId}`, {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         alert(`실패: ${err.detail || res.statusText}`);
