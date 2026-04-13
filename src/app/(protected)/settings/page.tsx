@@ -374,6 +374,9 @@ export default function SettingsPage() {
       {/* Oclick 자격증명 */}
       <OclickCredentialsSection />
 
+      {/* 알림 채널 설정 */}
+      <NotificationSection />
+
       {/* AI 크롤링 회피 분석 */}
       <AiEvasionSection />
 
@@ -693,6 +696,206 @@ function HealthCheckScheduleSection() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotificationSection() {
+  const CHANNELS = [
+    {
+      id: "slack",
+      label: "Slack",
+      color: "bg-purple-600",
+      fields: [
+        { key: "notify_slack_webhook", label: "Webhook URL", placeholder: "https://hooks.slack.com/services/...", secret: false },
+      ],
+    },
+    {
+      id: "telegram",
+      label: "Telegram",
+      color: "bg-blue-500",
+      fields: [
+        { key: "notify_telegram_token", label: "Bot Token", placeholder: "123456:ABC-...", secret: true },
+        { key: "notify_telegram_chat_id", label: "Chat ID", placeholder: "-100123456789", secret: false },
+      ],
+    },
+    {
+      id: "kakao",
+      label: "카카오워크",
+      color: "bg-yellow-500",
+      fields: [
+        { key: "notify_kakao_webhook", label: "Webhook URL", placeholder: "https://kuwf.kakaowork.com/...", secret: false },
+      ],
+    },
+  ] as const;
+
+  const allKeys = CHANNELS.flatMap((c) => c.fields.map((f) => f.key));
+  const [saved, setSaved] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      for (const key of allKeys) {
+        try {
+          const res = await fetch(`/api/settings?key=${key}`);
+          const data = await res.json();
+          if (data.value) setSaved((p) => ({ ...p, [key]: data.value }));
+        } catch {}
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      for (const key of allKeys) {
+        const v = values[key]?.trim();
+        if (v === undefined) continue;
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, value: v || null }),
+        });
+        setSaved((p) => ({ ...p, [key]: v }));
+      }
+      setValues({});
+      setMsg({ ok: true, text: "저장 완료" });
+    } catch (e) {
+      setMsg({ ok: false, text: String(e) });
+    }
+    setSaving(false);
+  }
+
+  async function test() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "warning",
+          title: "CrawlStation 알림 테스트",
+          message: "알림 채널 연결이 정상적으로 작동합니다.",
+        }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch (e) {
+      setTestResult({ ok: false, error: String(e) });
+    }
+    setTesting(false);
+  }
+
+  const configuredCount = CHANNELS.filter((c) =>
+    c.fields.every((f) => saved[f.key])
+  ).length;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-5 mt-6">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold text-gray-900">알림 채널 설정</h3>
+          {configuredCount > 0 ? (
+            <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+              {configuredCount}개 연결됨
+            </span>
+          ) : (
+            <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-500 rounded">미설정</span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={test}
+            disabled={testing || configuredCount === 0}
+            className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            {testing ? "발송 중..." : "테스트 발송"}
+          </button>
+          <button
+            onClick={save}
+            disabled={saving || Object.keys(values).length === 0}
+            className="px-3 py-1.5 text-xs bg-gray-800 text-white rounded-md hover:bg-gray-900 disabled:opacity-50"
+          >
+            {saving ? "저장 중..." : "저장"}
+          </button>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 mb-5">
+        Instagram 계정 차단, 워커 오프라인 등 중요 이벤트 발생 시 알림을 보냅니다.
+      </p>
+
+      <div className="space-y-5">
+        {CHANNELS.map((channel) => {
+          const isConfigured = channel.fields.every((f) => saved[f.key]);
+          return (
+            <div key={channel.id} className="border border-gray-100 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`px-2 py-0.5 text-xs text-white rounded font-medium ${channel.color}`}>
+                  {channel.label}
+                </span>
+                {isConfigured && (
+                  <span className="text-xs text-green-600">✓ 설정됨</span>
+                )}
+              </div>
+              <div className="space-y-2">
+                {channel.fields.map((field) => (
+                  <div key={field.key} className="flex items-center gap-3">
+                    <label className="w-24 shrink-0 text-xs text-gray-500">{field.label}</label>
+                    <div className="flex-1 flex items-center gap-2">
+                      {saved[field.key] && (
+                        <span className="text-xs text-gray-400 font-mono truncate max-w-[120px]">
+                          {field.secret ? "••••••••" : saved[field.key].slice(0, 20) + "..."}
+                        </span>
+                      )}
+                      <input
+                        type={field.secret ? "password" : "text"}
+                        value={values[field.key] ?? ""}
+                        onChange={(e) => setValues((p) => ({ ...p, [field.key]: e.target.value }))}
+                        placeholder={saved[field.key] ? "변경할 경우 입력" : field.placeholder}
+                        className="flex-1 px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                      {saved[field.key] && (
+                        <button
+                          onClick={async () => {
+                            await fetch("/api/settings", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ key: field.key, value: null }),
+                            });
+                            setSaved((p) => { const n = {...p}; delete n[field.key]; return n; });
+                          }}
+                          className="text-xs text-red-400 hover:text-red-600 shrink-0"
+                        >
+                          삭제
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {msg && (
+        <p className={`mt-3 text-xs ${msg.ok ? "text-green-600" : "text-red-600"}`}>{msg.text}</p>
+      )}
+
+      {testResult && (
+        <div className={`mt-3 p-3 rounded-md text-xs ${testResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+          {testResult.ok
+            ? `✓ 발송 완료 — ${Object.entries(testResult.results as Record<string,string> || {}).map(([k,v]) => `${k}: ${v}`).join(", ")}`
+            : `✕ 발송 실패 — ${JSON.stringify(testResult.results || testResult.error)}`}
         </div>
       )}
     </div>

@@ -284,9 +284,56 @@ const { data } = await supabase.from("crawl_requests").insert({
 const { data: results } = await supabase
   .from("crawl_results").select("data").eq("request_id", data.id);
 \`\`\`
+
+---
+
+## 8. 알림 발송 (POST /api/notify)
+
+Instagram 계정 차단, 워커 오프라인 등 이벤트 발생 시 Slack/Telegram/카카오워크로 알림을 보냅니다.
+
+### 요청
+
+\`\`\`typescript
+const res = await fetch("https://crawl-station.vercel.app/api/notify", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": process.env.CRAWL_STATION_API_KEY,
+  },
+  body: JSON.stringify({
+    type: "block",        // "block" | "warning" | "daily"
+    title: "계정 차단 감지",
+    message: "instagram_user123 계정이 차단되었습니다.",
+    meta: { username: "instagram_user123", worker_id: "worker-01" },  // 선택
+  }),
+});
+const { ok, sent, results } = await res.json();
+// results: { slack: "ok", telegram: "ok", kakao: "error 403" }
+\`\`\`
+
+### 알림 타입별 이모지
+| type | 이모지 | 용도 |
+|------|--------|------|
+| \`block\` | 🚨 | 계정 차단, 크롤링 실패 |
+| \`warning\` | ⚠️ | 워커 오프라인, 큐 지연 |
+| \`daily\` | 📊 | 일일 통계 리포트 |
+
+### 채널 설정
+Station 설정 페이지 → **알림 채널 설정** 에서 각 채널 자격증명 입력.
+저장 키: \`notify_slack_webhook\`, \`notify_telegram_token\`, \`notify_telegram_chat_id\`, \`notify_kakao_webhook\`
 `;
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
+
+## 2026-04-09
+
+### Station — 알림 채널 설정
+- \`/api/notify\` 공통 알림 발송 엔드포인트 추가 (POST)
+- 지원 채널: Slack Incoming Webhook, Telegram Bot, 카카오워크 Webhook
+- 알림 타입: \`block\`(계정차단), \`warning\`(경고), \`daily\`(일일리포트)
+- 설정 페이지에 알림 채널 설정 섹션(NotificationSection) 추가
+- station_settings에서 채널 자격증명 로드 (notify_slack_webhook, notify_telegram_token, notify_telegram_chat_id, notify_kakao_webhook)
+- 테스트 발송 버튼으로 채널 연결 즉시 확인 가능
 
 ## 2026-04-08
 
