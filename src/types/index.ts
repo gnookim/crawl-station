@@ -24,6 +24,8 @@ export interface Worker {
   block_platform: "naver" | "instagram" | null;
   block_level: 1 | 2 | 3 | null;
   block_count_today: number;
+  location: string | null;
+  note: string | null;
   created_at: string;
   is_active?: boolean;
 }
