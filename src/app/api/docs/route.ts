@@ -327,6 +327,10 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-14
 
+### Windows 인스톨러 — tzdata 패키지 누락으로 워커 시작 실패 수정
+- Windows는 시스템 타임존 DB 없음 → \`ZoneInfo('Asia/Seoul')\` 사용 시 \`tzdata\` 필수
+- step_packages에 tzdata 설치 추가, import 검증 목록에도 포함
+
 ### Windows 인스톨러 — 워커 실행 검증 행걸림·실패 판정 수정
 - PIPE → DEVNULL: 자식 프로세스(chromium)가 파이프 핸들을 잡아 read()가 영원히 블로킹되던 문제 해결
 - step 11(워커 검증) 실패를 필수 실패에서 제거 — 패키지 설치 완료면 워커 실행 가능

@@ -531,6 +531,15 @@ def step_packages():
         raise StepError("supabase 설치 실패", stdout=r.stdout, stderr=r.stderr)
     log("    -> supabase OK")
 
+    # tzdata (Windows에는 시스템 타임존 DB 없음 — ZoneInfo('Asia/Seoul') 필수)
+    log("    -> tzdata 설치 중...")
+    update_progress_file(6, "tzdata 설치 중...", "running")
+    r = subprocess.run([py, "-m", "pip", "install", "--quiet", "tzdata"],
+                       capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        raise StepError("tzdata 설치 실패", stdout=r.stdout, stderr=r.stderr)
+    log("    -> tzdata OK")
+
     # greenlet 최종 복원
     if greenlet_ver:
         try:
@@ -557,6 +566,7 @@ def step_packages():
         ("greenlet", "greenlet"),
         ("playwright.sync_api", "playwright"),
         ("httpx", "httpx"),
+        ("zoneinfo", "tzdata"),
     ]
     for module_name, pip_name in verify_imports:
         r = subprocess.run(
