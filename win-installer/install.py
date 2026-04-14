@@ -938,10 +938,13 @@ def main():
             if num <= 4 or num == 11:
                 log("\n  [ABORT] 필수 단계 실패: " + name)
                 log("  설치를 완료할 수 없습니다.")
-                report_status("complete", success=False)
                 write_done_marker(False)
                 if LOG_FILE:
                     LOG_FILE.close()
+                try:
+                    report_status("complete", success=False)
+                except Exception:
+                    pass
                 wait_prompt()
                 return
 
@@ -956,12 +959,38 @@ def main():
         log("    수동 조치가 필요할 수 있습니다.")
         log("")
         log("    Station: " + STATION_URL)
-        report_status("complete", success=False)
         write_done_marker(False)
         if LOG_FILE:
             LOG_FILE.close()
+        try:
+            report_status("complete", success=False)
+        except Exception:
+            pass
         wait_prompt()
         return
+
+    log("")
+    log("  ======================================================")
+    log("    설치 완료!")
+    log("  ======================================================")
+    log("")
+    log("    - PC 부팅 시 자동 시작")
+    log("    - Station: " + STATION_URL)
+    log("")
+    log("  ======================================================")
+
+    # install.done을 먼저 써야 Inno Setup 루프가 즉시 종료됨
+    # (네트워크 보고·워커 실행이 느려도 UI가 멈추지 않음)
+    update_progress_file(10, "설치 완료", "complete")
+    write_done_marker(True)
+    if LOG_FILE:
+        LOG_FILE.close()
+
+    # 완료 마커 후 비차단 작업 (실패해도 무관)
+    try:
+        report_status("complete", success=True)
+    except Exception:
+        pass
 
     # 워커 즉시 실행 (백그라운드, 창 없음)
     try:
@@ -978,27 +1007,8 @@ def main():
             stderr=_lf,
         )
     except Exception as e:
-        log("    -> 워커 실행 실패: " + str(e))
+        pass  # 워커 실행 실패는 설치 완료에 영향 없음
 
-    log("")
-    log("  ======================================================")
-    log("    설치 완료!")
-    log("  ======================================================")
-    log("")
-    log("    워커가 백그라운드에서 실행 중입니다.")
-    log("")
-    log("    - PC 부팅 시 자동 시작")
-    log("    - 바탕화면: CrawlWorker / Stop / Uninstall")
-    log("    - Station: " + STATION_URL)
-    log("    - 제어판에서도 삭제 가능")
-    log("")
-    log("  ======================================================")
-
-    update_progress_file(10, "설치 완료", "complete")
-    report_status("complete", success=True)
-    write_done_marker(True)
-    if LOG_FILE:
-        LOG_FILE.close()
     wait_prompt("  아무 키나 누르면 이 창을 닫습니다...")
 
 

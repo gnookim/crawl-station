@@ -327,6 +327,10 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-14
 
+### Windows 인스톨러 — 설치 완료 후 Next 버튼 활성화 안 되는 버그 수정
+- 원인: \`write_done_marker\`가 \`report_status\`(네트워크 호출) 뒤에 있어 네트워크 지연 시 Inno Setup 루프가 무한 대기
+- 수정: \`write_done_marker\`를 모든 완료 경로에서 가장 먼저 호출, 이후 report_status·워커 실행은 비차단으로 처리
+
 ### Windows 인스톨러 — ZIP 기반 아키텍처로 DLL 잠금 문제 근본 해결
 - Inno Setup [Files]에서 python 디렉토리 개별 파일 복사 제거 → \`python.zip\` 1개만 복사
 - RunWorkerInstall [Code]에서 순서대로 실행:
