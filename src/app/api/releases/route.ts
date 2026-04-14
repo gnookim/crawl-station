@@ -18,6 +18,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // API 키 인증 (GitHub Actions 자동 배포용)
+  const apiKey = request.headers.get("x-api-key");
+  const validKey = process.env.RELEASE_API_KEY;
+  if (validKey && apiKey !== validKey) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const sb = createServerClient();
   const body = await request.json();
   const { version, changelog, files } = body;
@@ -27,6 +34,26 @@ export async function POST(request: NextRequest) {
       { error: "version이 필요합니다" },
       { status: 400 }
     );
+  }
+
+  // 동일 버전 중복 등록 방지 — 있으면 파일만 업데이트
+  const { data: existing } = await sb
+    .from("worker_releases")
+    .select("id")
+    .eq("version", version)
+    .single();
+
+  if (existing) {
+    await sb
+      .from("worker_releases")
+      .update({ files: files || {}, changelog: changelog || "", is_latest: true })
+      .eq("id", existing.id);
+    await sb
+      .from("worker_releases")
+      .update({ is_latest: false })
+      .eq("is_latest", true)
+      .neq("id", existing.id);
+    return NextResponse.json({ message: `v${version} 업데이트 완료 (기존 버전)`, updated: true });
   }
 
   // 새 릴리스 등록 먼저 (is_latest 간극 방지)

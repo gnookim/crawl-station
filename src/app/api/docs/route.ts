@@ -327,6 +327,14 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-14
 
+### Station — 워커 릴리즈 자동 배포 파이프라인 구축
+- naver-crawler push 시 worker.py/handlers 변경 감지 → 자동 릴리즈
+- \`POST /api/releases\` API 키 인증 추가 (\`x-api-key\` 헤더, \`RELEASE_API_KEY\` env)
+- \`POST /api/releases\` 동일 버전 중복 등록 방지 (upsert 로직)
+- naver-crawler \`.github/workflows/auto-release.yml\` 추가
+  - VERSION 자동 추출 → Supabase worker_releases 업데이트
+  - Mac PKG + Windows 인스톨러 빌드 자동 트리거
+
 ### Station — 워커 관리 ⚙ 설정 버튼 위치 수정
 - 제어 컬럼 너비 부족으로 ⚙ 설정 버튼이 잘리던 문제 수정
 - ⚙ 설정 버튼을 제어 버튼 앞으로 이동 (항상 표시 보장)
