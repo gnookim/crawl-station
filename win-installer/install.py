@@ -593,13 +593,27 @@ def step_packages():
 
 
 def step_download_files():
-    """7단계: 워커 파일 다운로드"""
-    files = [
+    """7단계: 워커 파일 다운로드 (서버에서 파일 목록 동적 조회)"""
+    # 서버에서 최신 릴리즈 파일 목록 가져오기
+    FALLBACK_FILES = [
         "worker.py", "handlers/__init__.py", "handlers/base.py",
         "handlers/kin.py", "handlers/blog.py", "handlers/serp.py",
         "handlers/area.py", "handlers/deep.py", "handlers/rank.py",
-        "supabase_rest.py",
+        "handlers/instagram.py", "supabase_rest.py",
     ]
+    try:
+        with urllib.request.urlopen(
+            "{}/api/download?list=1".format(STATION_URL), timeout=15
+        ) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            files = data.get("files", [])
+        if not files:
+            raise ValueError("빈 파일 목록")
+        log("    -> 파일 목록 {}개 (서버)".format(len(files)))
+    except Exception as e:
+        log("    -> 파일 목록 조회 실패, 기본 목록 사용: " + str(e)[:80])
+        files = FALLBACK_FILES
+
     failed = []
     for f in files:
         t = os.path.join(INSTALL_DIR, f)

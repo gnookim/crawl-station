@@ -7,11 +7,35 @@ import { createServerClient } from "@/lib/supabase";
  * GET /api/download             — Python 인스톨러 (Windows/Linux)
  * GET /api/download?type=mac    — Mac .pkg 인스톨러 (GitHub Release 리다이렉트)
  * GET /api/download?file=xxx    — 최신 릴리즈에서 개별 파일 서빙
+ * GET /api/download?list=1      — 최신 릴리즈 파일 목록 반환 (설치 시 동적 다운로드용)
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const fileParam = searchParams.get("file");
   const typeParam = searchParams.get("type");
+  const listParam = searchParams.get("list");
+
+  // ── 파일 목록 반환 ──
+  if (listParam === "1") {
+    const sb = createServerClient();
+    let { data } = await sb
+      .from("worker_releases")
+      .select("files")
+      .eq("is_latest", true)
+      .limit(1)
+      .single();
+    if (!data?.files) {
+      const { data: fallback } = await sb
+        .from("worker_releases")
+        .select("files")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      data = fallback;
+    }
+    const files = data?.files ? Object.keys(data.files) : [];
+    return NextResponse.json({ files });
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseKey =

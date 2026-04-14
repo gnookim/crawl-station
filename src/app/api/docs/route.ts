@@ -327,6 +327,11 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-14
 
+### Windows 인스톨러 — 워커 파일 동적 다운로드로 전환
+- 하드코딩 파일 목록 제거 → \`GET /api/download?list=1\`로 서버에서 동적 조회
+- handlers/instagram.py 등 신규 파일 추가 시 자동 포함, fallback 목록은 유지
+- \`GET /api/download?list=1\` 엔드포인트 추가 (최신 릴리즈 파일 키 목록 반환)
+
 ### Windows 인스톨러 — 한글 주석 SyntaxError (인코딩 손상) 수정
 - urlretrieve → urlopen + 명시적 UTF-8 저장으로 교체
 - .py 파일 다운로드 시 `# -*- coding: utf-8 -*-` 선언 자동 추가
