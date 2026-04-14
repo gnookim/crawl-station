@@ -384,33 +384,18 @@ def step_create_dirs():
     log("    -> " + INSTALL_DIR)
 
 
-def step_copy_python():
-    """3단계: Python embedded 복사"""
+def step_verify_python():
+    """3단계: Python embedded 확인 (Inno Setup RunWorkerInstall이 python.zip 압축 해제 완료)"""
     global PY_PATH
+    PY_PATH = os.path.join(INSTALL_DIR, "python", "python.exe")
 
-    if getattr(sys, "frozen", False):
-        base = sys._MEIPASS
-    else:
-        base = os.path.dirname(os.path.abspath(__file__))
-
-    src = os.path.join(base, "python")
-    dst = os.path.join(INSTALL_DIR, "python")
-
-    if not os.path.exists(src):
-        raise StepError("Python 소스를 찾을 수 없습니다: " + src)
-
-    if not os.path.exists(os.path.join(dst, "python.exe")):
-        log("    -> Python 복사 중...")
-        shutil.copytree(src, dst, dirs_exist_ok=True)
-        log("    -> 완료")
-    else:
-        log("    -> 이미 설치됨")
-
-    PY_PATH = os.path.join(dst, "python.exe")
-
-    # 검증
     if not os.path.exists(PY_PATH):
-        raise StepError("python.exe가 존재하지 않습니다: " + PY_PATH)
+        raise StepError("python.exe 없음 — Inno Setup 압축 해제 실패: " + PY_PATH)
+
+    r = subprocess.run([PY_PATH, "--version"], capture_output=True, text=True, timeout=10)
+    if r.returncode != 0:
+        raise StepError("Python 실행 실패", stdout=r.stdout, stderr=r.stderr)
+    log("    -> " + r.stdout.strip())
 
 
 def step_env_check():
@@ -932,7 +917,7 @@ def main():
     steps = [
         (1, "기존 설치 확인", step_check_existing),
         (2, "설치 디렉토리 생성", step_create_dirs),
-        (3, "Python 3.12 설치", step_copy_python),
+        (3, "Python 3.12 확인", step_verify_python),
         (4, "환경 확인", step_env_check),
         (5, "pip 설치", step_pip_install),
         (6, "크롤링 패키지 설치", step_packages),

@@ -77,6 +77,16 @@ jobs:
           Copy-Item "$fullPy\pythonw.exe" "$embed\pythonw.exe"
           Write-Host "tkinter + pythonw.exe copied to embedded Python"
 
+      - name: Package Python as zip
+        shell: pwsh
+        run: |
+          # python 디렉토리 전체를 zip으로 묶음
+          # Inno Setup이 zip 1개만 복사 → DLL 잠금 없음
+          # RunWorkerInstall에서 PowerShell로 압축 해제
+          Compress-Archive -Path payload\python\* -DestinationPath payload\python.zip -Force
+          $sizeMB = (Get-Item payload\python.zip).Length / 1MB
+          Write-Host ("python.zip created: {0:N1} MB" -f $sizeMB)
+
       - name: Generate app icon
         shell: pwsh
         run: |
@@ -150,7 +160,7 @@ jobs:
           CreateUninstallRegKey=yes
 
           [Files]
-          Source: "payload\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
+          Source: "payload\python.zip"; DestDir: "{app}"; Flags: ignoreversion
           Source: "payload\install.py"; DestDir: "{app}"; Flags: ignoreversion
           Source: "payload\worker_gui.pyw"; DestDir: "{app}"; Flags: ignoreversion
           Source: "payload\app.ico"; DestDir: "{app}"; Flags: ignoreversion
@@ -190,7 +200,7 @@ jobs:
             case i of
               0: Result := '기존 설치 확인';
               1: Result := '설치 디렉토리 생성';
-              2: Result := 'Python 3.12 설치';
+              2: Result := 'Python 3.12 확인';
               3: Result := '환경 확인';
               4: Result := 'pip 설치';
               5: Result := '크롤링 패키지 설치';
@@ -292,13 +302,14 @@ jobs:
 
           procedure RunWorkerInstall;
           var
-            ProgressFile, DoneFile, PyPath, ScriptPath, BatPath: string;
+            ProgressFile, DoneFile, PyPath, ZipPath, ScriptPath, BatPath: string;
             Lines: TArrayOfString;
             StepNum, ResultCode, Elapsed: Integer;
             StepName, StepStatus: string;
             ExecOK: Boolean;
           begin
             PyPath := ExpandConstant('{app}\python\python.exe');
+            ZipPath := ExpandConstant('{app}\python.zip');
             ScriptPath := ExpandConstant('{app}\install.py');
             ProgressFile := 'C:\CrawlWorker\install.progress';
             DoneFile := ExpandConstant('{app}\install.done');
@@ -313,14 +324,37 @@ jobs:
             WizardForm.BackButton.Enabled := False;
             WizardForm.CancelButton.Enabled := False;
 
-            StatusLabel.Caption := '설치 진행 중...';
+            // 1) 기존 Python 프로세스 강제 종료 (DLL 잠금 해제)
+            StatusLabel.Caption := '기존 프로세스 종료 중...';
+            WizardForm.Update;
+            Exec('taskkill.exe', '/f /im pythonw.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Exec('taskkill.exe', '/f /im python.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Sleep(2000);
+
+            // 2) 기존 python 디렉토리 삭제 (잠금 해제 후 안전하게)
+            StatusLabel.Caption := '기존 Python 제거 중...';
+            WizardForm.Update;
+            Exec('cmd.exe', '/c rmdir /s /q "' + ExpandConstant('{app}\python') + '"',
+                 '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Sleep(500);
+
+            // 3) PowerShell로 python.zip 압축 해제 (Python 없이도 동작)
+            StatusLabel.Caption := 'Python 압축 해제 중...';
+            WizardForm.Update;
+            Exec('powershell.exe',
+                 '-NoProfile -NonInteractive -Command "Expand-Archive -Path ''' +
+                 ZipPath + ''' -DestinationPath ''' + ExpandConstant('{app}\python') + ''' -Force"',
+                 '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
             if not FileExists(PyPath) then
             begin
-              StatusLabel.Caption := 'Python을 찾을 수 없습니다';
+              StatusLabel.Caption := 'Python 압축 해제 실패 (코드: ' + IntToStr(ResultCode) + ')';
               WizardForm.NextButton.Enabled := True;
               Exit;
             end;
+
+            StatusLabel.Caption := '설치 진행 중...';
+            WizardForm.Update;
 
             if not FileExists(ScriptPath) then
             begin

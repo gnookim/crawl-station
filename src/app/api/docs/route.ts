@@ -327,6 +327,16 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-14
 
+### Windows 인스톨러 — ZIP 기반 아키텍처로 DLL 잠금 문제 근본 해결
+- Inno Setup [Files]에서 python 디렉토리 개별 파일 복사 제거 → \`python.zip\` 1개만 복사
+- RunWorkerInstall [Code]에서 순서대로 실행:
+  1. 기존 pythonw.exe / python.exe 강제 종료 (2초 대기)
+  2. 기존 \`{app}\python\` 디렉토리 rmdir 삭제
+  3. PowerShell \`Expand-Archive\`로 python.zip 압축 해제 (Python 불필요)
+  4. install.py 실행 → AI 자가 진단 인계
+- install.py: \`step_copy_python\` → \`step_verify_python\` 교체 (zip 해제 검증만 수행)
+- GitHub Actions: "Package Python as zip" 단계 추가 (Copy tkinter 이후)
+
 ### Station — 워커 관리 페이지 UI 리디자인 (Direction C)
 - 상태 범례(legend) 제거 — 배지로 충분히 표현됨
 - ⚙ 설정 인라인 확장 행 제거 → 우측 슬라이드 패널(side panel)로 대체
