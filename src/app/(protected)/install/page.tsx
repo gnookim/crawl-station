@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 interface ReleaseInfo {
   version: string;
   published: string;
+  winFilename: string | null;
+  macFilename: string | null;
 }
 
 export default function InstallPage() {
@@ -19,17 +21,41 @@ function WorkerInstall() {
   const [release, setRelease] = useState<ReleaseInfo | null>(null);
 
   useEffect(() => {
-    // Supabase worker_releases에서 최신 버전 조회 (실제 워커 코드 버전)
+    // Supabase worker_releases에서 최신 버전 조회
     fetch("/api/releases")
       .then((r) => r.json())
-      .then((data) => {
+      .then(async (data) => {
         const latest = (data.releases || []).find((r: { is_latest: boolean }) => r.is_latest);
-        if (latest) {
-          setRelease({
-            version: latest.version,
-            published: latest.created_at || "",
-          });
-        }
+        if (!latest) return;
+
+        // GitHub Release에서 실제 파일명 조회
+        let winFilename: string | null = null;
+        let macFilename: string | null = null;
+        try {
+          const ghRes = await fetch(
+            "https://api.github.com/repos/gnookim/crawl-station/releases/latest",
+            { cache: "no-store" }
+          );
+          if (ghRes.ok) {
+            const ghData = await ghRes.json();
+            const exeAssets: { name: string }[] =
+              ghData.assets?.filter((a: { name: string }) => a.name.endsWith(".exe")) ?? [];
+            const getRevision = (name: string) => {
+              const m = name.match(/r(\d+)\.exe$/);
+              return m ? parseInt(m[1]) : 1;
+            };
+            const latest_exe = exeAssets.sort((a, b) => getRevision(b.name) - getRevision(a.name))[0];
+            winFilename = latest_exe?.name ?? null;
+            macFilename = ghData.assets?.find((a: { name: string }) => a.name.endsWith(".pkg"))?.name ?? null;
+          }
+        } catch {}
+
+        setRelease({
+          version: latest.version,
+          published: latest.created_at || "",
+          winFilename,
+          macFilename,
+        });
       })
       .catch(() => {});
   }, []);
@@ -60,19 +86,29 @@ function WorkerInstall() {
           </p>
         )}
         {!release?.published && <div className="mb-4" />}
-        <div className="flex gap-3">
-          <a
-            href="/api/download?type=mac"
-            className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm"
-          >
-            Mac 다운로드 (.pkg)
-          </a>
-          <a
-            href="/api/download?type=win"
-            className="inline-flex items-center gap-2 bg-blue-500 text-white font-bold px-6 py-2.5 rounded-md hover:bg-blue-400 transition-colors text-sm"
-          >
-            Windows 다운로드 (.exe)
-          </a>
+        <div className="flex gap-3 flex-wrap">
+          <div className="flex flex-col gap-0.5">
+            <a
+              href="/api/download?type=mac"
+              className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold px-6 py-2.5 rounded-md hover:bg-blue-50 transition-colors text-sm"
+            >
+              Mac 다운로드 (.pkg)
+            </a>
+            {release?.macFilename && (
+              <span className="text-xs text-blue-200 text-center font-mono">{release.macFilename}</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <a
+              href="/api/download?type=win"
+              className="inline-flex items-center gap-2 bg-blue-500 text-white font-bold px-6 py-2.5 rounded-md hover:bg-blue-400 transition-colors text-sm"
+            >
+              Windows 다운로드 (.exe)
+            </a>
+            {release?.winFilename && (
+              <span className="text-xs text-blue-200 text-center font-mono">{release.winFilename}</span>
+            )}
+          </div>
         </div>
       </div>
 

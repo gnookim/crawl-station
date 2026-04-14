@@ -7,10 +7,6 @@ on:
         description: "Installer version (e.g. 0.9.25)"
         required: true
         default: "0.9.25"
-      rev:
-        description: "Installer revision — 동일 버전 재빌드 시 올림 (e.g. 1, 2)"
-        required: false
-        default: "1"
 
 permissions:
   contents: write
@@ -121,11 +117,21 @@ jobs:
         shell: pwsh
         env:
           VERSION: ${{ github.event.inputs.version }}
-          REV: ${{ github.event.inputs.rev }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $version = $env:VERSION
-          $rev = if ($env:REV -and $env:REV -ne "1") { "r$($env:REV)" } else { "" }
+          # 기존 릴리즈 자산에서 최신 revision 자동 감지
+          $existingExes = gh release view "v${version}" --json assets --jq '[.assets[].name | select(endswith(".exe"))] | sort | reverse | .[0]' 2>$null
+          if ($LASTEXITCODE -ne 0 -or $existingExes -eq $null -or $existingExes -eq "null" -or $existingExes -eq "") {
+            $nextRev = 1
+          } elseif ($existingExes -match "r(\d+)\.exe$") {
+            $nextRev = [int]$matches[1] + 1
+          } else {
+            $nextRev = 2
+          }
+          $rev = if ($nextRev -gt 1) { "r${nextRev}" } else { "" }
           $fullname = if ($rev) { "${version}${rev}" } else { $version }
+          Write-Host "Auto revision: existing=$existingExes nextRev=$nextRev fullname=$fullname"
           $iss = @'
           [Setup]
           AppName=CrawlStation Worker
@@ -415,15 +421,15 @@ jobs:
         shell: pwsh
         env:
           VERSION: ${{ github.event.inputs.version }}
-          REV: ${{ github.event.inputs.rev }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Inno Setup is pre-installed on windows-latest
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
-          $rev = if ($env:REV -and $env:REV -ne "1") { "r$($env:REV)" } else { "" }
-          $fullname = if ($rev) { "$($env:VERSION)${rev}" } else { $env:VERSION }
-          $exe = "dist\CrawlWorker-Setup-${fullname}.exe"
-          $size = (Get-Item $exe).Length / 1MB
-          Write-Host ("Built: CrawlWorker-Setup-${fullname}.exe ({0:N1} MB)" -f $size)
+          # fullname은 setup.iss의 OutputBaseFilename과 일치 (Inno Setup이 생성한 파일 찾기)
+          $version = $env:VERSION
+          $built = Get-ChildItem "dist\CrawlWorker-Setup-*.exe" | Sort-Object Name | Select-Object -Last 1
+          $size = $built.Length / 1MB
+          Write-Host ("Built: $($built.Name) ({0:N1} MB)" -f $size)
 
       - name: Upload to GitHub Release
         env:
@@ -431,9 +437,8 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ github.event.inputs.version }}"
-          REV="${{ github.event.inputs.rev }}"
-          FULLNAME="${VERSION}$([ "$REV" != "1" ] && [ -n "$REV" ] && echo "r${REV}" || echo "")"
-          EXE="dist/CrawlWorker-Setup-${FULLNAME}.exe"
+          EXE=$(ls dist/CrawlWorker-Setup-*.exe | sort | tail -1)
+          echo "Uploading: $EXE"
           gh release upload "v${VERSION}" "${EXE}" --clobber 2>/dev/null || \
           gh release create "v${VERSION}" \
             --title "CrawlWorker v${VERSION}" \

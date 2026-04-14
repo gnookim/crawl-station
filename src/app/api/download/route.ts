@@ -105,9 +105,14 @@ export async function GET(request: NextRequest) {
 
       if (ghRes.ok) {
         const release = await ghRes.json();
-        const exeAsset = release.assets?.find(
-          (a: { name: string }) => a.name.endsWith(".exe")
-        );
+        const exeAssets: { name: string; browser_download_url: string; updated_at: string }[] =
+          release.assets?.filter((a: { name: string }) => a.name.endsWith(".exe")) ?? [];
+        // 동일 버전 재빌드 시 r2, r3 등이 있으므로 revision이 가장 높은 것 선택
+        const getRevision = (name: string) => {
+          const m = name.match(/r(\d+)\.exe$/);
+          return m ? parseInt(m[1]) : 1;
+        };
+        const exeAsset = exeAssets.sort((a, b) => getRevision(b.name) - getRevision(a.name))[0];
         if (exeAsset) {
           return NextResponse.redirect(exeAsset.browser_download_url);
         }
