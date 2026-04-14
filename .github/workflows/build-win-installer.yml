@@ -174,6 +174,17 @@ jobs:
             StatusLabel: TNewStaticText;
             InstallDone: Boolean;
 
+          function InitializeSetup(): Boolean;
+          var
+            ResultCode: Integer;
+          begin
+            // 파일 복사 전 기존 워커 프로세스 강제 종료 (DLL 잠금 해제)
+            Exec('taskkill.exe', '/f /im pythonw.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Exec('taskkill.exe', '/f /im python.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Sleep(1500);
+            Result := True;
+          end;
+
           function GetStepName(i: Integer): string;
           begin
             case i of
