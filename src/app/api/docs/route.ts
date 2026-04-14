@@ -327,6 +327,11 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-14
 
+### Station — 워커 담당자 필드 추가
+- workers 테이블 \`manager\` 컬럼 추가 (DB 마이그레이션)
+- 워커 이름 셀: 이름 → 장소 → 담당자 순서로 클릭 인라인 편집
+- ⚙ 설정 패널: 담당자 입력 필드 추가 (메모 앞에 배치)
+
 ### Station — 워커 릴리즈 자동 배포 파이프라인 구축
 - naver-crawler push 시 worker.py/handlers 변경 감지 → 자동 릴리즈
 - \`POST /api/releases\` API 키 인증 추가 (\`x-api-key\` 헤더, \`RELEASE_API_KEY\` env)

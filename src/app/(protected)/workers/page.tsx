@@ -101,14 +101,16 @@ export default function WorkersPage() {
   const [savingWorkers, setSavingWorkers] = useState<Record<string, boolean>>({});
   const [savedWorkers, setSavedWorkers] = useState<Record<string, boolean>>({});
 
-  /* ── 이름/장소/메모 인라인 편집 ── */
+  /* ── 이름/장소/담당자/메모 인라인 편집 ── */
   const [editingName, setEditingName] = useState<{ id: string; value: string } | null>(null);
   const [editingLocation, setEditingLocation] = useState<{ id: string; value: string } | null>(null);
+  const [editingManager, setEditingManager] = useState<{ id: string; value: string } | null>(null);
 
-  async function saveWorkerField(id: string, field: "name" | "location" | "note", value: string) {
+  async function saveWorkerField(id: string, field: "name" | "location" | "note" | "manager", value: string) {
     await supabase.from("workers").update({ [field]: value.trim() || null }).eq("id", id);
     setEditingName(null);
     setEditingLocation(null);
+    setEditingManager(null);
     loadData();
   }
 
@@ -634,6 +636,32 @@ export default function WorkersPage() {
                             {w.location ? `📍 ${w.location}` : <span className="text-gray-300">+ 장소 추가</span>}
                           </div>
                         )}
+                        {/* 담당자 */}
+                        {editingManager?.id === w.id ? (
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <input
+                              autoFocus
+                              value={editingManager.value}
+                              onChange={(e) => setEditingManager({ id: w.id, value: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveWorkerField(w.id, "manager", editingManager.value);
+                                if (e.key === "Escape") setEditingManager(null);
+                              }}
+                              placeholder="담당자 이름"
+                              className="px-2 py-0.5 text-xs border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-400 w-28"
+                            />
+                            <button onClick={() => saveWorkerField(w.id, "manager", editingManager.value)} className="text-xs text-green-600 hover:text-green-800">저장</button>
+                            <button onClick={() => setEditingManager(null)} className="text-xs text-gray-400">취소</button>
+                          </div>
+                        ) : (
+                          <div
+                            className="text-xs text-gray-400 cursor-pointer hover:text-green-500 truncate"
+                            title="클릭하여 담당자 편집"
+                            onClick={() => setEditingManager({ id: w.id, value: w.manager || "" })}
+                          >
+                            {w.manager ? `👤 ${w.manager}` : <span className="text-gray-300">+ 담당자</span>}
+                          </div>
+                        )}
                         <div className="text-xs text-gray-300 font-mono">{w.id}</div>
                       </td>
                       <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden"><span className="truncate block">{w.os || "-"}</span></td>
@@ -874,6 +902,22 @@ export default function WorkersPage() {
                               )}
                             </div>
 
+                            {/* 담당자 */}
+                            <div className="min-w-[140px]">
+                              <label className="block text-xs text-gray-500 mb-1 font-medium">담당자</label>
+                              <input
+                                type="text"
+                                defaultValue={w.manager || ""}
+                                onBlur={(e) => {
+                                  if (e.target.value !== (w.manager || "")) {
+                                    supabase.from("workers").update({ manager: e.target.value.trim() || null }).eq("id", w.id).then(() => loadData());
+                                  }
+                                }}
+                                placeholder="담당자 이름"
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                              />
+                            </div>
+
                             {/* 메모 */}
                             <div className="min-w-[180px]">
                               <label className="block text-xs text-gray-500 mb-1 font-medium">메모</label>
@@ -885,7 +929,7 @@ export default function WorkersPage() {
                                     supabase.from("workers").update({ note: e.target.value.trim() || null }).eq("id", w.id).then(() => loadData());
                                   }
                                 }}
-                                placeholder="용도, 담당자 등 자유 메모"
+                                placeholder="용도 등 자유 메모"
                                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                               />
                             </div>

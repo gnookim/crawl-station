@@ -26,6 +26,7 @@ export interface Worker {
   block_count_today: number;
   location: string | null;
   note: string | null;
+  manager: string | null;
   created_at: string;
   is_active?: boolean;
 }
