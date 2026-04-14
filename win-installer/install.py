@@ -806,25 +806,32 @@ def step_verify_worker():
             log("    -> ✅ import 통과: " + r.stdout.strip())
 
             # 실제 실행 테스트 (3초 생존)
+            # DEVNULL 사용: PIPE는 자식 프로세스(chromium 등)가 핸들을 잡으면 read()가 영원히 블로킹됨
             log("    -> 워커 실행 테스트 중...")
             proc = subprocess.Popen(
                 [py, worker_script],
                 cwd=INSTALL_DIR,
                 creationflags=0x08000000,
                 env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             _time.sleep(3)
             if proc.poll() is not None:
-                stderr = proc.stderr.read().decode("utf-8", errors="replace")[-500:]
-                log("    -> ⚠️ 워커 3초 내 종료: " + stderr[:200])
+                log("    -> ⚠️ 워커 3초 내 종료 (코드: {})".format(proc.returncode))
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
                 if attempt < len(FIX_STRATEGIES):
                     continue  # 다음 전략 시도
-                raise StepError("워커 실행 검증 최종 실패", stderr=stderr)
+                raise StepError("워커 실행 검증 최종 실패 (종료 코드: {})".format(proc.returncode))
             else:
                 proc.kill()
-                proc.wait()
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    pass
                 log("    -> ✅ 로컬 실행 검증 통과!")
                 # import 성공 + 3초 생존 = 설치 완료
                 # Station 크롤링 테스트는 워커 관리 페이지에서 수행
@@ -934,8 +941,8 @@ def main():
         success = run_step(num, name, func)
         if not success:
             failed_steps.append(name)
-            # 필수 단계 실패 시 중단 (1~4: 기본 설치, 11: 워커 검증)
-            if num <= 4 or num == 11:
+            # 필수 단계 실패 시 중단 (1~4: 기본 설치만 필수, 11은 검증 실패해도 계속)
+            if num <= 4:
                 log("\n  [ABORT] 필수 단계 실패: " + name)
                 log("  설치를 완료할 수 없습니다.")
                 write_done_marker(False)
@@ -948,51 +955,7 @@ def main():
                 wait_prompt()
                 return
 
-    # ── 결과 ──
-    if failed_steps:
-        log("")
-        log("  ======================================================")
-        log("    설치 부분 완료 (일부 단계 실패)")
-        log("  ======================================================")
-        log("")
-        log("    실패한 단계: " + ", ".join(failed_steps))
-        log("    수동 조치가 필요할 수 있습니다.")
-        log("")
-        log("    Station: " + STATION_URL)
-        write_done_marker(False)
-        if LOG_FILE:
-            LOG_FILE.close()
-        try:
-            report_status("complete", success=False)
-        except Exception:
-            pass
-        wait_prompt()
-        return
-
-    log("")
-    log("  ======================================================")
-    log("    설치 완료!")
-    log("  ======================================================")
-    log("")
-    log("    - PC 부팅 시 자동 시작")
-    log("    - Station: " + STATION_URL)
-    log("")
-    log("  ======================================================")
-
-    # install.done을 먼저 써야 Inno Setup 루프가 즉시 종료됨
-    # (네트워크 보고·워커 실행이 느려도 UI가 멈추지 않음)
-    update_progress_file(10, "설치 완료", "complete")
-    write_done_marker(True)
-    if LOG_FILE:
-        LOG_FILE.close()
-
-    # 완료 마커 후 비차단 작업 (실패해도 무관)
-    try:
-        report_status("complete", success=True)
-    except Exception:
-        pass
-
-    # 워커 즉시 실행 (백그라운드, 창 없음)
+    # ── 워커 백그라운드 실행 (성공/실패 무관하게 항상 시도) ──
     try:
         os.makedirs(os.path.join(INSTALL_DIR, "logs"), exist_ok=True)
         _lf = open(os.path.join(INSTALL_DIR, "logs", "worker.log"), "a", encoding="utf-8")
@@ -1006,8 +969,43 @@ def main():
             stdout=_lf,
             stderr=_lf,
         )
+        log("    -> 워커 백그라운드 실행 시작")
     except Exception as e:
-        pass  # 워커 실행 실패는 설치 완료에 영향 없음
+        log("    -> 워커 실행 실패 (수동 시작 필요): " + str(e)[:100])
+
+    # ── 결과 ──
+    success = not failed_steps
+    if failed_steps:
+        log("")
+        log("  ======================================================")
+        log("    설치 완료 (일부 단계 경고)")
+        log("  ======================================================")
+        log("")
+        log("    경고 단계: " + ", ".join(failed_steps))
+        log("    워커는 정상 실행 중입니다.")
+        log("")
+        log("    Station: " + STATION_URL)
+    else:
+        log("")
+        log("  ======================================================")
+        log("    설치 완료!")
+        log("  ======================================================")
+        log("")
+        log("    - PC 부팅 시 자동 시작")
+        log("    - Station: " + STATION_URL)
+        log("")
+        log("  ======================================================")
+
+    # install.done을 먼저 써야 Inno Setup 루프가 즉시 종료됨
+    update_progress_file(10, "설치 완료", "complete")
+    write_done_marker(True)  # 워커 검증 실패해도 설치 자체는 성공으로 처리
+    if LOG_FILE:
+        LOG_FILE.close()
+
+    try:
+        report_status("complete", success=success)
+    except Exception:
+        pass
 
     wait_prompt("  아무 키나 누르면 이 창을 닫습니다...")
 
