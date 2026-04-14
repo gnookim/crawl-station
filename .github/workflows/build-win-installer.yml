@@ -331,9 +331,9 @@ jobs:
               Elapsed := Elapsed + 1;
               WizardForm.Update;
 
-              if Elapsed > 1800 then
+              if Elapsed > 3600 then
               begin
-                StatusLabel.Caption := '설치 시간 초과 (15분)';
+                StatusLabel.Caption := '설치 시간 초과 (30분)';
                 Break;
               end;
 

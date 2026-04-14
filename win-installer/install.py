@@ -515,6 +515,7 @@ def step_packages():
 
     # playwright (greenlet 덮어쓰기 방지)
     log("    -> playwright 설치 중... (1~2분)")
+    update_progress_file(6, "playwright 설치 중...", "running")
     r = subprocess.run([py, "-m", "pip", "install", "--quiet", "playwright"],
                        capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
@@ -538,6 +539,7 @@ def step_packages():
 
     # supabase
     log("    -> supabase 설치 중...")
+    update_progress_file(6, "supabase 설치 중...", "running")
     r = subprocess.run([py, "-m", "pip", "install", "--quiet", "supabase"],
                        capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
@@ -555,8 +557,9 @@ def step_packages():
 
     # Chromium
     log("    -> Chromium 브라우저 다운로드 중... (2~5분)")
+    update_progress_file(6, "Chromium 다운로드 중... (2~5분)", "running")
     r = subprocess.run([py, "-m", "playwright", "install", "chromium"],
-                       capture_output=True, text=True, timeout=600)
+                       capture_output=True, text=True, timeout=900)
     if r.returncode != 0:
         raise StepError("Chromium 설치 실패", stdout=r.stdout, stderr=r.stderr)
     log("    -> Chromium OK")
