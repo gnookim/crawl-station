@@ -605,8 +605,20 @@ def step_download_files():
         t = os.path.join(INSTALL_DIR, f)
         os.makedirs(os.path.dirname(t), exist_ok=True)
         try:
-            urllib.request.urlretrieve(
-                "{}/api/download?file={}".format(STATION_URL, f), t)
+            url = "{}/api/download?file={}".format(STATION_URL, f)
+            with urllib.request.urlopen(url, timeout=60) as resp:
+                raw = resp.read()
+            # Python 소스 파일은 UTF-8로 명시 저장 (Windows 기본 인코딩 오염 방지)
+            if f.endswith(".py"):
+                text = raw.decode("utf-8", errors="replace")
+                # 인코딩 선언이 없으면 첫 줄에 추가
+                if not text.lstrip().startswith("# -*- coding"):
+                    text = "# -*- coding: utf-8 -*-\n" + text
+                with open(t, "w", encoding="utf-8", newline="\n") as out:
+                    out.write(text)
+            else:
+                with open(t, "wb") as out:
+                    out.write(raw)
             log("    -> " + f)
         except Exception as e:
             failed.append("{}: {}".format(f, str(e)))
