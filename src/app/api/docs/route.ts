@@ -341,6 +341,12 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - Windows는 시스템 타임존 DB 없음 → \`ZoneInfo('Asia/Seoul')\` 사용 시 \`tzdata\` 필수
 - step_packages에 tzdata 설치 추가, import 검증 목록에도 포함
 
+### Windows 인스톨러 — step 11 완전 단순화로 설치 행걸림 근본 해결
+- step_verify_worker를 단순 import 1회 확인으로 교체 (FIX_STRATEGIES 루프 제거)
+- import 실패해도 StepError 미발생 — 비필수 단계, 워커는 백그라운드 실행
+- run_step max_retries=0 (step 11만) — AI 재시도 없음
+- 결과: step 11은 최대 30초 이내에 항상 완료
+
 ### Windows 인스톨러 — 워커 실행 검증 행걸림·실패 판정 수정
 - PIPE → DEVNULL: 자식 프로세스(chromium)가 파이프 핸들을 잡아 read()가 영원히 블로킹되던 문제 해결
 - step 11(워커 검증) 실패를 필수 실패에서 제거 — 패키지 설치 완료면 워커 실행 가능

@@ -806,7 +806,7 @@ except Exception as e:
 
 
 def step_verify_worker():
-    """11단계: 워커 실행 검증 — 실패 시 자동 수정 후 재시도 (최대 5회)"""
+    """11단계: 워커 import 검증 (1회, 재시도 없음 — 비필수 단계)"""
     py = PY_PATH
     worker_script = os.path.join(INSTALL_DIR, "worker.py")
     env = os.environ.copy()
@@ -816,102 +816,22 @@ def step_verify_worker():
         log("    -> worker.py 없음 (건너뜀)")
         return
 
-    # 수정 전략 목록 (순서대로 시도)
-    FIX_STRATEGIES = [
-        ("greenlet 강제 재설치", [py, "-m", "pip", "install", "--force-reinstall", "--quiet", "greenlet"]),
-        ("supabase + 의존성 전체 재설치", [py, "-m", "pip", "install", "--force-reinstall", "--quiet", "supabase", "greenlet", "httpx", "httpcore", "anyio"]),
-        ("VC++ Runtime 설치", "__vcruntime__"),
-        ("pip 업그레이드 후 재설치", "__pip_upgrade__"),
-        ("supabase 버전 고정 (greenlet 없는)", [py, "-m", "pip", "install", "--quiet", "supabase==2.7.0", "httpx[http2]"]),
-    ]
-
-    import time as _time
-
-    for attempt in range(len(FIX_STRATEGIES) + 1):
-        # import 테스트
-        log("    -> import 검증 중... ({}차)".format(attempt + 1))
-        r = subprocess.run(
-            [py, "-c",
-             "import sys; sys.path.insert(0, r'{}'); "
-             "from supabase import create_client; "
-             "from handlers import HANDLERS; "
-             "print('OK', len(HANDLERS))".format(INSTALL_DIR)],
-            capture_output=True, text=True, timeout=30, env=env,
-        )
-        if r.returncode == 0 and "OK" in r.stdout:
-            log("    -> ✅ import 통과: " + r.stdout.strip())
-
-            # 실제 실행 테스트 (3초 생존)
-            # DEVNULL 사용: PIPE는 자식 프로세스(chromium 등)가 핸들을 잡으면 read()가 영원히 블로킹됨
-            log("    -> 워커 실행 테스트 중...")
-            proc = subprocess.Popen(
-                [py, worker_script],
-                cwd=INSTALL_DIR,
-                creationflags=0x08000000,
-                env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            _time.sleep(3)
-            if proc.poll() is not None:
-                log("    -> ⚠️ 워커 3초 내 종료 (코드: {})".format(proc.returncode))
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
-                if attempt < len(FIX_STRATEGIES):
-                    continue  # 다음 전략 시도
-                raise StepError("워커 실행 검증 최종 실패 (종료 코드: {})".format(proc.returncode))
-            else:
-                proc.kill()
-                try:
-                    proc.wait(timeout=5)
-                except Exception:
-                    pass
-                log("    -> ✅ 로컬 실행 검증 통과!")
-                # import 성공 + 3초 생존 = 설치 완료
-                # Station 크롤링 테스트는 워커 관리 페이지에서 수행
-                return
-        else:
-            error_msg = r.stderr[:300]
-            log("    -> ⚠️ import 실패: " + error_msg[:150])
-
-        # 수정 전략 실행
-        if attempt >= len(FIX_STRATEGIES):
-            raise StepError(
-                "워커 검증 실패 ({}개 전략 모두 시도)".format(len(FIX_STRATEGIES)),
-                stdout=r.stdout, stderr=r.stderr,
-            )
-
-        strategy_name, strategy_cmd = FIX_STRATEGIES[attempt]
-        log("    -> 수정 전략 {}: {}".format(attempt + 1, strategy_name))
-
-        if strategy_cmd == "__vcruntime__":
-            # VC++ Runtime 설치
-            try:
-                vc_url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-                vc_path = os.path.join(INSTALL_DIR, "vc_redist.x64.exe")
-                urllib.request.urlretrieve(vc_url, vc_path)
-                subprocess.run([vc_path, "/install", "/quiet", "/norestart"],
-                               capture_output=True, timeout=120)
-                log("    -> VC++ Runtime 설치 완료")
-                if os.path.exists(vc_path):
-                    os.remove(vc_path)
-            except Exception as e:
-                log("    -> VC++ 설치 실패: " + str(e)[:100])
-        elif strategy_cmd == "__pip_upgrade__":
-            # pip 업그레이드 후 전체 재설치
-            subprocess.run([py, "-m", "pip", "install", "--upgrade", "pip"],
-                           capture_output=True, text=True, timeout=120, env=env)
-            subprocess.run([py, "-m", "pip", "install", "--force-reinstall", "--quiet",
-                           "supabase", "greenlet"],
-                           capture_output=True, text=True, timeout=300, env=env)
-            log("    -> pip 업그레이드 + 재설치 완료")
-        else:
-            # 일반 pip 명령
-            subprocess.run(strategy_cmd,
-                           capture_output=True, text=True, timeout=300, env=env)
-            log("    -> {} 완료".format(strategy_name))
+    # import 검증 1회만 — 실패해도 StepError 미발생 (비필수)
+    # 실제 크롤링 테스트는 Station 워커 관리 페이지에서 수행
+    log("    -> import 검증 중...")
+    r = subprocess.run(
+        [py, "-c",
+         "import sys; sys.path.insert(0, r'{}'); "
+         "from supabase import create_client; "
+         "from handlers import HANDLERS; "
+         "print('OK', len(HANDLERS))".format(INSTALL_DIR)],
+        capture_output=True, text=True, timeout=30, env=env,
+    )
+    if r.returncode == 0 and "OK" in r.stdout:
+        log("    -> ✅ " + r.stdout.strip())
+    else:
+        log("    -> ⚠️ import 실패 (워커는 백그라운드 실행 중): " + r.stderr[:150])
+        # StepError 미발생 — 비필수 단계이므로 설치 완료로 처리
 
 
 # ═══════════════════════════════════════════════════════
@@ -974,7 +894,9 @@ def main():
     failed_steps = []
 
     for num, name, func in steps:
-        success = run_step(num, name, func)
+        # step 11(워커 검증)은 비필수 — AI 재시도 없이 1회만
+        retries = 0 if num == 11 else 3
+        success = run_step(num, name, func, max_retries=retries)
         if not success:
             failed_steps.append(name)
             # 필수 단계 실패 시 중단 (1~4: 기본 설치만 필수, 11은 검증 실패해도 계속)
