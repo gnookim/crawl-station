@@ -462,6 +462,7 @@ jobs:
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           Set-Content -Path "setup.iss" -Value $iss -Encoding UTF8
           Write-Host "Inno Setup script created (fullname: $fullname)"
+          exit 0  # gh release view 실패 코드가 전파되지 않도록
 
       - name: Build installer with Inno Setup
         shell: pwsh
