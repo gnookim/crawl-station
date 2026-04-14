@@ -327,6 +327,10 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-14
 
+### Windows 인스톨러 — 설치 중 Cancel 버튼 비활성화 수정
+- 설치 진행 중에도 Cancel 버튼 활성 상태 유지 (취소 가능)
+- 설치 완료 후에만 Cancel 비활성화 + Next(완료) 활성화
+
 ### Windows 인스톨러 — 설치 완료 후 Next 버튼 활성화 안 되는 버그 수정
 - 원인: \`write_done_marker\`가 \`report_status\`(네트워크 호출) 뒤에 있어 네트워크 지연 시 Inno Setup 루프가 무한 대기
 - 수정: \`write_done_marker\`를 모든 완료 경로에서 가장 먼저 호출, 이후 report_status·워커 실행은 비차단으로 처리
