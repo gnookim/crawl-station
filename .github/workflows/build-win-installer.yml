@@ -145,6 +145,7 @@ jobs:
           SolidCompression=yes
           PrivilegesRequired=lowest
           SetupIconFile=payload\app.ico
+          CloseApplications=no
           UninstallDisplayName=CrawlStation Worker
           CreateUninstallRegKey=yes
 
