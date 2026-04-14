@@ -28,9 +28,10 @@ function WorkerInstall() {
         const latest = (data.releases || []).find((r: { is_latest: boolean }) => r.is_latest);
         if (!latest) return;
 
-        // GitHub Release에서 실제 파일명 조회
+        // GitHub Release에서 버전·파일명 조회 (Supabase 버전과 불일치 방지)
         let winFilename: string | null = null;
         let macFilename: string | null = null;
+        let ghVersion: string = latest.version;
         try {
           const ghRes = await fetch(
             "https://api.github.com/repos/gnookim/crawl-station/releases/latest",
@@ -38,6 +39,8 @@ function WorkerInstall() {
           );
           if (ghRes.ok) {
             const ghData = await ghRes.json();
+            // tag_name이 실제 배포 버전 (e.g. "v0.9.26" → "0.9.26")
+            if (ghData.tag_name) ghVersion = ghData.tag_name.replace(/^v/, "");
             const exeAssets: { name: string }[] =
               ghData.assets?.filter((a: { name: string }) => a.name.endsWith(".exe")) ?? [];
             const getRevision = (name: string) => {
@@ -51,7 +54,7 @@ function WorkerInstall() {
         } catch {}
 
         setRelease({
-          version: latest.version,
+          version: ghVersion,
           published: latest.created_at || "",
           winFilename,
           macFilename,
