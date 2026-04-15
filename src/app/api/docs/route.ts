@@ -327,6 +327,19 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### Station — 워커 에러 로그 기록 + 자동 업데이트 간격 설정
+- 워커 설정 패널에 "에러 로그" 섹션 추가 — 워커별 최근 30개 에러 인라인 표시
+- 에러 로그 삭제 버튼 + 새로고침
+- 새 API: \`GET /api/workers/logs?worker_id=xxx\` — 워커 로그 조회
+- 새 API: \`DELETE /api/workers/logs?worker_id=xxx\` — 워커 로그 삭제
+- 워커 설정에 "자동 업데이트 간격" 항목 추가 (10분 / 30분 / 1시간 / 3시간 / 6시간)
+
+### 워커 — 에러 자동 기록 + 시간 기반 업데이트 (v0.9.39)
+- 크롤링 에러 발생 시 Supabase \`worker_logs\` 테이블에 자동 기록
+- 메인 루프 예외도 기록 (level=error)
+- 업데이트 이벤트 기록 (level=info)
+- 업데이트 체크 주기가 config의 \`update_check_interval_minutes\`를 따름 (기본 60분)
+
 ### Station — Instagram 계정 관리 개편 + 계정별 로그인 테스트
 - UI 전면 개편: 필터 탭(전체/활성/쿨다운/차단) + 검색 + 카드형 펼침 레이아웃
 - 계정별 "테스트" 버튼: 워커를 통해 실제 로그인 가능 여부 실시간 확인

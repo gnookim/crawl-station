@@ -25,6 +25,16 @@ interface WorkerNetConfig {
   daily_quota: number;
   daily_used: number;
   allowed_types: string[];
+  update_check_interval_minutes: number;
+}
+
+interface WorkerLog {
+  id: string;
+  worker_id: string;
+  level: string;
+  message: string;
+  context: Record<string, unknown>;
+  created_at: string;
 }
 
 const DEFAULT_NET_CONFIG: WorkerNetConfig = {
@@ -37,6 +47,7 @@ const DEFAULT_NET_CONFIG: WorkerNetConfig = {
   daily_quota: 500,
   daily_used: 0,
   allowed_types: [],
+  update_check_interval_minutes: 60,
 };
 
 const NETWORK_LABELS: Record<string, string> = {
@@ -94,6 +105,28 @@ export default function WorkersPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  /* ── 에러 로그 상태 ── */
+  const [workerLogs, setWorkerLogs] = useState<WorkerLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [migrationNeeded, setMigrationNeeded] = useState(false);
+
+  async function loadWorkerLogs(workerId: string) {
+    setLogsLoading(true);
+    try {
+      const res = await fetch(`/api/workers/logs?worker_id=${workerId}&limit=30`);
+      const data = await res.json();
+      setWorkerLogs(data.logs || []);
+      if (data.migration_needed) setMigrationNeeded(true);
+    } finally {
+      setLogsLoading(false);
+    }
+  }
+
+  async function clearWorkerLogs(workerId: string) {
+    await fetch(`/api/workers/logs?worker_id=${workerId}`, { method: "DELETE" });
+    setWorkerLogs([]);
+  }
+
   /* ── 체크박스 + 설정 패널 상태 ── */
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [panelWorkerId, setPanelWorkerId] = useState<string | null>(null);
@@ -144,6 +177,7 @@ export default function WorkersPage() {
             daily_quota: (c.daily_quota as number) ?? 500,
             daily_used: (c.daily_used as number) ?? 0,
             allowed_types: Array.isArray(c.allowed_types) ? c.allowed_types as string[] : [],
+            update_check_interval_minutes: (c.update_check_interval_minutes as number) ?? 60,
           } satisfies WorkerNetConfig,
         ])
       );
@@ -369,7 +403,11 @@ export default function WorkersPage() {
 
   /* ── 설정 토글 ── */
   function toggleSettings(id: string) {
-    setPanelWorkerId((prev) => (prev === id ? null : id));
+    setPanelWorkerId((prev) => {
+      const next = prev === id ? null : id;
+      if (next) { setWorkerLogs([]); loadWorkerLogs(next); }
+      return next;
+    });
   }
 
   const outdatedCount = workers.filter((w) => latestVersion && w.version !== latestVersion).length;
@@ -887,6 +925,20 @@ export default function WorkersPage() {
                   </div>
                 </div>
 
+                {/* 업데이트 간격 */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">자동 업데이트 간격</label>
+                  <select value={cfg.update_check_interval_minutes} onChange={(e) => updateWorkerNet(panelWorkerId, "update_check_interval_minutes", parseInt(e.target.value))}
+                    className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                    <option value={10}>10분</option>
+                    <option value={30}>30분</option>
+                    <option value={60}>1시간</option>
+                    <option value={180}>3시간</option>
+                    <option value={360}>6시간</option>
+                  </select>
+                  <div className="text-xs text-gray-400 mt-1">새 버전 확인 주기 (기본: 1시간)</div>
+                </div>
+
                 {/* 타입 분류 */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1.5">타입 분류</label>
@@ -913,6 +965,45 @@ export default function WorkersPage() {
                   )}
                 </div>
 
+              </div>
+
+              {/* 에러 로그 */}
+              <div className="border-t border-gray-100 px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">에러 로그</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => loadWorkerLogs(panelWorkerId)} className="text-xs text-gray-400 hover:text-gray-600">새로고침</button>
+                    {workerLogs.length > 0 && (
+                      <button onClick={() => clearWorkerLogs(panelWorkerId)} className="text-xs text-red-400 hover:text-red-600">전체 삭제</button>
+                    )}
+                  </div>
+                </div>
+                {migrationNeeded ? (
+                  <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                    worker_logs 테이블 미생성 — SQL 실행 필요
+                  </div>
+                ) : logsLoading ? (
+                  <div className="text-xs text-gray-400">로딩 중...</div>
+                ) : workerLogs.length === 0 ? (
+                  <div className="text-xs text-gray-300">기록된 에러가 없습니다</div>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {workerLogs.map(log => (
+                      <div key={log.id} className={`text-xs rounded p-2 border ${
+                        log.level === "error" ? "bg-red-50 border-red-100 text-red-700"
+                        : log.level === "info" ? "bg-blue-50 border-blue-100 text-blue-700"
+                        : "bg-yellow-50 border-yellow-100 text-yellow-700"
+                      }`}>
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="font-mono break-all leading-tight">{log.message}</span>
+                          <span className="text-gray-400 whitespace-nowrap shrink-0 ml-1">
+                            {new Date(log.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 패널 푸터 — 저장 버튼 */}
