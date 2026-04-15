@@ -266,6 +266,28 @@ export default function WorkersPage() {
     await Promise.all(targets.map((w) => runTest(w.id, category)));
   }
 
+  async function runTestAllFull() {
+    const targets = workers.filter((w) => w.is_active);
+    if (targets.length === 0) { alert("활성 워커가 없습니다."); return; }
+    if (!confirm(`활성 워커 ${targets.length}대 전체 테스트(N+I) + Oclick 테스트 실행?`)) return;
+
+    setTestStates((prev) => {
+      const next = { ...prev };
+      targets.forEach((w) => {
+        next[w.id] = { naver: { loading: true, result: null }, instagram: { loading: true, result: null } };
+      });
+      return next;
+    });
+    setExpandedResults((prev) => { const s = new Set(prev); targets.forEach((w) => s.add(w.id)); return s; });
+    setOclickTest({ loading: true, result: null });
+
+    await Promise.all([
+      ...targets.map((w) => runTest(w.id, "naver")),
+      ...targets.map((w) => runTest(w.id, "instagram")),
+      runOclickTest(),
+    ]);
+  }
+
   async function runOclickTest() {
     setOclickTest({ loading: true, result: null });
     try {
@@ -567,7 +589,7 @@ export default function WorkersPage() {
                       {/* 테스트 버튼 */}
                       <td className="px-4 py-2 text-center">
                         {isActive ? (
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex items-center justify-center gap-1 flex-wrap">
                             <button
                               onClick={() => runTest(w.id, "naver")}
                               disabled={ts?.naver.loading}
@@ -583,6 +605,14 @@ export default function WorkersPage() {
                               className="px-2 py-1 text-xs bg-pink-50 text-pink-700 rounded hover:bg-pink-100 disabled:opacity-50 font-medium"
                             >
                               {ts?.instagram.loading ? "..." : "I"}
+                            </button>
+                            <button
+                              onClick={() => { runTest(w.id, "naver"); runTest(w.id, "instagram"); }}
+                              disabled={ts?.naver.loading || ts?.instagram.loading}
+                              title="N+I 전체 테스트"
+                              className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 disabled:opacity-50 font-medium"
+                            >
+                              {(ts?.naver.loading || ts?.instagram.loading) ? "..." : "전체"}
                             </button>
                             {hasResults && (
                               <button
@@ -681,6 +711,7 @@ export default function WorkersPage() {
             <button onClick={() => runTestAll("naver")} className="px-2.5 py-1 text-xs bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium whitespace-nowrap">N 테스트</button>
             <button onClick={() => runTestAll("instagram")} className="px-2.5 py-1 text-xs bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 font-medium whitespace-nowrap">I 테스트</button>
             <button onClick={runOclickTest} disabled={oclickTest.loading} className="px-2.5 py-1 text-xs bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 font-medium whitespace-nowrap disabled:opacity-50">{oclickTest.loading ? "..." : "O 테스트"}</button>
+            <button onClick={runTestAllFull} className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium whitespace-nowrap">전체 테스트</button>
             <div className="w-px h-4 bg-gray-200" />
             {latestVersion && (
               <button onClick={() => sendCommand("update")} disabled={commandLoading !== null} className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 whitespace-nowrap disabled:opacity-50">업데이트</button>
