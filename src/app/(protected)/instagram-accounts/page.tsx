@@ -31,6 +31,7 @@ interface InstagramAccount {
   note: string | null;
   last_test_at: string | null;
   last_test_status: TestStatus;
+  last_test_error: string | null;
   created_at: string;
 }
 
@@ -240,20 +241,13 @@ export default function InstagramAccountsPage() {
         </div>
       </div>
 
-      {/* 요약 */}
-      <div className="grid grid-cols-5 gap-3 mb-5">
-        {[
-          { label: "전체", value: totalCount, color: "text-gray-700", bg: "bg-gray-50 border-gray-200" },
-          { label: "활성", value: activeCount, color: "text-green-700", bg: "bg-green-50 border-green-100" },
-          { label: "쿨다운", value: coolingCount, color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-100" },
-          { label: "차단됨", value: blockedCount, color: "text-red-700", bg: "bg-red-50 border-red-100" },
-          { label: "테스트 정상", value: okCount, color: "text-purple-700", bg: "bg-purple-50 border-purple-100" },
-        ].map(({ label, value, color, bg }) => (
-          <div key={label} className={`rounded-lg p-3 border ${bg}`}>
-            <div className={`text-2xl font-bold ${color}`}>{value}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{label}</div>
-          </div>
-        ))}
+      {/* 요약 — 컴팩트 인라인 */}
+      <div className="flex items-center gap-4 mb-5 text-sm">
+        <span className="text-gray-500">총 <strong className="text-gray-900">{totalCount}</strong>개</span>
+        <span className="text-green-600">활성 <strong>{activeCount}</strong></span>
+        <span className="text-yellow-600">쿨다운 <strong>{coolingCount}</strong></span>
+        <span className="text-red-600">차단 <strong>{blockedCount}</strong></span>
+        <span className="text-purple-600">테스트 정상 <strong>{okCount}</strong></span>
       </div>
 
       {/* 계정 추가 폼 */}
@@ -366,40 +360,47 @@ export default function InstagramAccountsPage() {
                     )}
                   </div>
 
-                  {/* 계정 정보 */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-gray-900 text-sm">@{acc.username}</span>
-                      <span className={`px-1.5 py-0.5 text-xs rounded ${scfg.color}`}>{scfg.label}</span>
-                      {acc.blocked_until && new Date(acc.blocked_until) > new Date() && (
-                        <span className="text-xs text-gray-400">~{new Date(acc.blocked_until).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5 flex gap-3 flex-wrap">
-                      {acc.team && <span>{acc.team}</span>}
-                      {acc.creator && <span>by {acc.creator}</span>}
-                      {acc.last_used_at && <span>마지막 사용: {timeAgo(acc.last_used_at)}</span>}
-                      {assignedWorker ? (
-                        <span className={assignedWorker.is_active ? "text-green-600" : "text-gray-400"}>
-                          워커: {assignedWorker.name || assignedWorker.id.slice(0, 10)}
-                        </span>
-                      ) : <span className="text-gray-300">공용</span>}
+                  {/* 계정 정보 + 메타 (한 줄) */}
+                  <div className="min-w-0 flex-1 flex items-center gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-900 text-sm">@{acc.username}</span>
+                        <span className={`px-1.5 py-0.5 text-xs rounded ${scfg.color}`}>{scfg.label}</span>
+                        {acc.blocked_until && new Date(acc.blocked_until) > new Date() && (
+                          <span className="text-xs text-gray-400">~{new Date(acc.blocked_until).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5 flex gap-2 flex-wrap">
+                        {assignedWorker ? (
+                          <span className={assignedWorker.is_active ? "text-green-600" : "text-gray-400"}>
+                            워커: {assignedWorker.name || assignedWorker.id.slice(0, 10)}
+                          </span>
+                        ) : <span>공용</span>}
+                        {acc.team && <span>· {acc.team}</span>}
+                        {acc.creator && <span>· {acc.creator}</span>}
+                        {acc.note && <span className="text-gray-300">· {acc.note}</span>}
+                      </div>
                     </div>
                   </div>
 
+                  {/* 로그인 / 차단 통계 */}
+                  <div className="shrink-0 text-center">
+                    <div className="text-xs tabular-nums">
+                      <span className="text-green-600 font-semibold">{acc.login_count}</span>
+                      <span className="text-gray-300 mx-0.5">/</span>
+                      <span className="text-red-500 font-semibold">{acc.block_count}</span>
+                    </div>
+                    <div className="text-xs text-gray-400">로그인/차단</div>
+                  </div>
+
                   {/* 테스트 뱃지 */}
-                  <div className="shrink-0 text-center min-w-[80px]">
+                  <div className="shrink-0 text-center min-w-[90px]">
                     {testDisplay.status === "running" ? (
                       <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full animate-pulse">테스트 중...</span>
                     ) : testDisplay.status === "ok" ? (
                       <div>
                         <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">✓ 정상</span>
-                        {("testedAt" in testDisplay && testDisplay.testedAt) && (
-                          <div className="text-xs text-gray-400 mt-0.5">{timeAgo(testDisplay.testedAt)}</div>
-                        )}
-                        {acc.last_test_at && !("testedAt" in testDisplay) && (
-                          <div className="text-xs text-gray-400 mt-0.5">{timeAgo(acc.last_test_at)}</div>
-                        )}
+                        {acc.last_test_at && <div className="text-xs text-gray-400 mt-0.5">{timeAgo(acc.last_test_at)}</div>}
                       </div>
                     ) : testDisplay.status === "fail" ? (
                       <div>
@@ -409,16 +410,6 @@ export default function InstagramAccountsPage() {
                     ) : (
                       <span className="text-xs text-gray-300">미확인</span>
                     )}
-                  </div>
-
-                  {/* 로그인/차단 통계 */}
-                  <div className="shrink-0 text-right min-w-[60px]">
-                    <div className="text-xs">
-                      <span className="text-green-600 font-medium">{acc.login_count}</span>
-                      <span className="text-gray-300 mx-0.5">/</span>
-                      <span className="text-red-500 font-medium">{acc.block_count}</span>
-                    </div>
-                    <div className="text-xs text-gray-400">로그인/차단</div>
                   </div>
 
                   {/* 액션 */}
@@ -479,6 +470,18 @@ export default function InstagramAccountsPage() {
                         </div>
                       </Field>
                     </div>
+
+                    {/* 테스트 실패 에러 로그 */}
+                    {(acc.last_test_status === "fail" || testState[acc.id]?.status === "fail") && (
+                      <div className="bg-red-50 border border-red-100 rounded-md p-3">
+                        <div className="text-xs font-medium text-red-700 mb-1">
+                          테스트 실패 — {acc.last_test_at ? fmtDateShort(acc.last_test_at) : "방금"}
+                        </div>
+                        <div className="text-xs text-red-600 font-mono whitespace-pre-wrap break-all">
+                          {testState[acc.id]?.error || acc.last_test_error || "에러 메시지 없음"}
+                        </div>
+                      </div>
+                    )}
 
                     {/* 계정 상세 정보 */}
                     <div className="text-xs text-gray-400 flex flex-wrap gap-4">

@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
       await sb.from("instagram_accounts").update({
         last_test_at: now,
         last_test_status: "ok",
+        last_test_error: null,
       }).eq("id", account_id);
 
       return NextResponse.json({
@@ -115,9 +116,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (check.status === "failed") {
+      const errMsg = check.error_message || "로그인 실패";
       await sb.from("instagram_accounts").update({
         last_test_at: now,
         last_test_status: "fail",
+        last_test_error: errMsg,
       }).eq("id", account_id);
 
       return NextResponse.json({
@@ -126,23 +129,25 @@ export async function POST(request: NextRequest) {
         username: account.username,
         worker_id: workerId,
         request_id: req.id,
-        error: check.error_message || "로그인 실패",
+        error: errMsg,
         elapsed_ms: elapsed,
       });
     }
   }
 
   // 타임아웃
+  const timeoutMsg = `타임아웃 (${TIMEOUT_MS / 1000}초) — 워커가 응답하지 않았습니다. 워커가 최신 버전(v0.9.37+)인지 확인하세요.`;
   await sb.from("instagram_accounts").update({
     last_test_at: new Date().toISOString(),
     last_test_status: "fail",
+    last_test_error: timeoutMsg,
   }).eq("id", account_id);
 
   return NextResponse.json({
     ok: false,
     account_id,
     username: account.username,
-    error: `타임아웃 (${TIMEOUT_MS / 1000}초) — 워커가 응답하지 않았습니다`,
+    error: timeoutMsg,
     elapsed_ms: TIMEOUT_MS,
   });
 }

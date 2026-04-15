@@ -19,7 +19,7 @@ export async function GET() {
   const sb = createServerClient();
   let { data, error } = await sb
     .from("instagram_accounts")
-    .select("id, username, email, phone, team, creator, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, last_test_at, last_test_status, created_at")
+    .select("id, username, email, phone, team, creator, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, last_test_at, last_test_status, last_test_error, created_at")
     .order("created_at", { ascending: false });
 
   // 신규 컬럼 없는 환경 fallback
@@ -28,7 +28,7 @@ export async function GET() {
       .from("instagram_accounts")
       .select("id, username, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, created_at")
       .order("created_at", { ascending: false });
-    data = (fallback.data ?? []).map((a) => ({ ...a, email: null, phone: null, team: null, creator: null, last_test_at: null, last_test_status: null }));
+    data = (fallback.data ?? []).map((a) => ({ ...a, email: null, phone: null, team: null, creator: null, last_test_at: null, last_test_status: null, last_test_error: null }));
     error = fallback.error;
   }
 
