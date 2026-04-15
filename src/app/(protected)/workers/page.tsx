@@ -11,6 +11,7 @@ type TestResult = Record<string, unknown> | null;
 type WorkerTestState = {
   naver: { loading: boolean; result: TestResult };
   instagram: { loading: boolean; result: TestResult };
+  oclick: { loading: boolean; result: TestResult };
 };
 type OclickTestState = { loading: boolean; result: TestResult };
 
@@ -246,10 +247,10 @@ export default function WorkersPage() {
 
   /* ── 테스트 ── */
   function initWorkerTest(workerId: string): WorkerTestState {
-    return { naver: { loading: false, result: null }, instagram: { loading: false, result: null } };
+    return { naver: { loading: false, result: null }, instagram: { loading: false, result: null }, oclick: { loading: false, result: null } };
   }
 
-  async function runTest(workerId: string, category: "naver" | "instagram") {
+  async function runTest(workerId: string, category: "naver" | "instagram" | "oclick") {
     setTestStates((prev) => ({
       ...prev,
       [workerId]: {
@@ -284,7 +285,7 @@ export default function WorkersPage() {
     loadData(true);
   }
 
-  async function runTestAll(category: "naver" | "instagram") {
+  async function runTestAll(category: "naver" | "instagram" | "oclick") {
     const targets = workers.filter((w) => w.is_active);
     if (targets.length === 0) { alert("활성 워커가 없습니다."); return; }
     if (!confirm(`활성 워커 ${targets.length}대 ${category === "naver" ? "네이버" : "인스타그램"} 테스트 실행?`)) return;
@@ -309,17 +310,16 @@ export default function WorkersPage() {
     setTestStates((prev) => {
       const next = { ...prev };
       targets.forEach((w) => {
-        next[w.id] = { naver: { loading: true, result: null }, instagram: { loading: true, result: null } };
+        next[w.id] = { naver: { loading: true, result: null }, instagram: { loading: true, result: null }, oclick: { loading: true, result: null } };
       });
       return next;
     });
     setExpandedResults((prev) => { const s = new Set(prev); targets.forEach((w) => s.add(w.id)); return s; });
-    setOclickTest({ loading: true, result: null });
 
     await Promise.all([
       ...targets.map((w) => runTest(w.id, "naver")),
       ...targets.map((w) => runTest(w.id, "instagram")),
-      runOclickTest(),
+      ...targets.map((w) => runTest(w.id, "oclick")),
     ]);
   }
 
@@ -565,7 +565,7 @@ export default function WorkersPage() {
                 const displayStatus = w.is_active ? w.status : "offline";
                 const isActive = w.is_active;
                 const ts = testStates[w.id];
-                const hasResults = ts && (ts.naver.result || ts.instagram.result);
+                const hasResults = ts && (ts.naver.result || ts.instagram.result || ts.oclick?.result);
                 const isExpanded = expandedResults.has(w.id);
                 const isSettingsExpanded = panelWorkerId === w.id;
                 const isSelected = selectedIds.has(w.id);
@@ -647,12 +647,20 @@ export default function WorkersPage() {
                               {ts?.instagram.loading ? "..." : "I"}
                             </button>
                             <button
-                              onClick={() => { runTest(w.id, "naver"); runTest(w.id, "instagram"); }}
-                              disabled={ts?.naver.loading || ts?.instagram.loading}
-                              title="N+I 전체 테스트"
+                              onClick={() => runTest(w.id, "oclick")}
+                              disabled={ts?.oclick?.loading}
+                              title="Oclick 재고 동기화 테스트"
+                              className="px-2 py-1 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 disabled:opacity-50 font-medium"
+                            >
+                              {ts?.oclick?.loading ? "..." : "O"}
+                            </button>
+                            <button
+                              onClick={() => { runTest(w.id, "naver"); runTest(w.id, "instagram"); runTest(w.id, "oclick"); }}
+                              disabled={ts?.naver.loading || ts?.instagram.loading || ts?.oclick?.loading}
+                              title="N+I+O 전체 테스트"
                               className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 disabled:opacity-50 font-medium"
                             >
-                              {(ts?.naver.loading || ts?.instagram.loading) ? "..." : "전체"}
+                              {(ts?.naver.loading || ts?.instagram.loading || ts?.oclick?.loading) ? "..." : "전체"}
                             </button>
                             {hasResults && (
                               <button
@@ -715,7 +723,7 @@ export default function WorkersPage() {
                     {isExpanded && hasResults && (
                       <tr key={`${w.id}-results`} className="bg-gray-50 border-t border-gray-100">
                         <td colSpan={TABLE_COLS} className="px-4 py-3">
-                          <div className="flex gap-4">
+                          <div className="flex gap-4 flex-wrap">
                             <TestResultPanel
                               category="naver"
                               label="네이버"
@@ -728,6 +736,14 @@ export default function WorkersPage() {
                               colorClass="pink"
                               state={ts?.instagram}
                             />
+                            {ts?.oclick?.result && (
+                              <TestResultPanel
+                                category="oclick"
+                                label="Oclick"
+                                colorClass="orange"
+                                state={ts?.oclick}
+                              />
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1029,12 +1045,13 @@ function TestResultPanel({
 }: {
   category: string;
   label: string;
-  colorClass: "green" | "pink";
+  colorClass: "green" | "pink" | "orange";
   state?: { loading: boolean; result: TestResult };
 }) {
   const colors = {
-    green: { bg: "bg-green-50", border: "border-green-200", text: "text-green-700", badge: "bg-green-100 text-green-700" },
-    pink:  { bg: "bg-pink-50",  border: "border-pink-200",  text: "text-pink-700",  badge: "bg-pink-100 text-pink-700"  },
+    green:  { bg: "bg-green-50",  border: "border-green-200",  text: "text-green-700",  badge: "bg-green-100 text-green-700"  },
+    pink:   { bg: "bg-pink-50",   border: "border-pink-200",   text: "text-pink-700",   badge: "bg-pink-100 text-pink-700"   },
+    orange: { bg: "bg-orange-50", border: "border-orange-200", text: "text-orange-700", badge: "bg-orange-100 text-orange-700" },
   };
   const c = colors[colorClass];
 

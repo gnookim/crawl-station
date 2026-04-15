@@ -12,6 +12,7 @@ import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
 const TEST_CONFIGS: Record<string, { keyword: string; type: string }> = {
   naver: { keyword: "맛집 추천", type: "blog_serp" },
   instagram: { keyword: "nike", type: "instagram_profile" },
+  oclick: { keyword: "oclick_test", type: "oclick_sync" },
 };
 
 const TIMEOUT_MS = 120_000; // 2분
