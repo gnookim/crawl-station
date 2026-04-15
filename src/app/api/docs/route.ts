@@ -327,6 +327,10 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### 워커 — 이름 보존 (v0.9.42)
+- 워커 재시작/업데이트 시 Station에서 수정한 name을 hostname으로 덮어쓰던 버그 수정
+- 최초 등록 시에만 WORKER_NAME(또는 hostname) 사용, 이후 재시작 시 name 유지
+
 ### 워커 — Watchdog 자동 설치 + 자동 복구 (v0.9.41)
 - 워커 시작 시 Windows 작업 스케줄러에 Watchdog 자동 등록 (5분마다 실행)
 - Watchdog: 워커 프로세스 미실행 감지 시 최신 파일 자동 다운로드 + 워커 재시작
