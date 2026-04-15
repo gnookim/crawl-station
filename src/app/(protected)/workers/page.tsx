@@ -596,6 +596,7 @@ export default function WorkersPage() {
                         </div>
                         {w.location && <div className="text-xs text-gray-400 truncate">📍 {w.location}</div>}
                         {w.manager && <div className="text-xs text-gray-400 truncate">👤 {w.manager}</div>}
+                        {w.hostname && <div className="text-xs text-gray-400 font-mono truncate">🖥 {w.hostname}</div>}
                         {w.current_ip && <div className="text-xs text-gray-400 font-mono truncate">🌐 {w.current_ip}</div>}
                         <div className="text-xs text-gray-300 font-mono truncate">{w.id}</div>
                       </td>
@@ -713,7 +714,17 @@ export default function WorkersPage() {
                               </button>
                             </>
                           ) : (
-                            <button onClick={() => deleteWorker(w.id)} className="px-2 py-1 text-xs text-red-500 hover:text-red-700 rounded hover:bg-red-50">삭제</button>
+                            <>
+                              <a
+                                href="/api/repair"
+                                download="crawlstation-repair.bat"
+                                title="최신 파일 다운로드 + 워커 재시작 배치 스크립트"
+                                className="px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded hover:bg-amber-100 border border-amber-200"
+                              >
+                                복구
+                              </a>
+                              <button onClick={() => deleteWorker(w.id)} className="px-2 py-1 text-xs text-red-500 hover:text-red-700 rounded hover:bg-red-50">삭제</button>
+                            </>
                           )}
                         </div>
                       </td>
