@@ -6,23 +6,46 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthGuard";
 import { ssoLogout } from "@/lib/sso";
 
-const NAV_ITEMS = [
-  { href: "/", label: "대시보드", icon: "📊" },
-  { href: "/workers", label: "워커 관리", icon: "🖥️" },
-  { href: "/queue", label: "작업 큐", icon: "📋" },
-  { href: "/releases", label: "릴리즈", icon: "🚀" },
-  { href: "/schedule", label: "일일 순위", icon: "🕐" },
-  { href: "/rank-dashboard", label: "순위 대시보드", icon: "📈" },
-  { href: "/config", label: "크롤링 전략", icon: "⚙️" },
-  { href: "/install", label: "워커 설치", icon: "⬇️" },
-  { href: "/installs", label: "설치 모니터링", icon: "📡" },
-  { href: "/instagram-accounts", label: "Instagram 계정", icon: "📷" },
-  { href: "/ai-analysis", label: "AI 분석", icon: "🤖" },
-  { href: "/apps", label: "연결된 앱", icon: "🔑" },
-  { href: "/guide", label: "연동 가이드", icon: "📖" },
-  { href: "/changelog", label: "업데이트 기록", icon: "📝" },
-  { href: "/users", label: "회원 관리", icon: "👥" },
-  { href: "/settings", label: "시스템 설정", icon: "🔧" },
+const NAV_GROUPS = [
+  {
+    label: "크롤링",
+    items: [
+      { href: "/", label: "대시보드", icon: "📊" },
+      { href: "/workers", label: "워커 관리", icon: "🖥️" },
+      { href: "/queue", label: "작업 큐", icon: "📋" },
+      { href: "/config", label: "크롤링 전략", icon: "⚙️" },
+    ],
+  },
+  {
+    label: "설치",
+    items: [
+      { href: "/install", label: "워커 설치", icon: "⬇️" },
+      { href: "/installs", label: "설치 모니터링", icon: "📡" },
+      { href: "/releases", label: "릴리즈", icon: "🚀" },
+    ],
+  },
+  {
+    label: "채널",
+    items: [
+      { href: "/instagram-accounts", label: "Instagram 계정", icon: "📷" },
+    ],
+  },
+  {
+    label: "분석",
+    items: [
+      { href: "/ai-analysis", label: "차단 리스크(AI)", icon: "🤖" },
+    ],
+  },
+  {
+    label: "시스템",
+    items: [
+      { href: "/apps", label: "연결된 앱", icon: "🔑" },
+      { href: "/guide", label: "연동 가이드", icon: "📖" },
+      { href: "/changelog", label: "업데이트 기록", icon: "📝" },
+      { href: "/users", label: "회원 관리", icon: "👥" },
+      { href: "/settings", label: "시스템 설정", icon: "🔧" },
+    ],
+  },
 ];
 
 export function Sidebar() {
@@ -40,13 +63,14 @@ export function Sidebar() {
     router.push("/login");
   }
 
-  const NavLink = ({ item }: { item: typeof NAV_ITEMS[0] }) => {
+  type NavItem = { href: string; label: string; icon: string };
+  const NavLink = ({ item }: { item: NavItem }) => {
     const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
     return (
       <Link
         href={item.href}
         title={collapsed ? item.label : undefined}
-        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
           collapsed ? "justify-center px-2" : ""
         } ${
           isActive
@@ -114,9 +138,21 @@ export function Sidebar() {
         </div>
 
         {/* 네비게이션 */}
-        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map((item) => (
-            <NavLink key={item.href} item={item} />
+        <nav className="flex-1 p-2 overflow-y-auto">
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={group.label} className={gi > 0 ? "mt-3" : ""}>
+              {!collapsed && (
+                <div className="px-2 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  {group.label}
+                </div>
+              )}
+              {collapsed && gi > 0 && <div className="my-1 border-t border-gray-100" />}
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <NavLink key={item.href} item={item} />
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 

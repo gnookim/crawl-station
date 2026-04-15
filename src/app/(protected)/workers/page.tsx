@@ -101,19 +101,6 @@ export default function WorkersPage() {
   const [savingWorkers, setSavingWorkers] = useState<Record<string, boolean>>({});
   const [savedWorkers, setSavedWorkers] = useState<Record<string, boolean>>({});
 
-  /* ── 이름/장소/담당자/메모 인라인 편집 ── */
-  const [editingName, setEditingName] = useState<{ id: string; value: string } | null>(null);
-  const [editingLocation, setEditingLocation] = useState<{ id: string; value: string } | null>(null);
-  const [editingManager, setEditingManager] = useState<{ id: string; value: string } | null>(null);
-
-  async function saveWorkerField(id: string, field: "name" | "location" | "note" | "manager", value: string) {
-    await supabase.from("workers").update({ [field]: value.trim() || null }).eq("id", id);
-    setEditingName(null);
-    setEditingLocation(null);
-    setEditingManager(null);
-    loadData();
-  }
-
   /* ── 일괄 편집 상태 ── */
   const [bulkNetworkType, setBulkNetworkType] = useState<string>("");
   const [bulkQuota, setBulkQuota] = useState<string>("");
@@ -537,90 +524,18 @@ export default function WorkersPage() {
 
                       {/* 워커 이름 */}
                       <td className="px-4 py-2">
-                        {editingName?.id === w.id ? (
-                          <div className="flex items-center gap-1 mb-0.5">
-                            <input
-                              autoFocus
-                              value={editingName.value}
-                              onChange={(e) => setEditingName({ id: w.id, value: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveWorkerField(w.id, "name", editingName.value);
-                                if (e.key === "Escape") setEditingName(null);
-                              }}
-                              placeholder="워커 이름"
-                              className="px-2 py-0.5 text-sm border border-indigo-400 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 w-32"
-                            />
-                            <button onClick={() => saveWorkerField(w.id, "name", editingName.value)} className="text-xs text-indigo-600 hover:text-indigo-800">저장</button>
-                            <button onClick={() => setEditingName(null)} className="text-xs text-gray-400 hover:text-gray-600">취소</button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 flex-nowrap mb-0.5">
-                            <span
-                              className="font-medium min-w-0 truncate cursor-pointer hover:text-indigo-600"
-                              title="클릭하여 이름 편집"
-                              onClick={() => setEditingName({ id: w.id, value: w.name || "" })}
-                            >{w.name || w.id}</span>
-                            {w.verified_at ? (
-                              <span title={`테스트 통과: ${new Date(w.verified_at).toLocaleString("ko")}`}
-                                className="shrink-0 whitespace-nowrap px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs cursor-help">검증됨</span>
-                            ) : (
-                              <span className="shrink-0 whitespace-nowrap px-1 py-0.5 bg-gray-100 text-gray-400 rounded text-xs">미검증</span>
-                            )}
-                          </div>
-                        )}
-                        {/* 설치 장소 */}
-                        {editingLocation?.id === w.id ? (
-                          <div className="flex items-center gap-1 mb-0.5">
-                            <input
-                              autoFocus
-                              value={editingLocation.value}
-                              onChange={(e) => setEditingLocation({ id: w.id, value: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveWorkerField(w.id, "location", editingLocation.value);
-                                if (e.key === "Escape") setEditingLocation(null);
-                              }}
-                              placeholder="설치 장소 (예: 사무실 1층)"
-                              className="px-2 py-0.5 text-xs border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 w-36"
-                            />
-                            <button onClick={() => saveWorkerField(w.id, "location", editingLocation.value)} className="text-xs text-blue-600 hover:text-blue-800">저장</button>
-                            <button onClick={() => setEditingLocation(null)} className="text-xs text-gray-400">취소</button>
-                          </div>
-                        ) : (
-                          <div
-                            className="text-xs text-gray-400 cursor-pointer hover:text-blue-500 truncate"
-                            title="클릭하여 설치 장소 편집"
-                            onClick={() => setEditingLocation({ id: w.id, value: w.location || "" })}
-                          >
-                            {w.location ? `📍 ${w.location}` : <span className="text-gray-300">+ 장소 추가</span>}
-                          </div>
-                        )}
-                        {/* 담당자 */}
-                        {editingManager?.id === w.id ? (
-                          <div className="flex items-center gap-1 mb-0.5">
-                            <input
-                              autoFocus
-                              value={editingManager.value}
-                              onChange={(e) => setEditingManager({ id: w.id, value: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveWorkerField(w.id, "manager", editingManager.value);
-                                if (e.key === "Escape") setEditingManager(null);
-                              }}
-                              placeholder="담당자 이름"
-                              className="px-2 py-0.5 text-xs border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-400 w-28"
-                            />
-                            <button onClick={() => saveWorkerField(w.id, "manager", editingManager.value)} className="text-xs text-green-600 hover:text-green-800">저장</button>
-                            <button onClick={() => setEditingManager(null)} className="text-xs text-gray-400">취소</button>
-                          </div>
-                        ) : (
-                          <div
-                            className="text-xs text-gray-400 cursor-pointer hover:text-green-500 truncate"
-                            title="클릭하여 담당자 편집"
-                            onClick={() => setEditingManager({ id: w.id, value: w.manager || "" })}
-                          >
-                            {w.manager ? `👤 ${w.manager}` : <span className="text-gray-300">+ 담당자</span>}
-                          </div>
-                        )}
-                        <div className="text-xs text-gray-300 font-mono">{w.id}</div>
+                        <div className="flex items-center gap-1.5 flex-nowrap mb-0.5">
+                          <span className="font-medium text-sm min-w-0 truncate">{w.name || w.id}</span>
+                          {w.verified_at ? (
+                            <span title={`테스트 통과: ${new Date(w.verified_at).toLocaleString("ko")}`}
+                              className="shrink-0 px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs cursor-help">검증됨</span>
+                          ) : (
+                            <span className="shrink-0 px-1 py-0.5 bg-gray-100 text-gray-400 rounded text-xs">미검증</span>
+                          )}
+                        </div>
+                        {w.location && <div className="text-xs text-gray-400 truncate">📍 {w.location}</div>}
+                        {w.manager && <div className="text-xs text-gray-400 truncate">👤 {w.manager}</div>}
+                        <div className="text-xs text-gray-300 font-mono truncate">{w.id}</div>
                       </td>
                       <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden"><span className="truncate block">{w.os || "-"}</span></td>
                       <td className="px-4 py-2"><VersionBadge version={w.version} latest={latestVersion} /></td>
@@ -685,39 +600,42 @@ export default function WorkersPage() {
                         ) : <span className="text-gray-300 text-xs">-</span>}
                       </td>
 
-                      {/* 제어 버튼 + 설정 버튼 */}
+                      {/* 제어 버튼 + 수정 버튼 */}
                       <td className="px-4 py-2 text-right">
-                        <div className="flex justify-end gap-1 flex-wrap">
+                        <div className="flex justify-end gap-1 flex-nowrap">
                           <button
                             onClick={() => toggleSettings(w.id)}
-                            className={`whitespace-nowrap px-1.5 py-0.5 text-xs rounded border transition-colors ${
+                            className={`whitespace-nowrap px-2 py-1 text-xs rounded border transition-colors ${
                               isSettingsExpanded
                                 ? "bg-indigo-100 text-indigo-700 border-indigo-300"
                                 : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
                             }`}
+                            title="수정 / 설정"
                           >
-                            ⚙ 설정
+                            수정
                           </button>
                           {isActive ? (
                             <>
                               {latestVersion && (
                                 <button onClick={() => sendCommand("update", [w.id])} disabled={commandLoading !== null}
                                   title={w.version === latestVersion ? "최신 버전 — 강제 재설치" : `v${w.version} → v${latestVersion}`}
-                                  className={`whitespace-nowrap px-1.5 py-0.5 text-xs rounded disabled:opacity-50 ${w.version !== latestVersion ? "bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}>
+                                  className={`px-2 py-1 text-xs rounded disabled:opacity-50 ${w.version !== latestVersion ? "bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}>
                                   업데이트
                                 </button>
                               )}
                               <button onClick={() => sendCommand("restart", [w.id])} disabled={commandLoading !== null}
-                                className="whitespace-nowrap px-1.5 py-0.5 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 disabled:opacity-50">
+                                title="재시작"
+                                className="px-2 py-1 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 disabled:opacity-50">
                                 재시작
                               </button>
                               <button onClick={() => sendCommand("stop", [w.id])} disabled={commandLoading !== null}
-                                className="whitespace-nowrap px-1.5 py-0.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 disabled:opacity-50">
+                                title="정지"
+                                className="px-2 py-1 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 disabled:opacity-50">
                                 정지
                               </button>
                             </>
                           ) : (
-                            <button onClick={() => deleteWorker(w.id)} className="text-xs text-red-500 hover:text-red-700">삭제</button>
+                            <button onClick={() => deleteWorker(w.id)} className="px-2 py-1 text-xs text-red-500 hover:text-red-700 rounded hover:bg-red-50">삭제</button>
                           )}
                         </div>
                       </td>
@@ -833,6 +751,58 @@ export default function WorkersPage() {
 
               {/* 설정 내용 */}
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+                {/* 기본 정보 */}
+                <div className="space-y-3">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">기본 정보</div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">이름</label>
+                    <input type="text" defaultValue={pw.name || ""}
+                      onBlur={(e) => {
+                        if (e.target.value !== (pw.name || "")) {
+                          supabase.from("workers").update({ name: e.target.value.trim() || null }).eq("id", pw.id).then(() => loadData());
+                        }
+                      }}
+                      placeholder="워커 이름"
+                      className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">설치 장소</label>
+                    <input type="text" defaultValue={pw.location || ""}
+                      onBlur={(e) => {
+                        if (e.target.value !== (pw.location || "")) {
+                          supabase.from("workers").update({ location: e.target.value.trim() || null }).eq("id", pw.id).then(() => loadData());
+                        }
+                      }}
+                      placeholder="예: 사무실 1층"
+                      className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">담당자</label>
+                    <input type="text" defaultValue={pw.manager || ""}
+                      onBlur={(e) => {
+                        if (e.target.value !== (pw.manager || "")) {
+                          supabase.from("workers").update({ manager: e.target.value.trim() || null }).eq("id", pw.id).then(() => loadData());
+                        }
+                      }}
+                      placeholder="담당자 이름"
+                      className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">메모</label>
+                    <input type="text" defaultValue={pw.note || ""}
+                      onBlur={(e) => {
+                        if (e.target.value !== (pw.note || "")) {
+                          supabase.from("workers").update({ note: e.target.value.trim() || null }).eq("id", pw.id).then(() => loadData());
+                        }
+                      }}
+                      placeholder="용도 등 자유 메모"
+                      className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider -mb-2">네트워크 / 크롤링</div>
+
                 {/* 네트워크 타입 */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1.5">네트워크 타입</label>
@@ -910,31 +880,6 @@ export default function WorkersPage() {
                   )}
                 </div>
 
-                {/* 담당자 */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">담당자</label>
-                  <input type="text" defaultValue={pw.manager || ""}
-                    onBlur={(e) => {
-                      if (e.target.value !== (pw.manager || "")) {
-                        supabase.from("workers").update({ manager: e.target.value.trim() || null }).eq("id", pw.id).then(() => loadData());
-                      }
-                    }}
-                    placeholder="담당자 이름"
-                    className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
-                </div>
-
-                {/* 메모 */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">메모</label>
-                  <input type="text" defaultValue={pw.note || ""}
-                    onBlur={(e) => {
-                      if (e.target.value !== (pw.note || "")) {
-                        supabase.from("workers").update({ note: e.target.value.trim() || null }).eq("id", pw.id).then(() => loadData());
-                      }
-                    }}
-                    placeholder="용도 등 자유 메모"
-                    className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
-                </div>
               </div>
 
               {/* 패널 푸터 — 저장 버튼 */}
