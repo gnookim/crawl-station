@@ -327,6 +327,19 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### Station — Instagram 계정 관리 개편 + 계정별 로그인 테스트
+- UI 전면 개편: 필터 탭(전체/활성/쿨다운/차단) + 검색 + 카드형 펼침 레이아웃
+- 계정별 "테스트" 버튼: 워커를 통해 실제 로그인 가능 여부 실시간 확인
+- 테스트 뱃지: 미확인 / 테스트중 / ✓ 정상 / ✗ 실패 + 마지막 테스트 시간
+- "전체 테스트" 버튼: 활성 계정 전체 순차 테스트
+- 새 API: \`POST /api/test/instagram-account\` — 계정 로그인 테스트 요청 + 결과 폴링
+- DB 신규 필드: \`last_test_at\`, \`last_test_status\` (ok/fail)
+
+### 워커 — instagram_login_test 핸들러 추가 (v0.9.37)
+- 특정 account_id를 받아 해당 계정으로 Instagram 로그인 시도
+- 성공 시 세션 저장 + \`last_test_status="ok"\` 업데이트
+- 실패 시 \`last_test_status="fail"\` 업데이트
+
 ### Station — 설치 모니터링 호스트 그룹화
 - PC(hostname)별로 세션을 1장의 카드로 묶어 표시
 - 카드 정렬: 진행 중 → 실패 → 완료, 동일 그룹 내 최신순
