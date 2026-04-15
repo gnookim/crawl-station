@@ -415,7 +415,7 @@ export default function WorkersPage() {
   const offlineWorkers = workers.filter((w) => !w.is_active);
 
   // 테이블 총 컬럼 수 (체크박스 포함)
-  const TABLE_COLS = 10;
+  const TABLE_COLS = 9;
 
   return (
     <div className="p-4 sm:p-6">
@@ -554,7 +554,6 @@ export default function WorkersPage() {
                 <th className="text-left px-4 py-2 font-medium w-[80px]">버전</th>
                 <th className="text-left px-4 py-2 font-medium w-[140px]">상태</th>
                 <th className="text-left px-4 py-2 font-medium w-[80px]">마지막</th>
-                <th className="text-left px-4 py-2 font-medium">현재 작업</th>
                 <th className="text-right px-4 py-2 font-medium w-[84px]">처리/에러</th>
                 <th className="text-center px-4 py-2 font-medium w-[80px]">테스트</th>
                 <th className="text-right px-4 py-2 font-medium w-[190px]">제어</th>
@@ -613,14 +612,6 @@ export default function WorkersPage() {
                         </div>
                       </td>
                       <td className="px-4 py-2 text-xs text-gray-400 whitespace-nowrap"><LastSeenLabel lastSeen={w.last_seen} /></td>
-                      <td className="px-4 py-2 text-xs text-gray-500 overflow-hidden">
-                        {w.current_keyword ? (
-                          <span className="block truncate" title={`${w.current_keyword} (${w.current_type})`}>
-                            {w.current_keyword}
-                            <span className="text-gray-400 ml-1">({w.current_type})</span>
-                          </span>
-                        ) : <span className="text-gray-300">-</span>}
-                      </td>
                       <td className="px-4 py-2 text-right tabular-nums">
                         <span className="text-green-600">{w.total_processed}</span>
                         {" / "}
@@ -714,17 +705,7 @@ export default function WorkersPage() {
                               </button>
                             </>
                           ) : (
-                            <>
-                              <a
-                                href="/api/repair"
-                                download="crawlstation-repair.bat"
-                                title="최신 파일 다운로드 + 워커 재시작 배치 스크립트"
-                                className="px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded hover:bg-amber-100 border border-amber-200"
-                              >
-                                복구
-                              </a>
-                              <button onClick={() => deleteWorker(w.id)} className="px-2 py-1 text-xs text-red-500 hover:text-red-700 rounded hover:bg-red-50">삭제</button>
-                            </>
+                            <button onClick={() => deleteWorker(w.id)} className="px-2 py-1 text-xs text-red-500 hover:text-red-700 rounded hover:bg-red-50">삭제</button>
                           )}
                         </div>
                       </td>
