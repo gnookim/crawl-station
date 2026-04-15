@@ -42,9 +42,11 @@ export default function InstagramAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [form, setForm] = useState({ username: "", password: "", email: "", phone: "", team: "", creator: "", note: "", assigned_worker_id: "" });
+  const [showFormPw, setShowFormPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editFields, setEditFields] = useState<Partial<InstagramAccount & { password: string }>>({});
+  const [showEditPw, setShowEditPw] = useState(false);
   const [editWorkerId, setEditWorkerId] = useState<string | null>(null);
   const [workers, setWorkers] = useState<Worker[]>([]);
 
@@ -136,6 +138,7 @@ export default function InstagramAccountsPage() {
     setEditId(acc.id);
     setEditFields({ note: acc.note || "", email: acc.email || "", phone: acc.phone || "", team: acc.team || "", creator: acc.creator || "", password: "" });
     setEditWorkerId(acc.assigned_worker_id || "");
+    setShowEditPw(false);
   }
 
   async function deleteAccount(id: string, username: string) {
@@ -181,7 +184,10 @@ export default function InstagramAccountsPage() {
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">비밀번호 *</label>
-              <input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="비밀번호" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
+              <div className="relative">
+                <input type={showFormPw ? "text" : "password"} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="비밀번호" className="w-full px-3 py-1.5 pr-10 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
+                <button type="button" onClick={() => setShowFormPw((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">{showFormPw ? "숨김" : "표시"}</button>
+              </div>
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">등록 이메일</label>
@@ -366,7 +372,10 @@ export default function InstagramAccountsPage() {
                       {isEditing ? (
                         <div className="space-y-1">
                           <input type="text" value={editFields.note ?? ""} onChange={(e) => setEditFields((f) => ({ ...f, note: e.target.value }))} placeholder="메모" className="w-full px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400" />
-                          <input type="password" value={editFields.password ?? ""} onChange={(e) => setEditFields((f) => ({ ...f, password: e.target.value }))} placeholder="비밀번호 변경 (선택)" className="w-full px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400" />
+                          <div className="relative">
+                            <input type={showEditPw ? "text" : "password"} value={editFields.password ?? ""} onChange={(e) => setEditFields((f) => ({ ...f, password: e.target.value }))} placeholder="비밀번호 변경 (선택)" className="w-full px-2 py-0.5 pr-8 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400" />
+                            <button type="button" onClick={() => setShowEditPw((v) => !v)} className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">{showEditPw ? "숨김" : "표시"}</button>
+                          </div>
                         </div>
                       ) : (
                         <span className="truncate block">{acc.note || "-"}</span>
