@@ -67,10 +67,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "온라인 워커가 없습니다. 워커를 먼저 시작하세요." });
   }
 
-  // 테스트 직전: 해당 계정의 last_used_at을 오래된 시간으로 설정해서 LRU 우선순위 1위로 만들기
-  // → 워커가 _pick_account() 호출 시 이 계정을 반드시 선택하도록 유도
+  // 새 테스트 시작 시: 이전 에러 초기화 + LRU 우선순위 1위로 설정
   await sb.from("instagram_accounts").update({
     last_used_at: "2000-01-01T00:00:00.000Z",
+    last_test_error: null,
+    last_test_status: null,
   }).eq("id", account_id);
 
   // instagram_profile 타입으로 요청 생성 (기존 핸들러, 어떤 워커 버전이든 처리 가능)

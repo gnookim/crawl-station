@@ -195,7 +195,13 @@ export default function InstagramAccountsPage() {
 
   // ── 테스트 (POST → request_id 즉시 반환 → GET 폴링) ──────────
   async function runTest(accountId: string) {
-    setTestState(s => ({ ...s, [accountId]: { status: "running" } }));
+    // 이전 에러 즉시 초기화 후 running 상태로 전환
+    setTestState(s => ({ ...s, [accountId]: { status: "running", error: undefined } }));
+    // DB에 저장된 이전 에러도 화면에서 즉시 숨기기 위해 accounts 상태 업데이트
+    setAccounts(prev => prev.map(a => a.id === accountId
+      ? { ...a, last_test_status: null, last_test_error: null }
+      : a
+    ));
     try {
       // 1단계: 테스트 요청 생성
       const postRes = await fetch("/api/test/instagram-account", {
