@@ -327,6 +327,13 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### 워커 — Watchdog 자동 설치 + 자동 복구 (v0.9.41)
+- 워커 시작 시 Windows 작업 스케줄러에 Watchdog 자동 등록 (5분마다 실행)
+- Watchdog: 워커 프로세스 미실행 감지 시 최신 파일 자동 다운로드 + 워커 재시작
+- 기존 설치된 워커도 다음 실행 시 자동으로 Watchdog 등록됨 — 별도 복구 작업 불필요
+- 인스톨러 업데이트: 설치 단계 9(서비스 등록)에서 Watchdog Task Scheduler 등록 포함
+- 파일 목록에 \`watchdog.py\`, \`handlers/kin_post.py\` 추가
+
 ### 워커 — heartbeat 에러 + kin_post 경고 수정 (v0.9.40)
 - heartbeat에서 \`current_ip\` 컬럼 없을 때 에러 반복 발생 수정 — 컬럼 존재 시에만 전송
 - \`kin_post.py:255\` SyntaxWarning: Invalid escape sequence '\\.' 수정 (raw string 적용)

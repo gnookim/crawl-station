@@ -597,10 +597,10 @@ def step_download_files():
     # 서버에서 최신 릴리즈 파일 목록 가져오기
     FALLBACK_FILES = [
         "worker.py", "handlers/__init__.py", "handlers/base.py",
-        "handlers/kin.py", "handlers/blog.py", "handlers/serp.py",
-        "handlers/area.py", "handlers/deep.py", "handlers/rank.py",
-        "handlers/instagram.py", "handlers/instagram_post.py",
-        "handlers/oclick.py", "supabase_rest.py",
+        "handlers/kin.py", "handlers/kin_post.py", "handlers/blog.py",
+        "handlers/serp.py", "handlers/area.py", "handlers/deep.py",
+        "handlers/rank.py", "handlers/instagram.py", "handlers/instagram_post.py",
+        "handlers/oclick.py", "supabase_rest.py", "watchdog.py",
     ]
     try:
         with urllib.request.urlopen(
@@ -709,6 +709,35 @@ def step_register_service():
                 log("    -> 이전 바로가기 삭제: " + old_bat)
             except Exception:
                 pass
+
+    # 작업 스케줄러 Watchdog 등록 (5분마다 워커 살아있는지 확인 → 자동 복구)
+    pythonw_path = os.path.join(os.path.dirname(py), "pythonw.exe")
+    if not os.path.exists(pythonw_path):
+        pythonw_path = py
+    watchdog_path = os.path.join(INSTALL_DIR, "watchdog.py")
+    try:
+        # 기존 등록 삭제 후 재등록
+        subprocess.run(
+            ["schtasks", "/delete", "/tn", "CrawlStationWatchdog", "/f"],
+            capture_output=True, text=True, timeout=10
+        )
+        r = subprocess.run(
+            [
+                "schtasks", "/create",
+                "/tn", "CrawlStationWatchdog",
+                "/tr", '"{}" "{}"'.format(pythonw_path, watchdog_path),
+                "/sc", "minute", "/mo", "5",
+                "/ru", os.environ.get("USERNAME", ""),
+                "/f",
+            ],
+            capture_output=True, text=True, timeout=15
+        )
+        if r.returncode == 0:
+            log("    -> 자동 복구 감시자(Watchdog) 등록 완료 (5분마다 실행)")
+        else:
+            log("    -> [경고] Watchdog 등록 실패 (건너뜀): " + r.stderr[:80])
+    except Exception as e:
+        log("    -> [경고] Watchdog 등록 실패 (건너뜀): " + str(e)[:80])
 
     log("    -> 서비스 등록 완료 (GUI 앱 아이콘은 Inno Setup이 생성)")
 
@@ -951,6 +980,7 @@ def main():
         log("  ======================================================")
         log("")
         log("    - PC 부팅 시 자동 시작")
+        log("    - 워커 종료 시 5분 내 자동 복구 (Watchdog)")
         log("    - Station: " + STATION_URL)
         log("")
         log("  ======================================================")
