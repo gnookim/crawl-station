@@ -72,6 +72,40 @@ const RECONNECT_LABELS: Record<TetheringReconnectInterval, string> = {
   "10min": "10분마다",
 };
 
+/* ── 컬럼 정의 (설정 가능한 5개) ── */
+const COL_DEFS = [
+  { key: "os",        label: "OS",        width: "w-[108px]", align: "left"  },
+  { key: "version",   label: "버전",      width: "w-[80px]",  align: "left"  },
+  { key: "status",    label: "상태",      width: "w-[140px]", align: "left"  },
+  { key: "last_seen", label: "마지막",    width: "w-[80px]",  align: "left"  },
+  { key: "stats",     label: "처리/에러", width: "w-[84px]",  align: "right" },
+] as const;
+type ColKey = (typeof COL_DEFS)[number]["key"];
+const DEFAULT_COL_ORDER: ColKey[] = COL_DEFS.map(c => c.key);
+const DEFAULT_COL_VISIBLE: Record<ColKey, boolean> = Object.fromEntries(COL_DEFS.map(c => [c.key, true])) as Record<ColKey, boolean>;
+
+function loadColOrder(): ColKey[] {
+  if (typeof window === "undefined") return [...DEFAULT_COL_ORDER];
+  try {
+    const v = localStorage.getItem("workers_col_order");
+    if (v) {
+      const parsed = JSON.parse(v) as ColKey[];
+      // validate all keys present
+      if (DEFAULT_COL_ORDER.every(k => parsed.includes(k)) && parsed.length === DEFAULT_COL_ORDER.length) return parsed;
+    }
+  } catch { /* ignore */ }
+  return [...DEFAULT_COL_ORDER];
+}
+
+function loadColVisible(): Record<ColKey, boolean> {
+  if (typeof window === "undefined") return { ...DEFAULT_COL_VISIBLE };
+  try {
+    const v = localStorage.getItem("workers_col_visible");
+    if (v) return { ...DEFAULT_COL_VISIBLE, ...(JSON.parse(v) as Record<ColKey, boolean>) };
+  } catch { /* ignore */ }
+  return { ...DEFAULT_COL_VISIBLE };
+}
+
 /* ── 타입 카테고리 버튼 설정 ── */
 const CAT_BUTTONS = [
   { key: "all",       label: "전체",      active: "bg-gray-700 text-white border-gray-700" },
@@ -105,6 +139,25 @@ export default function WorkersPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  /* ── 컬럼 표시 설정 ── */
+  const [colOrder, setColOrder] = useState<ColKey[]>(() => loadColOrder());
+  const [colVisible, setColVisible] = useState<Record<ColKey, boolean>>(() => loadColVisible());
+  const [showColSettings, setShowColSettings] = useState(false);
+  const [dragColKey, setDragColKey] = useState<ColKey | null>(null);
+  const colSettingsRef = useRef<HTMLDivElement>(null);
+
+  // 컬럼 설정 패널 외부 클릭 닫기
+  useEffect(() => {
+    if (!showColSettings) return;
+    function handleClick(e: MouseEvent) {
+      if (colSettingsRef.current && !colSettingsRef.current.contains(e.target as Node)) {
+        setShowColSettings(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showColSettings]);
 
   /* ── 에러 로그 상태 ── */
   const [workerLogs, setWorkerLogs] = useState<WorkerLog[]>([]);
@@ -414,8 +467,40 @@ export default function WorkersPage() {
   const activeWorkers = workers.filter((w) => w.is_active);
   const offlineWorkers = workers.filter((w) => !w.is_active);
 
-  // 테이블 총 컬럼 수 (체크박스 포함)
-  const TABLE_COLS = 9;
+  // 표시할 설정 가능 컬럼 (순서 반영)
+  const visibleConfigCols = colOrder.filter(k => colVisible[k]);
+  // 테이블 총 컬럼 수 (체크박스 + 워커 + 테스트 + 제어 = 4 고정)
+  const TABLE_COLS = 4 + visibleConfigCols.length;
+
+  function toggleColVisible(key: ColKey) {
+    const next = { ...colVisible, [key]: !colVisible[key] };
+    setColVisible(next);
+    localStorage.setItem("workers_col_visible", JSON.stringify(next));
+  }
+
+  function resetColSettings() {
+    setColOrder([...DEFAULT_COL_ORDER]);
+    setColVisible({ ...DEFAULT_COL_VISIBLE });
+    localStorage.removeItem("workers_col_order");
+    localStorage.removeItem("workers_col_visible");
+  }
+
+  function handleColDragStart(key: ColKey) { setDragColKey(key); }
+  function handleColDragOver(e: React.DragEvent, overKey: ColKey) {
+    e.preventDefault();
+    if (!dragColKey || dragColKey === overKey) return;
+    const from = colOrder.indexOf(dragColKey);
+    const to = colOrder.indexOf(overKey);
+    if (from === -1 || to === -1) return;
+    const next = [...colOrder];
+    next.splice(from, 1);
+    next.splice(to, 0, dragColKey);
+    setColOrder(next);
+  }
+  function handleColDrop() {
+    setDragColKey(null);
+    localStorage.setItem("workers_col_order", JSON.stringify(colOrder));
+  }
 
   return (
     <div className="p-4 sm:p-6">
@@ -465,6 +550,52 @@ export default function WorkersPage() {
               {sec === 0 ? "끄기" : `${sec}s`}
             </button>
           ))}
+          {/* 컬럼 설정 버튼 */}
+          <div className="relative ml-1" ref={colSettingsRef}>
+            <button
+              onClick={() => setShowColSettings(v => !v)}
+              title="컬럼 표시 설정"
+              className={`px-2 py-0.5 text-xs rounded-md transition-colors ${showColSettings ? "bg-gray-800 text-white" : "text-gray-400 hover:text-gray-600"}`}
+            >
+              ⊞
+            </button>
+            {showColSettings && (
+              <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg w-44 py-1.5">
+                <div className="px-3 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">컬럼 설정</div>
+                {colOrder.map((key) => {
+                  const def = COL_DEFS.find(c => c.key === key)!;
+                  return (
+                    <div
+                      key={key}
+                      draggable
+                      onDragStart={() => handleColDragStart(key)}
+                      onDragOver={(e) => handleColDragOver(e, key)}
+                      onDrop={handleColDrop}
+                      className={`flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-gray-50 select-none ${dragColKey === key ? "opacity-40" : ""}`}
+                    >
+                      <span className="text-gray-300 cursor-grab text-sm leading-none">⠿</span>
+                      <input
+                        type="checkbox"
+                        checked={colVisible[key]}
+                        onChange={() => toggleColVisible(key)}
+                        className="rounded"
+                        onClick={e => e.stopPropagation()}
+                      />
+                      <span className="text-xs text-gray-600">{def.label}</span>
+                    </div>
+                  );
+                })}
+                <div className="border-t border-gray-100 mt-1 pt-1 px-2">
+                  <button
+                    onClick={resetColSettings}
+                    className="w-full text-xs text-gray-400 hover:text-gray-600 py-0.5 text-left"
+                  >
+                    기본값으로
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -550,11 +681,12 @@ export default function WorkersPage() {
                   />
                 </th>
                 <th className="text-left px-4 py-2 font-medium w-[180px]">워커</th>
-                <th className="text-left px-4 py-2 font-medium w-[108px]">OS</th>
-                <th className="text-left px-4 py-2 font-medium w-[80px]">버전</th>
-                <th className="text-left px-4 py-2 font-medium w-[140px]">상태</th>
-                <th className="text-left px-4 py-2 font-medium w-[80px]">마지막</th>
-                <th className="text-right px-4 py-2 font-medium w-[84px]">처리/에러</th>
+                {visibleConfigCols.map(key => {
+                  const def = COL_DEFS.find(c => c.key === key)!;
+                  return (
+                    <th key={key} className={`text-${def.align} px-4 py-2 font-medium ${def.width}`}>{def.label}</th>
+                  );
+                })}
                 <th className="text-center px-4 py-2 font-medium w-[80px]">테스트</th>
                 <th className="text-right px-4 py-2 font-medium w-[190px]">제어</th>
               </tr>
@@ -599,24 +731,37 @@ export default function WorkersPage() {
                         {w.current_ip && <div className="text-xs text-gray-400 font-mono truncate">🌐 {w.current_ip}</div>}
                         <div className="text-xs text-gray-300 font-mono truncate">{w.id}</div>
                       </td>
-                      <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden"><span className="truncate block">{w.os || "-"}</span></td>
-                      <td className="px-4 py-2"><VersionBadge version={w.version} latest={latestVersion} /></td>
-                      <td className="px-4 py-2">
-                        <div className="flex items-center gap-1 flex-nowrap">
-                          <WorkerStatusBadge status={displayStatus} />
-                          <WorkerTypeBadge allowedTypes={w.allowed_types} />
-                          <BlockBadge worker={w} />
-                          {w.command && (
-                            <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-xs whitespace-nowrap">{w.command}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2 text-xs text-gray-400 whitespace-nowrap"><LastSeenLabel lastSeen={w.last_seen} /></td>
-                      <td className="px-4 py-2 text-right tabular-nums">
-                        <span className="text-green-600">{w.total_processed}</span>
-                        {" / "}
-                        <span className="text-red-500">{w.error_count}</span>
-                      </td>
+                      {visibleConfigCols.map(key => {
+                        if (key === "os") return (
+                          <td key="os" className="px-4 py-2 text-gray-500 text-xs overflow-hidden"><span className="truncate block">{w.os || "-"}</span></td>
+                        );
+                        if (key === "version") return (
+                          <td key="version" className="px-4 py-2"><VersionBadge version={w.version} latest={latestVersion} /></td>
+                        );
+                        if (key === "status") return (
+                          <td key="status" className="px-4 py-2">
+                            <div className="flex items-center gap-1 flex-nowrap">
+                              <WorkerStatusBadge status={displayStatus} />
+                              <WorkerTypeBadge allowedTypes={w.allowed_types} />
+                              <BlockBadge worker={w} />
+                              {w.command && (
+                                <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-xs whitespace-nowrap">{w.command}</span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                        if (key === "last_seen") return (
+                          <td key="last_seen" className="px-4 py-2 text-xs text-gray-400 whitespace-nowrap"><LastSeenLabel lastSeen={w.last_seen} /></td>
+                        );
+                        if (key === "stats") return (
+                          <td key="stats" className="px-4 py-2 text-right tabular-nums">
+                            <span className="text-green-600">{w.total_processed}</span>
+                            {" / "}
+                            <span className="text-red-500">{w.error_count}</span>
+                          </td>
+                        );
+                        return null;
+                      })}
 
                       {/* 테스트 버튼 */}
                       <td className="px-4 py-2 text-center">
