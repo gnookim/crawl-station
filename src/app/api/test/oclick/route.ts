@@ -4,8 +4,11 @@ import { createServerClient } from "@/lib/supabase";
 /**
  * Oclick 테스트 API
  *
- * POST /api/test/oclick — oclick_sync 요청 등록 후 crawler-app 결과 대기
- * body: { company_code, user_id, password }  (옵션 — 미입력 시 station_settings에서 로드)
+ * POST /api/test/oclick — oclick_sync 요청 등록 후 결과 대기
+ * body: { company_code, user_id, password, worker_id? }
+ *   - worker_id: 지정 시 해당 워커에 직접 할당 (자동 검증용)
+ *   - 미지정 시 pending으로 등록 (아무 워커나 처리)
+ *   - credentials 미입력 시 station_settings에서 자동 로드
  */
 
 const TIMEOUT_MS = 180_000; // 3분 (Oclick은 상품이 많으면 오래 걸림)
@@ -16,7 +19,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
 
   // credentials: 요청에서 받거나 station_settings에서 로드
-  let { company_code, user_id, password } = body;
+  let { company_code, user_id, password, worker_id } = body;
 
   if (!company_code || !user_id || !password) {
     const { data: rows } = await sb
@@ -38,13 +41,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 테스트 요청 생성
+  // 테스트 요청 생성 (worker_id 있으면 해당 워커에 직접 할당)
   const { data: req, error: insertErr } = await sb
     .from("crawl_requests")
     .insert({
       keyword: company_code,
       type: "oclick_sync",
-      status: "pending",
+      status: worker_id ? "assigned" : "pending",
+      assigned_worker: worker_id || null,
       priority: 99,
       options: {
         company_code,

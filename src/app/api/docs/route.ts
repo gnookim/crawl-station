@@ -327,6 +327,14 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### Station — 오클릭 테스트 worker_id 지원
+- \`POST /api/test/oclick\`에 \`worker_id\` 파라미터 추가
+- worker_id 지정 시 해당 워커에 직접 할당(assigned), 미지정 시 기존대로 pending
+
+### 워커 — 자동 검증 오클릭 포함 (v0.9.35)
+- 자동 검증 시 네이버 + 오클릭 순차 테스트
+- 오클릭 credentials 미설정 시 건너뜀 (검증 차단 없음)
+
 ### 워커 — 설치 시 이름 지정 (선택)
 - 인스톨러 실행 시 워커 이름 입력 프롬프트 추가 (엔터 시 호스트명 자동 사용)
 - 입력한 이름은 \`.env\`에 \`WORKER_NAME=\`으로 저장
