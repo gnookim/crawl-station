@@ -335,6 +335,12 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 새 API: \`POST /api/test/instagram-account\` — 계정 로그인 테스트 요청 + 결과 폴링
 - DB 신규 필드: \`last_test_at\`, \`last_test_status\` (ok/fail)
 
+### 워커 — instagram_login_test 2단계 검증으로 강화 (v0.9.38)
+- Step 1: 해당 계정으로 Instagram 로그인 확인
+- Step 2: 로그인 세션으로 @instagram 프로필 실제 크롤링 → 팔로워 수 등 데이터 수집 확인
+- 로그인 성공해도 크롤링 차단 시 fail 처리
+- 각 단계 실패 원인을 last_test_error에 상세 기록
+
 ### 워커 — instagram_login_test 핸들러 추가 (v0.9.37)
 - 특정 account_id를 받아 해당 계정으로 Instagram 로그인 시도
 - 성공 시 세션 저장 + \`last_test_status="ok"\` 업데이트
