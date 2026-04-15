@@ -352,7 +352,7 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ### Windows 인스톨러 — 한글 주석 SyntaxError (인코딩 손상) 수정
 - urlretrieve → urlopen + 명시적 UTF-8 저장으로 교체
-- .py 파일 다운로드 시 `# -*- coding: utf-8 -*-` 선언 자동 추가
+- .py 파일 다운로드 시 \`# -*- coding: utf-8 -*-\` 선언 자동 추가
 - Windows 시스템 기본 인코딩(cp949 등)이 Python 파싱에 영향을 주지 않도록 방지
 
 ### Windows 인스톨러 — tzdata 패키지 누락으로 워커 시작 실패 수정
