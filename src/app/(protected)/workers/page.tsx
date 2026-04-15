@@ -834,7 +834,7 @@ export default function WorkersPage() {
                 </div>
 
                 <div className="border-t border-gray-100" />
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider -mb-2">네트워크 / 크롤링</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">네트워크 / 크롤링</div>
 
                 {/* 네트워크 타입 */}
                 <div>
