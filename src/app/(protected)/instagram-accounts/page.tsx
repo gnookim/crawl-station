@@ -51,10 +51,15 @@ export default function InstagramAccountsPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
 
   const loadAccounts = useCallback(async () => {
-    const res = await fetch("/api/instagram-accounts");
-    const data = await res.json();
-    setAccounts(data.accounts || []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/instagram-accounts");
+      const data = await res.json();
+      setAccounts(data.accounts || []);
+    } catch {
+      // 에러 시 빈 목록 유지
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -64,7 +69,7 @@ export default function InstagramAccountsPage() {
   }, [loadAccounts]);
 
   useEffect(() => {
-    fetch("/api/workers").then(r => r.json()).then(d => setWorkers(d.workers || []));
+    fetch("/api/workers").then(r => r.json()).then(d => setWorkers(d.workers || [])).catch(() => setWorkers([]));
   }, []);
 
   async function addAccount() {

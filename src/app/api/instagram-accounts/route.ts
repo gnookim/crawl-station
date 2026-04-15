@@ -17,10 +17,20 @@ import { createServerClient } from "@/lib/supabase";
 
 export async function GET() {
   const sb = createServerClient();
-  const { data, error } = await sb
+  let { data, error } = await sb
     .from("instagram_accounts")
     .select("id, username, email, phone, team, creator, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, created_at")
     .order("created_at", { ascending: false });
+
+  // 신규 컬럼 없는 환경 fallback
+  if (error?.message?.includes("schema cache") || error?.message?.includes("column")) {
+    const fallback = await sb
+      .from("instagram_accounts")
+      .select("id, username, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, created_at")
+      .order("created_at", { ascending: false });
+    data = (fallback.data ?? []).map((a) => ({ ...a, email: null, phone: null, team: null, creator: null }));
+    error = fallback.error;
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ accounts: data || [] });
