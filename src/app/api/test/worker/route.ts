@@ -122,14 +122,23 @@ export async function POST(request: NextRequest) {
         elapsed_ms: elapsed,
         tested_at: new Date().toISOString(),
       };
+
+      // Fetch existing test_results and merge
+      const { data: workerRow } = await sb.from("workers").select("test_results").eq("id", workerId).single();
+      const existingResults = (workerRow?.test_results as Record<string, unknown>) || {};
+      const categoryResult = { ok: testPassed, at: new Date().toISOString() } as { ok: boolean; at: string; error?: string };
+      const mergedResults = { ...existingResults, [testCategory]: categoryResult };
+
       if (testPassed) {
         await sb.from("workers").update({
           verified_at: new Date().toISOString(),
           last_test_result: testSummary,
+          test_results: mergedResults,
         }).eq("id", workerId);
       } else {
         await sb.from("workers").update({
           last_test_result: testSummary,
+          test_results: mergedResults,
         }).eq("id", workerId);
       }
 
@@ -150,17 +159,28 @@ export async function POST(request: NextRequest) {
     }
 
     if (check.status === "failed") {
+      const errorMsg = check.error_message || "크롤링 실패";
+      const { data: failedWorkerRow } = await sb.from("workers").select("test_results").eq("id", workerId).single();
+      const existingFailResults = (failedWorkerRow?.test_results as Record<string, unknown>) || {};
+      await sb.from("workers").update({
+        test_results: { ...existingFailResults, [testCategory]: { ok: false, at: new Date().toISOString(), error: errorMsg } },
+      }).eq("id", workerId);
       return NextResponse.json({
         ok: false,
         worker_id: workerId,
         request_id: req.id,
-        error: check.error_message || "크롤링 실패",
+        error: errorMsg,
         elapsed_ms: Date.now() - startTime,
       });
     }
   }
 
-  // 타임아웃
+  // 타임아웃 — save result
+  const { data: timeoutWorkerRow } = await sb.from("workers").select("test_results").eq("id", workerId).single();
+  const existingTimeoutResults = (timeoutWorkerRow?.test_results as Record<string, unknown>) || {};
+  await sb.from("workers").update({
+    test_results: { ...existingTimeoutResults, [testCategory]: { ok: false, at: new Date().toISOString(), error: `타임아웃 (${TIMEOUT_MS / 1000}초)` } },
+  }).eq("id", workerId);
   return NextResponse.json({
     ok: false,
     worker_id: workerId,

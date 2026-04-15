@@ -125,6 +125,54 @@ function getWorkerCat(allowed_types: string[]): string {
   return "all";
 }
 
+/* ── 카테고리별 테스트 결과 뱃지 ── */
+const NAVER_TYPES   = CRAWL_CATEGORIES.find(c => c.key === "naver")?.types || [];
+const INSTA_TYPES   = CRAWL_CATEGORIES.find(c => c.key === "instagram")?.types || [];
+const OCLICK_TYPES  = CRAWL_CATEGORIES.find(c => c.key === "oclick")?.types || [];
+
+type CategoryKey = "naver" | "instagram" | "oclick";
+
+function workerHasCategory(allowedTypes: string[] | null, cat: CategoryKey): boolean {
+  if (!allowedTypes || allowedTypes.length === 0) return true; // empty = all categories
+  if (cat === "naver")     return allowedTypes.some(t => NAVER_TYPES.includes(t));
+  if (cat === "instagram") return allowedTypes.some(t => INSTA_TYPES.includes(t));
+  if (cat === "oclick")    return allowedTypes.some(t => OCLICK_TYPES.includes(t));
+  return false;
+}
+
+function WorkerTestBadges({ worker }: { worker: Worker }) {
+  const cats: { key: CategoryKey; label: string }[] = [
+    { key: "naver",     label: "N" },
+    { key: "instagram", label: "I" },
+    { key: "oclick",    label: "O" },
+  ];
+  const relevant = cats.filter(c => workerHasCategory(worker.allowed_types, c.key));
+  if (relevant.length === 0) return null;
+  return (
+    <div className="flex items-center gap-0.5 flex-nowrap">
+      {relevant.map(({ key, label }) => {
+        const r = worker.test_results?.[key];
+        let cls = "bg-gray-100 text-gray-400";
+        let title = `${label}: 미테스트`;
+        if (r !== undefined && r !== null) {
+          if (r.ok) {
+            cls = "bg-green-100 text-green-700";
+            title = `${label}: 통과 (${new Date(r.at).toLocaleString("ko")})`;
+          } else {
+            cls = "bg-red-100 text-red-600";
+            title = `${label}: 실패 (${new Date(r.at).toLocaleString("ko")}${r.error ? " — " + r.error : ""})`;
+          }
+        }
+        return (
+          <span key={key} title={title} className={`shrink-0 px-1.5 py-0.5 rounded text-xs font-mono font-bold cursor-help ${cls}`}>
+            {label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function WorkersPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [latestVersion, setLatestVersion] = useState<string>("");
@@ -718,12 +766,7 @@ export default function WorkersPage() {
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-1.5 flex-nowrap mb-0.5">
                           <span className="font-medium text-sm min-w-0 truncate">{w.name || w.id}</span>
-                          {w.verified_at ? (
-                            <span title={`테스트 통과: ${new Date(w.verified_at).toLocaleString("ko")}`}
-                              className="shrink-0 px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs cursor-help">검증됨</span>
-                          ) : (
-                            <span className="shrink-0 px-1 py-0.5 bg-gray-100 text-gray-400 rounded text-xs">미검증</span>
-                          )}
+                          <WorkerTestBadges worker={w} />
                         </div>
                         {w.location && <div className="text-xs text-gray-400 truncate">📍 {w.location}</div>}
                         {w.manager && <div className="text-xs text-gray-400 truncate">👤 {w.manager}</div>}

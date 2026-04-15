@@ -327,6 +327,13 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### Station — 카테고리별 테스트 결과 뱃지
+- 워커 관리 페이지: "검증됨/미검증" 단일 뱃지를 N/I/O 카테고리별 상태 뱃지로 교체
+- 각 뱃지 색상: 초록(통과) / 빨강(실패) / 회색(미테스트), 마우스오버 시 마지막 테스트 시각 표시
+- worker.allowed_types 기반으로 해당 카테고리만 표시 (비어 있으면 N/I/O 전체)
+- DB: \`workers.test_results\` JSONB 컬럼 추가 — 카테고리별 { ok, at, error } 저장
+- API \`POST /api/test/worker\`: 테스트 완료/실패/타임아웃 시 test_results에 결과 병합 저장
+
 ### 워커 — 이름 보존 (v0.9.42)
 - 워커 재시작/업데이트 시 Station에서 수정한 name을 hostname으로 덮어쓰던 버그 수정
 - 최초 등록 시에만 WORKER_NAME(또는 hostname) 사용, 이후 재시작 시 name 유지

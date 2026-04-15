@@ -30,6 +30,11 @@ export interface Worker {
   created_at: string;
   current_ip: string | null;
   is_active?: boolean;
+  test_results?: {
+    naver?: { ok: boolean; at: string; error?: string };
+    instagram?: { ok: boolean; at: string; error?: string };
+    oclick?: { ok: boolean; at: string; error?: string };
+  } | null;
 }
 
 export interface WorkerRelease {
