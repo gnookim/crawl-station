@@ -327,6 +327,11 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### 워커 — 설치 후 자동 검증 (auto-verify)
+- 최초 등록 시 \`verified_at IS NULL\`이면 메인 루프 시작 8초 후 Station 테스트 API 자동 호출
+- 네이버 blog_serp 테스트 → 통과 시 Station이 \`verified_at\` 자동 업데이트
+- 이미 검증된 워커(재시작·업데이트)는 자동 검증 건너뜀
+
 ### Station — 워커 테스트 개선
 - 개별 워커 테스트 버튼에 "전체" 추가 (N+I 동시 실행)
 - 하단 액션 바에 "전체 테스트" 버튼 추가 (활성 워커 N+I+O 일괄 테스트)
