@@ -135,7 +135,10 @@ export async function GET(request: NextRequest) {
     await sb.from("instagram_accounts").update({
       last_test_at: now, last_test_status: "fail", last_test_error: msg,
     }).eq("id", accountId);
-    return NextResponse.json({ ok: false, done: true, error: msg });
+    return NextResponse.json({
+      ok: false, done: true, error: msg,
+      checks: [{ label: "워커 응답", ok: false, detail: "타임아웃 (2분)" }],
+    });
   }
 
   if (req.status === "completed") {
@@ -157,15 +160,25 @@ export async function GET(request: NextRequest) {
       }).eq("id", accountId);
       return NextResponse.json({
         ok: true, done: true,
-        detail: `로그인 + 크롤링 성공 (팔로워 ${(followerCount ?? 0).toLocaleString()}명 수집)`,
+        checks: [
+          { label: "로그인", ok: true },
+          { label: `크롤링 (@instagram)`, ok: true, detail: `팔로워 ${(followerCount ?? 0).toLocaleString()}명 확인` },
+          { label: "로그인 전용 컨텐츠 접근", ok: true },
+        ],
       });
     } else {
       // completed지만 데이터 없음 → 익명 크롤링 or 세션 만료
-      const msg = "크롤링 완료됐으나 데이터 없음 — 비로그인 상태로 처리됐을 수 있습니다. 비밀번호나 세션을 확인하세요.";
+      const msg = "비로그인 상태로 처리됐을 수 있습니다. 비밀번호나 세션을 확인하세요.";
       await sb.from("instagram_accounts").update({
         last_test_at: now, last_test_status: "fail", last_test_error: msg,
       }).eq("id", accountId);
-      return NextResponse.json({ ok: false, done: true, error: msg });
+      return NextResponse.json({
+        ok: false, done: true, error: msg,
+        checks: [
+          { label: "로그인", ok: true },
+          { label: "크롤링 (@instagram)", ok: false, detail: "데이터 없음 — 비로그인 상태 의심" },
+        ],
+      });
     }
   }
 
@@ -174,7 +187,12 @@ export async function GET(request: NextRequest) {
     await sb.from("instagram_accounts").update({
       last_test_at: now, last_test_status: "fail", last_test_error: errMsg,
     }).eq("id", accountId);
-    return NextResponse.json({ ok: false, done: true, error: errMsg });
+    return NextResponse.json({
+      ok: false, done: true, error: errMsg,
+      checks: [
+        { label: "로그인", ok: false, detail: errMsg },
+      ],
+    });
   }
 
   // 아직 처리 중

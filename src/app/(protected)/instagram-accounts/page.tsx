@@ -56,7 +56,8 @@ function fmtDateShort(iso: string): string {
 }
 
 // ── 계정 테스트 결과 상태 ──────────────────────────
-type LocalTest = { status: "idle" | "running" | "ok" | "fail"; error?: string; versionWarning?: string };
+type TestCheck = { label: string; ok: boolean; detail?: string };
+type LocalTest = { status: "idle" | "running" | "ok" | "fail"; error?: string; checks?: TestCheck[]; versionWarning?: string };
 
 export default function InstagramAccountsPage() {
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
@@ -234,7 +235,7 @@ export default function InstagramAccountsPage() {
         const getData = await getRes.json();
 
         if (getData.done) {
-          setTestState(s => ({ ...s, [accountId]: { status: getData.ok ? "ok" : "fail", error: getData.error } }));
+          setTestState(s => ({ ...s, [accountId]: { status: getData.ok ? "ok" : "fail", error: getData.error, checks: getData.checks } }));
           loadAccounts();
           return;
         }
@@ -448,12 +449,40 @@ export default function InstagramAccountsPage() {
                         ) : testDisplay.status === "ok" ? (
                           <>
                             <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">✓ 정상</span>
-                            {testedAt && <div className="text-xs text-gray-400 mt-0.5">{timeAgo(testedAt)}</div>}
+                            {localTest?.checks ? (
+                              <div className="mt-1 space-y-0.5">
+                                {localTest.checks.map((c, i) => (
+                                  <div key={i} className="text-xs flex items-start gap-1 leading-tight">
+                                    <span className={c.ok ? "text-green-500" : "text-red-400"}>
+                                      {c.ok ? "✓" : "✗"}
+                                    </span>
+                                    <span className={c.ok ? "text-gray-500" : "text-red-500"}>
+                                      {c.label}{c.detail ? ` — ${c.detail}` : ""}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : testedAt ? (
+                              <div className="text-xs text-gray-400 mt-0.5">{timeAgo(testedAt)}</div>
+                            ) : null}
                           </>
                         ) : testDisplay.status === "fail" ? (
                           <>
                             <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded-full">✗ 실패</span>
-                            {errMsg ? (
+                            {localTest?.checks ? (
+                              <div className="mt-1 space-y-0.5">
+                                {localTest.checks.map((c, i) => (
+                                  <div key={i} className="text-xs flex items-start gap-1 leading-tight">
+                                    <span className={c.ok ? "text-green-500" : "text-red-400"}>
+                                      {c.ok ? "✓" : "✗"}
+                                    </span>
+                                    <span className={c.ok ? "text-gray-500" : "text-red-500"}>
+                                      {c.label}{c.detail ? ` — ${c.detail}` : ""}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : errMsg ? (
                               <div
                                 className="text-xs text-red-500 mt-0.5 leading-tight cursor-help line-clamp-2"
                                 title={errMsg}
