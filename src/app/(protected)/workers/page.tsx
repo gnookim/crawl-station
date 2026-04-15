@@ -25,6 +25,10 @@ interface WorkerNetConfig {
   tethering_reconnect_interval: string;
   daily_quota: number;
   daily_used: number;
+  daily_quota_naver: number;
+  daily_used_naver: number;
+  daily_quota_instagram: number;
+  daily_used_instagram: number;
   allowed_types: string[];
   update_check_interval_minutes: number;
 }
@@ -47,6 +51,10 @@ const DEFAULT_NET_CONFIG: WorkerNetConfig = {
   tethering_reconnect_interval: "per_batch",
   daily_quota: 500,
   daily_used: 0,
+  daily_quota_naver: 50,
+  daily_used_naver: 0,
+  daily_quota_instagram: 10,
+  daily_used_instagram: 0,
   allowed_types: [],
   update_check_interval_minutes: 60,
 };
@@ -278,6 +286,10 @@ export default function WorkersPage() {
             tethering_reconnect_interval: (c.tethering_reconnect_interval as string) || "per_batch",
             daily_quota: (c.daily_quota as number) ?? 500,
             daily_used: (c.daily_used as number) ?? 0,
+            daily_quota_naver: (c.daily_quota_naver as number) ?? 50,
+            daily_used_naver: (c.daily_used_naver as number) ?? 0,
+            daily_quota_instagram: (c.daily_quota_instagram as number) ?? 10,
+            daily_used_instagram: (c.daily_used_instagram as number) ?? 0,
             allowed_types: Array.isArray(c.allowed_types) ? c.allowed_types as string[] : [],
             update_check_interval_minutes: (c.update_check_interval_minutes as number) ?? 60,
           } satisfies WorkerNetConfig,
@@ -1112,12 +1124,33 @@ export default function WorkersPage() {
 
                 {/* 일일 한도 */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">일일 한도</label>
-                  <input type="number" value={cfg.daily_quota} onChange={(e) => updateWorkerNet(panelWorkerId, "daily_quota", parseInt(e.target.value) || 100)}
-                    min={10} max={5000}
-                    className="w-28 px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
-                  <div className="text-xs text-gray-400 mt-1">
-                    오늘 사용: <span className={cfg.daily_used >= cfg.daily_quota ? "text-red-600 font-bold" : "text-gray-600"}>{cfg.daily_used}</span> / {cfg.daily_quota}
+                  <label className="block text-xs font-medium text-gray-500 mb-2">일일 한도</label>
+                  <div className="flex flex-col gap-2">
+                    {/* 네이버 */}
+                    <div className="flex items-center gap-2">
+                      <span className="w-16 text-xs text-green-700 font-medium">네이버</span>
+                      <input type="number"
+                        value={cfg.daily_quota_naver}
+                        onChange={(e) => updateWorkerNet(panelWorkerId, "daily_quota_naver", parseInt(e.target.value) || 0)}
+                        min={0} max={5000}
+                        className="w-20 px-2 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                      <span className={`text-xs ${cfg.daily_used_naver >= cfg.daily_quota_naver && cfg.daily_quota_naver > 0 ? "text-red-500 font-bold" : "text-gray-400"}`}>
+                        {cfg.daily_quota_naver === 0 ? "무제한" : `오늘 ${cfg.daily_used_naver} / ${cfg.daily_quota_naver}`}
+                      </span>
+                    </div>
+                    {/* 인스타 */}
+                    <div className="flex items-center gap-2">
+                      <span className="w-16 text-xs text-pink-600 font-medium">인스타</span>
+                      <input type="number"
+                        value={cfg.daily_quota_instagram}
+                        onChange={(e) => updateWorkerNet(panelWorkerId, "daily_quota_instagram", parseInt(e.target.value) || 0)}
+                        min={0} max={1000}
+                        className="w-20 px-2 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white" />
+                      <span className={`text-xs ${cfg.daily_used_instagram >= cfg.daily_quota_instagram && cfg.daily_quota_instagram > 0 ? "text-red-500 font-bold" : "text-gray-400"}`}>
+                        {cfg.daily_quota_instagram === 0 ? "무제한" : `오늘 ${cfg.daily_used_instagram} / ${cfg.daily_quota_instagram}`}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-300">0 = 무제한 · 저장 후 다음 요청부터 적용</p>
                   </div>
                 </div>
 
