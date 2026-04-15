@@ -132,9 +132,12 @@ export default function InstagramAccountsPage() {
       });
       const data = await res.json();
       if (!res.ok) { alert(`등록 실패: ${data.error}`); return; }
+      const newId = data.account?.id;
       setForm({ username: "", password: "", email: "", phone: "", team: "", creator: "", note: "", assigned_worker_id: "" });
       setShowAddForm(false);
-      loadAccounts();
+      await loadAccounts();
+      // 등록 즉시 자동 테스트
+      if (newId) runTest(newId);
     } finally { setSubmitting(false); }
   }
 
