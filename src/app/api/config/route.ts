@@ -10,18 +10,26 @@ import { createServerClient } from "@/lib/supabase";
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id") || "global";
+  const id = searchParams.get("id");
+  const all = searchParams.get("all") === "1";
 
   const sb = createServerClient();
+
+  // 전체 설정 일괄 조회 (워커 목록 로드 시 사용 — N번 개별 호출 방지)
+  if (all) {
+    const { data } = await sb.from("worker_config").select("*");
+    return NextResponse.json({ configs: data || [] });
+  }
+
+  const configId = id || "global";
   const { data, error } = await sb
     .from("worker_config")
     .select("*")
-    .eq("id", id)
+    .eq("id", configId)
     .single();
 
   if (error || !data) {
-    // global이 없으면 기본값 반환
-    if (id === "global") {
+    if (configId === "global") {
       return NextResponse.json({
         config: {
           id: "global",

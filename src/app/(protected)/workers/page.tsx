@@ -126,34 +126,35 @@ export default function WorkersPage() {
     setLastUpdated(new Date());
     if (showSpinner) setTimeout(() => setIsRefreshing(false), 300);
 
-    // 워커별 설정 로드 (병렬)
-    const configEntries = await Promise.all(
-      enriched.map(async (w) => {
-        try {
-          const r = await fetch(`/api/config?id=${w.id}`);
-          if (!r.ok) return [w.id, { ...DEFAULT_NET_CONFIG }] as const;
-          const d = await r.json();
-          const c = d.config;
-          return [
-            w.id,
-            {
-              network_type: c.network_type || "wifi",
-              proxy_url: c.proxy_url || "",
-              proxy_rotate: c.proxy_rotate || false,
-              tethering_carrier: c.tethering_carrier || "skt",
-              tethering_auto_reconnect: c.tethering_auto_reconnect || false,
-              tethering_reconnect_interval: c.tethering_reconnect_interval || "per_batch",
-              daily_quota: c.daily_quota ?? 500,
-              daily_used: c.daily_used ?? 0,
-              allowed_types: Array.isArray(c.allowed_types) ? c.allowed_types : [],
-            } satisfies WorkerNetConfig,
-          ] as const;
-        } catch {
-          return [w.id, { ...DEFAULT_NET_CONFIG }] as const;
-        }
-      })
-    );
-    setWorkerConfigs(Object.fromEntries(configEntries));
+    // 워커 설정 일괄 로드 (API 1번 호출)
+    try {
+      const configRes = await fetch("/api/config?all=1");
+      const configData = configRes.ok ? await configRes.json() : { configs: [] };
+      const configList: Record<string, unknown>[] = configData.configs || [];
+      const configMap = Object.fromEntries(
+        configList.map((c) => [
+          c.id as string,
+          {
+            network_type: (c.network_type as string) || "wifi",
+            proxy_url: (c.proxy_url as string) || "",
+            proxy_rotate: Boolean(c.proxy_rotate),
+            tethering_carrier: (c.tethering_carrier as string) || "skt",
+            tethering_auto_reconnect: Boolean(c.tethering_auto_reconnect),
+            tethering_reconnect_interval: (c.tethering_reconnect_interval as string) || "per_batch",
+            daily_quota: (c.daily_quota as number) ?? 500,
+            daily_used: (c.daily_used as number) ?? 0,
+            allowed_types: Array.isArray(c.allowed_types) ? c.allowed_types as string[] : [],
+          } satisfies WorkerNetConfig,
+        ])
+      );
+      // 설정 없는 워커는 기본값 적용
+      const merged = Object.fromEntries(
+        enriched.map((w) => [w.id, configMap[w.id] ?? { ...DEFAULT_NET_CONFIG }])
+      );
+      setWorkerConfigs(merged);
+    } catch {
+      setWorkerConfigs(Object.fromEntries(enriched.map((w) => [w.id, { ...DEFAULT_NET_CONFIG }])));
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
