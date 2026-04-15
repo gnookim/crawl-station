@@ -28,6 +28,7 @@ export interface Worker {
   note: string | null;
   manager: string | null;
   created_at: string;
+  current_ip: string | null;
   is_active?: boolean;
 }
 

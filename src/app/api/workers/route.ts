@@ -13,7 +13,7 @@ export async function GET() {
 
   const { data, error } = await sb
     .from("workers")
-    .select("id, name, os, version, status, last_seen, current_keyword, current_type, total_processed, error_count, command, allowed_types, block_status, block_platform, block_level, blocked_until, verified_at")
+    .select("id, name, os, version, status, last_seen, current_keyword, current_type, total_processed, error_count, command, allowed_types, block_status, block_platform, block_level, blocked_until, verified_at, current_ip")
     .order("last_seen", { ascending: false });
 
   if (error) {

@@ -327,6 +327,11 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### 워커 — 현재 IP 표시 (v0.9.36)
+- 시작 시 외부 IP 조회 후 workers 테이블 \`current_ip\` 저장
+- heartbeat마다 포함, 30분마다 자동 갱신
+- 워커 관리 목록에서 이름 아래 🌐 IP 표시
+
 ### Station — 오클릭 테스트 worker_id 지원
 - \`POST /api/test/oclick\`에 \`worker_id\` 파라미터 추가
 - worker_id 지정 시 해당 워커에 직접 할당(assigned), 미지정 시 기존대로 pending

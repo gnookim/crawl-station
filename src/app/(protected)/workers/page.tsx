@@ -557,6 +557,7 @@ export default function WorkersPage() {
                         </div>
                         {w.location && <div className="text-xs text-gray-400 truncate">📍 {w.location}</div>}
                         {w.manager && <div className="text-xs text-gray-400 truncate">👤 {w.manager}</div>}
+                        {w.current_ip && <div className="text-xs text-gray-400 font-mono truncate">🌐 {w.current_ip}</div>}
                         <div className="text-xs text-gray-300 font-mono truncate">{w.id}</div>
                       </td>
                       <td className="px-4 py-2 text-gray-500 text-xs overflow-hidden"><span className="truncate block">{w.os || "-"}</span></td>
