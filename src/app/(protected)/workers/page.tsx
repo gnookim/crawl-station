@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Worker, TetheringCarrier, TetheringReconnectInterval } from "@/types";
 import { WORKER_ONLINE_THRESHOLD_MS, CRAWL_CATEGORIES } from "@/types";
@@ -194,6 +194,8 @@ export default function WorkersPage() {
   const [refreshInterval, setRefreshInterval] = useState(10);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   /* ── 컬럼 표시 설정 ── */
@@ -251,23 +253,42 @@ export default function WorkersPage() {
 
   const loadData = useCallback(async (showSpinner = false) => {
     if (showSpinner) setIsRefreshing(true);
-    const [workersRes, releaseRes] = await Promise.all([
-      supabase.from("workers").select("*").order("registered_at", { ascending: false }),
-      supabase.from("worker_releases").select("version").eq("is_latest", true).limit(1),
-    ]);
 
-    const now = Date.now();
-    const enriched = (workersRes.data || []).map((w) => ({
-      ...w,
-      is_active: w.last_seen
-        ? now - new Date(w.last_seen).getTime() < WORKER_ONLINE_THRESHOLD_MS
-        : false,
-    })) as Worker[];
+    let enriched: Worker[] = [];
+    try {
+      const [workersRes, releaseRes] = await Promise.all([
+        supabase.from("workers").select("*").order("registered_at", { ascending: false }),
+        supabase.from("worker_releases").select("version").eq("is_latest", true).limit(1),
+      ]);
 
-    setWorkers(enriched);
-    if (releaseRes.data?.[0]) setLatestVersion(releaseRes.data[0].version);
-    setLastUpdated(new Date());
-    if (showSpinner) setTimeout(() => setIsRefreshing(false), 300);
+      if (workersRes.error) {
+        setDbError(`DB 연결 오류: ${workersRes.error.message}`);
+        setIsLoading(false);
+        if (showSpinner) setTimeout(() => setIsRefreshing(false), 300);
+        return;
+      }
+
+      setDbError(null);
+      const now = Date.now();
+      enriched = (workersRes.data || []).map((w) => ({
+        ...w,
+        is_active: w.last_seen
+          ? now - new Date(w.last_seen).getTime() < WORKER_ONLINE_THRESHOLD_MS
+          : false,
+      })) as Worker[];
+
+      setWorkers(enriched);
+      if (releaseRes.data?.[0]) setLatestVersion(releaseRes.data[0].version);
+      setLastUpdated(new Date());
+      setIsLoading(false);
+      if (showSpinner) setTimeout(() => setIsRefreshing(false), 300);
+    } catch (e) {
+      setDbError(`DB 연결 실패 — Supabase가 응답하지 않습니다. 대시보드에서 프로젝트 상태를 확인하세요.`);
+      console.error("[workers] loadData error:", e);
+      setIsLoading(false);
+      if (showSpinner) setTimeout(() => setIsRefreshing(false), 300);
+      return;
+    }
 
     // 워커 설정 일괄 로드 (API 1번 호출)
     try {
@@ -723,9 +744,44 @@ export default function WorkersPage() {
         </div>
       )}
 
+      {/* DB 연결 오류 */}
+      {dbError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 text-sm">
+          <div className="flex items-start gap-2">
+            <span className="text-red-500 font-bold text-base leading-none mt-0.5">!</span>
+            <div>
+              <div className="font-semibold text-red-700 mb-1">데이터베이스 연결 오류</div>
+              <div className="text-red-600 text-xs mb-2">{dbError}</div>
+              <div className="text-xs text-gray-500">
+                Supabase 프로젝트가 일시 정지됐을 수 있습니다.{" "}
+                <a
+                  href="https://app.supabase.com/project/uovisddipuiniissawde"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline hover:text-blue-800"
+                >
+                  Supabase 대시보드
+                </a>
+                에서 프로젝트 상태를 확인 후 재활성화하세요.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => loadData(true)}
+            className="mt-3 px-3 py-1.5 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 font-medium"
+          >
+            재시도
+          </button>
+        </div>
+      )}
+
       {/* 워커 목록 */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        {workers.length === 0 ? (
+        {isLoading ? (
+          <div className="p-8 text-center text-gray-400 text-sm">워커 목록 로드 중...</div>
+        ) : dbError ? (
+          <div className="p-8 text-center text-gray-300 text-sm">연결 오류로 데이터를 불러올 수 없습니다.</div>
+        ) : workers.length === 0 ? (
           <div className="p-8 text-center text-gray-400 text-sm">등록된 워커가 없습니다.</div>
         ) : (
           <div className="overflow-x-auto"><table className="w-full text-sm table-fixed">
@@ -762,8 +818,8 @@ export default function WorkersPage() {
                 const isSelected = selectedIds.has(w.id);
 
                 return (
-                  <>
-                    <tr key={w.id} className={`border-t border-gray-100 hover:bg-gray-50 ${isSelected ? "bg-blue-50" : ""}`}>
+                  <React.Fragment key={w.id}>
+                    <tr className={`border-t border-gray-100 hover:bg-gray-50 ${isSelected ? "bg-blue-50" : ""}`}>
                       {/* 체크박스 */}
                       <td className="px-3 py-2 text-center">
                         <input
@@ -913,7 +969,7 @@ export default function WorkersPage() {
 
                     {/* 테스트 결과 확장 행 */}
                     {isExpanded && hasResults && (
-                      <tr key={`${w.id}-results`} className="bg-gray-50 border-t border-gray-100">
+                      <tr className="bg-gray-50 border-t border-gray-100">
                         <td colSpan={TABLE_COLS} className="px-4 py-3">
                           <div className="flex gap-4 flex-wrap">
                             <TestResultPanel
@@ -941,7 +997,7 @@ export default function WorkersPage() {
                       </tr>
                     )}
 
-                  </>
+                  </React.Fragment>
                 );
               })}
             </tbody>
