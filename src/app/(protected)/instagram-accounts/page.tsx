@@ -56,7 +56,7 @@ function fmtDateShort(iso: string): string {
 }
 
 // ── 계정 테스트 결과 상태 ──────────────────────────
-type LocalTest = { status: "idle" | "running" | "ok" | "fail"; error?: string };
+type LocalTest = { status: "idle" | "running" | "ok" | "fail"; error?: string; versionWarning?: string };
 
 export default function InstagramAccountsPage() {
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
@@ -193,27 +193,55 @@ export default function InstagramAccountsPage() {
     loadAccounts();
   }
 
-  // ── 테스트 ──────────────────────────────────────
+  // ── 테스트 (POST → request_id 즉시 반환 → GET 폴링) ──────────
   async function runTest(accountId: string) {
     setTestState(s => ({ ...s, [accountId]: { status: "running" } }));
     try {
-      const res = await fetch("/api/test/instagram-account", {
+      // 1단계: 테스트 요청 생성
+      const postRes = await fetch("/api/test/instagram-account", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ account_id: accountId }),
       });
-      const data = await res.json();
-      setTestState(s => ({ ...s, [accountId]: { status: data.ok ? "ok" : "fail", error: data.error } }));
-      loadAccounts(); // last_test_at / last_test_status 갱신
+      const postData = await postRes.json();
+
+      if (!postData.pending) {
+        // 즉시 실패 (워커 없음 등)
+        setTestState(s => ({ ...s, [accountId]: { status: "fail", error: postData.error } }));
+        loadAccounts();
+        return;
+      }
+
+      // 버전 경고 있으면 즉시 표시
+      if (postData.version_warning) {
+        setTestState(s => ({ ...s, [accountId]: { status: "running", error: postData.version_warning } }));
+      }
+
+      // 2단계: 결과 폴링 (최대 90초, 3초 간격)
+      const requestId = postData.request_id;
+      const startTime = Date.now();
+      while (Date.now() - startTime < 95_000) {
+        await new Promise(r => setTimeout(r, 3000));
+        const getRes = await fetch(`/api/test/instagram-account?request_id=${requestId}&account_id=${accountId}`);
+        const getData = await getRes.json();
+
+        if (getData.done) {
+          setTestState(s => ({ ...s, [accountId]: { status: getData.ok ? "ok" : "fail", error: getData.error } }));
+          loadAccounts();
+          return;
+        }
+      }
+
+      // 폴링 타임아웃
+      setTestState(s => ({ ...s, [accountId]: { status: "fail", error: "폴링 타임아웃 — 결과를 확인할 수 없습니다" } }));
     } catch {
       setTestState(s => ({ ...s, [accountId]: { status: "fail", error: "네트워크 오류" } }));
     }
   }
 
   async function runTestAll() {
+    // 모든 활성 계정을 동시에 테스트 시작 (폴링은 각자 비동기)
     const targets = accounts.filter(a => a.is_active && a.status === "active");
-    for (const acc of targets) {
-      await runTest(acc.id);
-    }
+    targets.forEach(acc => runTest(acc.id));
   }
 
   // ── 렌더 ────────────────────────────────────────
@@ -400,7 +428,14 @@ export default function InstagramAccountsPage() {
                     return (
                       <div>
                         {testDisplay.status === "running" ? (
-                          <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full animate-pulse">테스트 중...</span>
+                          <div>
+                            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full animate-pulse">테스트 중...</span>
+                            {testState[acc.id]?.error && (
+                              <div className="text-xs text-orange-500 mt-0.5 leading-tight line-clamp-2" title={testState[acc.id]?.error}>
+                                ⚠ {testState[acc.id]?.error}
+                              </div>
+                            )}
+                          </div>
                         ) : testDisplay.status === "ok" ? (
                           <>
                             <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">✓ 정상</span>
