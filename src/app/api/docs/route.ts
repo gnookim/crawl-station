@@ -327,6 +327,11 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### 워커 — 설치 시 이름 지정 (선택)
+- 인스톨러 실행 시 워커 이름 입력 프롬프트 추가 (엔터 시 호스트명 자동 사용)
+- 입력한 이름은 \`.env\`에 \`WORKER_NAME=\`으로 저장
+- Station 등록 시 \`WORKER_NAME\` 우선 적용, 미입력 시 hostname 사용
+
 ### Station — Instagram 계정 필드 확장
 - 등록 이메일, 전화번호, 관리팀, 생성자 4개 필드 추가
 - 계정 추가 폼: 2열 8칸 그리드로 확장
