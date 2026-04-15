@@ -11,10 +11,20 @@ import { WORKER_ONLINE_THRESHOLD_MS } from "@/types";
 export async function GET() {
   const sb = createServerClient();
 
-  const { data, error } = await sb
+  // current_ip 컬럼이 없는 환경을 위해 fallback 처리
+  let { data, error } = await sb
     .from("workers")
     .select("id, name, os, version, status, last_seen, current_keyword, current_type, total_processed, error_count, command, allowed_types, block_status, block_platform, block_level, blocked_until, verified_at, current_ip")
     .order("last_seen", { ascending: false });
+
+  if (error?.message?.includes("current_ip")) {
+    const fallback = await sb
+      .from("workers")
+      .select("id, name, os, version, status, last_seen, current_keyword, current_type, total_processed, error_count, command, allowed_types, block_status, block_platform, block_level, blocked_until, verified_at")
+      .order("last_seen", { ascending: false });
+    data = (fallback.data ?? []).map((w) => ({ ...w, current_ip: null }));
+    error = fallback.error;
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

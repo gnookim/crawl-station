@@ -110,7 +110,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "username, password 필요" }, { status: 400 });
   }
 
-  const { data, error } = await sb
+  // 신규 컬럼 포함해서 시도, 없으면 기본 필드만으로 fallback
+  let { data, error } = await sb
     .from("instagram_accounts")
     .insert({
       username: username.trim(),
@@ -122,11 +123,27 @@ export async function POST(request: NextRequest) {
       team: team?.trim() || null,
       creator: creator?.trim() || null,
     })
-    .select("id, username, email, phone, team, creator, is_active, status, note, assigned_worker_id, created_at")
+    .select("id, username, is_active, status, note, assigned_worker_id, created_at")
     .single();
 
+  if (error?.message?.includes("schema cache")) {
+    // 마이그레이션 미적용 환경 — 기본 필드만으로 재시도
+    const fallback = await sb
+      .from("instagram_accounts")
+      .insert({
+        username: username.trim(),
+        password: password.trim(),
+        note: note?.trim() || null,
+        assigned_worker_id: assigned_worker_id?.trim() || null,
+      })
+      .select("id, username, is_active, status, note, assigned_worker_id, created_at")
+      .single();
+    data = fallback.data;
+    error = fallback.error;
+  }
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ message: `@${username} 등록 완료`, account: data });
+  return NextResponse.json({ message: `@${username} 등록 완료 (마이그레이션 적용 후 이메일·전화·팀·생성자 저장 가능)`, account: data });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -150,7 +167,17 @@ export async function PATCH(request: NextRequest) {
   if (body.clear_session) { updates.session_state = null; updates.last_login_at = null; }
   if (body.clear_block) { updates.status = "active"; updates.blocked_until = null; updates.last_blocked_at = null; }
 
-  const { error } = await sb.from("instagram_accounts").update(updates).eq("id", id);
+  let { error } = await sb.from("instagram_accounts").update(updates).eq("id", id);
+
+  if (error?.message?.includes("schema cache")) {
+    // 신규 컬럼 제거 후 재시도
+    const safeUpdates = { ...updates };
+    delete safeUpdates.email; delete safeUpdates.phone;
+    delete safeUpdates.team;  delete safeUpdates.creator;
+    const fallback = await sb.from("instagram_accounts").update(safeUpdates).eq("id", id);
+    error = fallback.error;
+  }
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ message: "수정 완료" });
 }
