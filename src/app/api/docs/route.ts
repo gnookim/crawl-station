@@ -327,6 +327,10 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### 워커 — heartbeat 에러 + kin_post 경고 수정 (v0.9.40)
+- heartbeat에서 \`current_ip\` 컬럼 없을 때 에러 반복 발생 수정 — 컬럼 존재 시에만 전송
+- \`kin_post.py:255\` SyntaxWarning: Invalid escape sequence '\\.' 수정 (raw string 적용)
+
 ### Station — 워커 에러 로그 기록 + 자동 업데이트 간격 설정
 - 워커 설정 패널에 "에러 로그" 섹션 추가 — 워커별 최근 30개 에러 인라인 표시
 - 에러 로그 삭제 버튼 + 새로고침
