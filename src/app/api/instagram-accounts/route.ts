@@ -17,23 +17,32 @@ import { createServerClient } from "@/lib/supabase";
 
 export async function GET() {
   const sb = createServerClient();
-  let { data, error } = await sb
+
+  // 기본 필드만으로 먼저 조회 (항상 성공)
+  const { data: base, error: baseErr } = await sb
     .from("instagram_accounts")
-    .select("id, username, email, phone, team, creator, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, last_test_at, last_test_status, last_test_error, created_at")
+    .select("id, username, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, created_at")
     .order("created_at", { ascending: false });
 
-  // 신규 컬럼 없는 환경 fallback
-  if (error?.message?.includes("schema cache") || error?.message?.includes("column")) {
-    const fallback = await sb
-      .from("instagram_accounts")
-      .select("id, username, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, created_at")
-      .order("created_at", { ascending: false });
-    data = (fallback.data ?? []).map((a) => ({ ...a, email: null, phone: null, team: null, creator: null, last_test_at: null, last_test_status: null, last_test_error: null }));
-    error = fallback.error;
-  }
+  if (baseErr) return NextResponse.json({ error: baseErr.message }, { status: 500 });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ accounts: data || [] });
+  const rows = base ?? [];
+
+  // 신규 컬럼 개별 조회 후 병합 (없으면 null로 fallback)
+  const nullExtras = { email: null, phone: null, team: null, creator: null, last_test_at: null, last_test_status: null, last_test_error: null };
+
+  const { data: ext, error: extErr } = await sb
+    .from("instagram_accounts")
+    .select("id, email, phone, team, creator, last_test_at, last_test_status, last_test_error")
+    .order("created_at", { ascending: false });
+
+  const extMap = extErr
+    ? {}
+    : Object.fromEntries((ext ?? []).map(r => [r.id, r]));
+
+  const accounts = rows.map(r => ({ ...nullExtras, ...r, ...(extMap[r.id] ?? {}) }));
+
+  return NextResponse.json({ accounts });
 }
 
 export async function POST(request: NextRequest) {
