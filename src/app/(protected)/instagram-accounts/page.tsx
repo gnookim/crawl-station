@@ -13,6 +13,10 @@ interface Worker {
 interface InstagramAccount {
   id: string;
   username: string;
+  email: string | null;
+  phone: string | null;
+  team: string | null;
+  creator: string | null;
   is_active: boolean;
   status: AccountStatus;
   last_login_at: string | null;
@@ -37,13 +41,11 @@ export default function InstagramAccountsPage() {
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [form, setForm] = useState({ username: "", password: "", note: "", assigned_worker_id: "" });
+  const [form, setForm] = useState({ username: "", password: "", email: "", phone: "", team: "", creator: "", note: "", assigned_worker_id: "" });
   const [submitting, setSubmitting] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [editNote, setEditNote] = useState("");
-  const [editPassword, setEditPassword] = useState("");
+  const [editFields, setEditFields] = useState<Partial<InstagramAccount & { password: string }>>({});
   const [editWorkerId, setEditWorkerId] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState<Set<string>>(new Set());
   const [workers, setWorkers] = useState<Worker[]>([]);
 
   const loadAccounts = useCallback(async () => {
@@ -74,7 +76,7 @@ export default function InstagramAccountsPage() {
       });
       const data = await res.json();
       if (!res.ok) { alert(`등록 실패: ${data.error}`); return; }
-      setForm({ username: "", password: "", note: "", assigned_worker_id: "" });
+      setForm({ username: "", password: "", email: "", phone: "", team: "", creator: "", note: "", assigned_worker_id: "" });
       setShowAddForm(false);
       loadAccounts();
     } finally {
@@ -110,9 +112,14 @@ export default function InstagramAccountsPage() {
   }
 
   async function saveEdit(id: string) {
+    const { note, email, phone, team, creator, password } = editFields;
     const updates: Record<string, string | null> = {};
-    if (editNote !== "") updates.note = editNote;
-    if (editPassword !== "") updates.password = editPassword;
+    if (note !== undefined) updates.note = note || null;
+    if (email !== undefined) updates.email = email || null;
+    if (phone !== undefined) updates.phone = phone || null;
+    if (team !== undefined) updates.team = team || null;
+    if (creator !== undefined) updates.creator = creator || null;
+    if (password) updates.password = password;
     if (editWorkerId !== null) updates.assigned_worker_id = editWorkerId || null;
     await fetch(`/api/instagram-accounts?id=${id}`, {
       method: "PATCH",
@@ -120,8 +127,15 @@ export default function InstagramAccountsPage() {
       body: JSON.stringify(updates),
     });
     setEditId(null);
+    setEditFields({});
     setEditWorkerId(null);
     loadAccounts();
+  }
+
+  function startEdit(acc: InstagramAccount) {
+    setEditId(acc.id);
+    setEditFields({ note: acc.note || "", email: acc.email || "", phone: acc.phone || "", team: acc.team || "", creator: acc.creator || "", password: "" });
+    setEditWorkerId(acc.assigned_worker_id || "");
   }
 
   async function deleteAccount(id: string, username: string) {
@@ -163,62 +177,47 @@ export default function InstagramAccountsPage() {
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">사용자명 *</label>
-              <input
-                type="text"
-                value={form.username}
-                onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                placeholder="instagram_username"
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400"
-              />
+              <input type="text" value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} placeholder="instagram_username" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">비밀번호 *</label>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                placeholder="비밀번호"
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400"
-              />
+              <input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="비밀번호" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">전용 워커 (선택)</label>
-              <select
-                value={form.assigned_worker_id}
-                onChange={(e) => setForm((f) => ({ ...f, assigned_worker_id: e.target.value }))}
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white"
-              >
+              <label className="block text-xs text-gray-500 mb-1">등록 이메일</label>
+              <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="계정 생성 이메일" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">전화번호</label>
+              <input type="text" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">관리팀</label>
+              <input type="text" value={form.team} onChange={(e) => setForm((f) => ({ ...f, team: e.target.value }))} placeholder="예: 마케팅팀" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">생성자</label>
+              <input type="text" value={form.creator} onChange={(e) => setForm((f) => ({ ...f, creator: e.target.value }))} placeholder="담당자 이름" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">전용 워커</label>
+              <select value={form.assigned_worker_id} onChange={(e) => setForm((f) => ({ ...f, assigned_worker_id: e.target.value }))} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white">
                 <option value="">공용 (미지정)</option>
                 {workers.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name || w.id.slice(0, 12)} {w.is_active ? "● 온라인" : "○ 오프라인"}
-                  </option>
+                  <option key={w.id} value={w.id}>{w.name || w.id.slice(0, 12)} {w.is_active ? "● 온라인" : "○ 오프라인"}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">메모 (선택)</label>
-              <input
-                type="text"
-                value={form.note}
-                onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                placeholder="계정 용도 설명"
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400"
-              />
+              <label className="block text-xs text-gray-500 mb-1">메모</label>
+              <input type="text" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="계정 용도 설명" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
             </div>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={addAccount}
-              disabled={submitting || !form.username.trim() || !form.password.trim()}
-              className="px-4 py-1.5 text-sm bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
-            >
+            <button onClick={addAccount} disabled={submitting || !form.username.trim() || !form.password.trim()} className="px-4 py-1.5 text-sm bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50">
               {submitting ? "등록 중..." : "등록"}
             </button>
-            <button
-              onClick={() => { setShowAddForm(false); setForm({ username: "", password: "", note: "", assigned_worker_id: "" }); }}
-              className="px-4 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50"
-            >
+            <button onClick={() => { setShowAddForm(false); setForm({ username: "", password: "", email: "", phone: "", team: "", creator: "", note: "", assigned_worker_id: "" }); }} className="px-4 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50">
               취소
             </button>
           </div>
@@ -241,9 +240,11 @@ export default function InstagramAccountsPage() {
               <tr>
                 <th className="text-left px-4 py-2 font-medium w-[160px]">계정</th>
                 <th className="text-left px-4 py-2 font-medium w-[90px]">상태</th>
-                <th className="text-left px-4 py-2 font-medium w-[120px]">전용 워커</th>
-                <th className="text-left px-4 py-2 font-medium w-[120px]">마지막 사용</th>
-                <th className="text-left px-4 py-2 font-medium w-[80px]">차단해제</th>
+                <th className="text-left px-4 py-2 font-medium w-[150px]">이메일 / 전화</th>
+                <th className="text-left px-4 py-2 font-medium w-[100px]">관리팀 / 생성자</th>
+                <th className="text-left px-4 py-2 font-medium w-[110px]">전용 워커</th>
+                <th className="text-left px-4 py-2 font-medium w-[100px]">마지막 사용</th>
+                <th className="text-left px-4 py-2 font-medium w-[60px]">차단해제</th>
                 <th className="text-right px-4 py-2 font-medium w-[72px]">로그인/차단</th>
                 <th className="text-left px-4 py-2 font-medium">메모</th>
                 <th className="text-right px-4 py-2 font-medium w-[120px]">관리</th>
@@ -272,6 +273,38 @@ export default function InstagramAccountsPage() {
                       <span className={`px-1.5 py-0.5 rounded text-xs ${statusCfg.color}`}>{statusCfg.label}</span>
                       {acc.blocked_until && new Date(acc.blocked_until) > new Date() && (
                         <div className="text-xs text-gray-400 mt-0.5">~{fmtTime(acc.blocked_until)}</div>
+                      )}
+                    </td>
+
+                    {/* 이메일 / 전화 */}
+                    <td className="px-4 py-2 text-xs text-gray-500">
+                      {isEditing ? (
+                        <div className="space-y-1">
+                          <input type="email" value={editFields.email ?? ""} onChange={(e) => setEditFields((f) => ({ ...f, email: e.target.value }))} placeholder="이메일" className="w-full px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400" />
+                          <input type="text" value={editFields.phone ?? ""} onChange={(e) => setEditFields((f) => ({ ...f, phone: e.target.value }))} placeholder="전화번호" className="w-full px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400" />
+                        </div>
+                      ) : (
+                        <div>
+                          {acc.email && <div className="truncate">{acc.email}</div>}
+                          {acc.phone && <div className="text-gray-400">{acc.phone}</div>}
+                          {!acc.email && !acc.phone && <span className="text-gray-300">-</span>}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* 관리팀 / 생성자 */}
+                    <td className="px-4 py-2 text-xs text-gray-500">
+                      {isEditing ? (
+                        <div className="space-y-1">
+                          <input type="text" value={editFields.team ?? ""} onChange={(e) => setEditFields((f) => ({ ...f, team: e.target.value }))} placeholder="관리팀" className="w-full px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400" />
+                          <input type="text" value={editFields.creator ?? ""} onChange={(e) => setEditFields((f) => ({ ...f, creator: e.target.value }))} placeholder="생성자" className="w-full px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400" />
+                        </div>
+                      ) : (
+                        <div>
+                          {acc.team && <div>{acc.team}</div>}
+                          {acc.creator && <div className="text-gray-400">{acc.creator}</div>}
+                          {!acc.team && !acc.creator && <span className="text-gray-300">-</span>}
+                        </div>
                       )}
                     </td>
 
@@ -331,14 +364,9 @@ export default function InstagramAccountsPage() {
                     {/* 메모 */}
                     <td className="px-4 py-2 text-xs text-gray-500 overflow-hidden">
                       {isEditing ? (
-                        <div className="flex gap-1">
-                          <input
-                            type="text"
-                            value={editNote}
-                            onChange={(e) => setEditNote(e.target.value)}
-                            placeholder="메모"
-                            className="flex-1 px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400"
-                          />
+                        <div className="space-y-1">
+                          <input type="text" value={editFields.note ?? ""} onChange={(e) => setEditFields((f) => ({ ...f, note: e.target.value }))} placeholder="메모" className="w-full px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400" />
+                          <input type="password" value={editFields.password ?? ""} onChange={(e) => setEditFields((f) => ({ ...f, password: e.target.value }))} placeholder="비밀번호 변경 (선택)" className="w-full px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400" />
                         </div>
                       ) : (
                         <span className="truncate block">{acc.note || "-"}</span>
@@ -350,7 +378,7 @@ export default function InstagramAccountsPage() {
                       {isEditing ? (
                         <div className="flex justify-end gap-1">
                           <button onClick={() => saveEdit(acc.id)} className="text-xs text-blue-600 hover:text-blue-800">저장</button>
-                          <button onClick={() => { setEditId(null); setEditWorkerId(null); }} className="text-xs text-gray-400 hover:text-gray-600">취소</button>
+                          <button onClick={() => { setEditId(null); setEditFields({}); setEditWorkerId(null); }} className="text-xs text-gray-400 hover:text-gray-600">취소</button>
                         </div>
                       ) : (
                         <div className="flex justify-end gap-1">
@@ -361,7 +389,7 @@ export default function InstagramAccountsPage() {
                             {acc.is_active ? "비활성" : "활성화"}
                           </button>
                           <button
-                            onClick={() => { setEditId(acc.id); setEditNote(acc.note || ""); setEditPassword(""); setEditWorkerId(acc.assigned_worker_id || ""); }}
+                            onClick={() => startEdit(acc)}
                             className="text-xs text-blue-500 hover:text-blue-700"
                           >
                             편집

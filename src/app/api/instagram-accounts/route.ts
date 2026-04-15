@@ -19,7 +19,7 @@ export async function GET() {
   const sb = createServerClient();
   const { data, error } = await sb
     .from("instagram_accounts")
-    .select("id, username, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, created_at")
+    .select("id, username, email, phone, team, creator, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, created_at")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 계정 등록 ──
-  const { username, password, note, assigned_worker_id } = body;
+  const { username, password, note, assigned_worker_id, email, phone, team, creator } = body;
   if (!username?.trim() || !password?.trim()) {
     return NextResponse.json({ error: "username, password 필요" }, { status: 400 });
   }
@@ -117,8 +117,12 @@ export async function POST(request: NextRequest) {
       password: password.trim(),
       note: note?.trim() || null,
       assigned_worker_id: assigned_worker_id?.trim() || null,
+      email: email?.trim() || null,
+      phone: phone?.trim() || null,
+      team: team?.trim() || null,
+      creator: creator?.trim() || null,
     })
-    .select("id, username, is_active, status, note, assigned_worker_id, created_at")
+    .select("id, username, email, phone, team, creator, is_active, status, note, assigned_worker_id, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -139,6 +143,10 @@ export async function PATCH(request: NextRequest) {
   if (body.note !== undefined) updates.note = body.note;
   if (body.password !== undefined) updates.password = body.password;
   if (body.assigned_worker_id !== undefined) updates.assigned_worker_id = body.assigned_worker_id || null;
+  if (body.email !== undefined) updates.email = body.email || null;
+  if (body.phone !== undefined) updates.phone = body.phone || null;
+  if (body.team !== undefined) updates.team = body.team || null;
+  if (body.creator !== undefined) updates.creator = body.creator || null;
   if (body.clear_session) { updates.session_state = null; updates.last_login_at = null; }
   if (body.clear_block) { updates.status = "active"; updates.blocked_until = null; updates.last_blocked_at = null; }
 

@@ -327,6 +327,13 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-15
 
+### Station — Instagram 계정 필드 확장
+- 등록 이메일, 전화번호, 관리팀, 생성자 4개 필드 추가
+- 계정 추가 폼: 2열 8칸 그리드로 확장
+- 계정 목록 테이블: 이메일/전화, 관리팀/생성자 컬럼 추가
+- 편집 모드: 인라인 입력 필드로 모든 필드 수정 가능
+- DB 마이그레이션: \`20260415_instagram_account_fields.sql\`
+
 ### 워커 — 설치 후 자동 검증 (auto-verify)
 - 최초 등록 시 \`verified_at IS NULL\`이면 메인 루프 시작 8초 후 Station 테스트 API 자동 호출
 - 네이버 blog_serp 테스트 → 통과 시 Station이 \`verified_at\` 자동 업데이트
