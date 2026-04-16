@@ -31,6 +31,9 @@ interface WorkerNetConfig {
   daily_used_instagram: number;
   allowed_types: string[];
   update_check_interval_minutes: number;
+  naver_enabled: boolean | null;
+  instagram_enabled: boolean | null;
+  oclick_enabled: boolean | null;
 }
 
 interface WorkerLog {
@@ -57,6 +60,9 @@ const DEFAULT_NET_CONFIG: WorkerNetConfig = {
   daily_used_instagram: 0,
   allowed_types: [],
   update_check_interval_minutes: 60,
+  naver_enabled: null,
+  instagram_enabled: null,
+  oclick_enabled: null,
 };
 
 const NETWORK_LABELS: Record<string, string> = {
@@ -313,6 +319,9 @@ export default function WorkersPage() {
             daily_used_instagram: (c.daily_used_instagram as number) ?? 0,
             allowed_types: Array.isArray(c.allowed_types) ? c.allowed_types as string[] : [],
             update_check_interval_minutes: (c.update_check_interval_minutes as number) ?? 60,
+            naver_enabled: c.naver_enabled !== undefined ? (c.naver_enabled as boolean | null) : null,
+            instagram_enabled: c.instagram_enabled !== undefined ? (c.instagram_enabled as boolean | null) : null,
+            oclick_enabled: c.oclick_enabled !== undefined ? (c.oclick_enabled as boolean | null) : null,
           } satisfies WorkerNetConfig,
         ])
       );
@@ -1207,6 +1216,52 @@ export default function WorkersPage() {
                       </span>
                     </div>
                     <p className="text-xs text-gray-300">0 = 무제한 · 저장 후 다음 요청부터 적용</p>
+                  </div>
+                </div>
+
+                {/* 카테고리 활성화 */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-2">카테고리 활성화</label>
+                  <div className="flex flex-col gap-2">
+                    {(["naver", "instagram", "oclick"] as const).map((cat) => {
+                      const catLabel = cat === "naver" ? "네이버" : cat === "instagram" ? "인스타" : "Oclick";
+                      const catKey = `${cat}_enabled` as "naver_enabled" | "instagram_enabled" | "oclick_enabled";
+                      const val = cfg[catKey];
+                      const testResult = pw.test_results?.[cat];
+                      const testOk = testResult?.ok;
+                      let dotCls = "bg-gray-300";
+                      if (val === true) dotCls = "bg-green-500";
+                      else if (val === false) dotCls = "bg-red-400";
+                      else if (testOk) dotCls = "bg-green-400";
+                      else if (testResult && !testOk) dotCls = "bg-red-300";
+                      return (
+                        <div key={cat} className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${dotCls}`} />
+                          <span className="w-14 text-xs text-gray-600 font-medium">{catLabel}</span>
+                          <div className="flex items-center gap-0.5 ml-auto">
+                            {(["자동", "ON", "OFF"] as const).map((btn) => {
+                              const btnVal = btn === "자동" ? null : btn === "ON";
+                              const isActive = val === btnVal;
+                              const activeCls = btn === "ON"
+                                ? "bg-green-100 text-green-700 border-green-400"
+                                : btn === "OFF"
+                                  ? "bg-red-100 text-red-600 border-red-300"
+                                  : "bg-gray-100 text-gray-600 border-gray-300";
+                              return (
+                                <button key={btn}
+                                  onClick={() => updateWorkerNet(panelWorkerId, catKey, btnVal)}
+                                  className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+                                    isActive ? activeCls : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
+                                  }`}>
+                                  {btn}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <p className="text-xs text-gray-300">자동 = 테스트 통과 시에만 작동</p>
                   </div>
                 </div>
 
