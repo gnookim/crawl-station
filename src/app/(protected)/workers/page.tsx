@@ -4,6 +4,13 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Worker, TetheringCarrier, TetheringReconnectInterval } from "@/types";
 import { WORKER_ONLINE_THRESHOLD_MS, CRAWL_CATEGORIES } from "@/types";
+import {
+  HEALTH_CHECK_DEFS,
+  getHealthState,
+  canForceOn,
+  HEALTH_STATE_LABEL,
+  HEALTH_DOT_CLS,
+} from "@/types/health";
 import { WorkerStatusBadge } from "@/components/ui/status-badge";
 
 /* ── 워커별 테스트 상태 ── */
@@ -34,6 +41,7 @@ interface WorkerNetConfig {
   naver_enabled: boolean | null;
   instagram_enabled: boolean | null;
   oclick_enabled: boolean | null;
+  health_check_interval_hours: number;
 }
 
 interface WorkerLog {
@@ -63,6 +71,7 @@ const DEFAULT_NET_CONFIG: WorkerNetConfig = {
   naver_enabled: null,
   instagram_enabled: null,
   oclick_enabled: null,
+  health_check_interval_hours: 8,
 };
 
 const NETWORK_LABELS: Record<string, string> = {
@@ -322,6 +331,7 @@ export default function WorkersPage() {
             naver_enabled: c.naver_enabled !== undefined ? (c.naver_enabled as boolean | null) : null,
             instagram_enabled: c.instagram_enabled !== undefined ? (c.instagram_enabled as boolean | null) : null,
             oclick_enabled: c.oclick_enabled !== undefined ? (c.oclick_enabled as boolean | null) : null,
+            health_check_interval_hours: (c.health_check_interval_hours as number) ?? 8,
           } satisfies WorkerNetConfig,
         ])
       );
@@ -1224,24 +1234,34 @@ export default function WorkersPage() {
                   <label className="block text-xs font-medium text-gray-500 mb-2">카테고리 활성화</label>
                   <div className="flex flex-col gap-2">
                     {(["naver", "instagram", "oclick"] as const).map((cat) => {
-                      const catLabel = cat === "naver" ? "네이버" : cat === "instagram" ? "인스타" : "Oclick";
+                      const def = HEALTH_CHECK_DEFS[cat];
                       const catKey = `${cat}_enabled` as "naver_enabled" | "instagram_enabled" | "oclick_enabled";
                       const val = cfg[catKey];
                       const testResult = pw.test_results?.[cat];
-                      const testOk = testResult?.ok;
-                      let dotCls = "bg-gray-300";
-                      if (val === true) dotCls = "bg-green-500";
-                      else if (val === false) dotCls = "bg-red-400";
-                      else if (testOk) dotCls = "bg-green-400";
-                      else if (testResult && !testOk) dotCls = "bg-red-300";
+                      const healthState = getHealthState(testResult);
+                      const allowOn = canForceOn(healthState);
+                      const tooltip = [
+                        `헬스 체크 규정 — ${def.label}`,
+                        `방법: ${def.method}`,
+                        `대상: ${def.target}`,
+                        `통과: ${def.pass}`,
+                        `실패: ${def.fail}`,
+                        `타임아웃: ${def.timeout_sec}초`,
+                        ``,
+                        `현재 상태: ${HEALTH_STATE_LABEL[healthState]}`,
+                        !allowOn ? `※ 강제 ON은 헬스 체크 통과 후 활성화됩니다` : ``,
+                      ].filter(Boolean).join("\n");
                       return (
                         <div key={cat} className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${dotCls}`} />
-                          <span className="w-14 text-xs text-gray-600 font-medium">{catLabel}</span>
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${HEALTH_DOT_CLS[healthState]}`} />
+                          <span className="w-14 text-xs text-gray-600 font-medium">{def.label}</span>
+                          <span className="text-xs text-gray-400">{HEALTH_STATE_LABEL[healthState]}</span>
+                          <button title={tooltip} className="text-gray-300 hover:text-gray-500 text-xs leading-none">ⓘ</button>
                           <div className="flex items-center gap-0.5 ml-auto">
                             {(["자동", "ON", "OFF"] as const).map((btn) => {
                               const btnVal = btn === "자동" ? null : btn === "ON";
                               const isActive = val === btnVal;
+                              const isOnDisabled = btn === "ON" && !allowOn;
                               const activeCls = btn === "ON"
                                 ? "bg-green-100 text-green-700 border-green-400"
                                 : btn === "OFF"
@@ -1249,9 +1269,15 @@ export default function WorkersPage() {
                                   : "bg-gray-100 text-gray-600 border-gray-300";
                               return (
                                 <button key={btn}
+                                  disabled={isOnDisabled}
                                   onClick={() => updateWorkerNet(panelWorkerId, catKey, btnVal)}
+                                  title={isOnDisabled ? `헬스 체크 통과(정상) 상태일 때만 강제 ON 가능\n현재: ${HEALTH_STATE_LABEL[healthState]}` : undefined}
                                   className={`px-2 py-0.5 text-xs rounded border transition-colors ${
-                                    isActive ? activeCls : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
+                                    isOnDisabled
+                                      ? "bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed"
+                                      : isActive
+                                        ? activeCls
+                                        : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
                                   }`}>
                                   {btn}
                                 </button>
@@ -1261,8 +1287,22 @@ export default function WorkersPage() {
                         </div>
                       );
                     })}
-                    <p className="text-xs text-gray-300">자동 = 테스트 통과 시에만 작동</p>
+                    <p className="text-xs text-gray-300">자동 = 헬스 체크 통과 시에만 작동 · ON = 정상 상태 필수</p>
                   </div>
+                </div>
+
+                {/* 헬스 체크 주기 */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">헬스 체크 주기</label>
+                  <select value={cfg.health_check_interval_hours}
+                    onChange={(e) => updateWorkerNet(panelWorkerId, "health_check_interval_hours", parseInt(e.target.value))}
+                    className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                    <option value={4}>4시간마다</option>
+                    <option value={8}>8시간마다</option>
+                    <option value={12}>12시간마다</option>
+                    <option value={24}>24시간마다</option>
+                  </select>
+                  <div className="text-xs text-gray-300 mt-1">워커가 자동으로 N/I/O 헬스 체크 실행</div>
                 </div>
 
                 {/* 업데이트 간격 */}

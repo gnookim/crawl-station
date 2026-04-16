@@ -321,9 +321,72 @@ const { ok, sent, results } = await res.json();
 ### 채널 설정
 Station 설정 페이지 → **알림 채널 설정** 에서 각 채널 자격증명 입력.
 저장 키: \`notify_slack_webhook\`, \`notify_telegram_token\`, \`notify_telegram_chat_id\`, \`notify_kakao_webhook\`
+
+---
+
+## 9. 워커 헬스 체크 (Health Check)
+
+워커는 N시간마다 카테고리별 헬스 체크를 자동 실행하고 결과를 \`workers.test_results\`에 저장합니다.
+
+### 헬스 체크 규정
+
+| 카테고리 | 방법 | 대상 | 통과 조건 | 타임아웃 |
+|----------|------|------|-----------|----------|
+| 네이버 | \`blog_serp\` | 키워드 '블로그' | 결과 1개 이상 수집 | 30초 |
+| 인스타그램 | \`instagram_profile\` | 계정 @instagram | 팔로워 수 수집 성공 | 30초 |
+| Oclick | \`oclick_sync\` | 전체 상품 목록 | 상품 1개 이상 수집 | 15초 |
+
+### 헬스 상태 4단계
+
+\`test_results[cat]\` 기준으로 파생:
+
+| 상태 | 조건 | 활성화 제어 |
+|------|------|-------------|
+| \`healthy\` | 통과 + 24h 이내 | 자동/ON/OFF 모두 가능 |
+| \`degraded\` | 통과했지만 24h 초과(stale) | 자동/OFF만 가능, ON 불가 |
+| \`unhealthy\` | 테스트 실패 | 자동/OFF만 가능, ON 불가 |
+| \`unknown\` | 미테스트 | 자동/OFF만 가능, ON 불가 |
+
+### 활성화 제어 (worker_config 컬럼)
+
+\`\`\`sql
+-- DB 마이그레이션 (최초 1회)
+ALTER TABLE worker_config
+  ADD COLUMN IF NOT EXISTS naver_enabled boolean DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS instagram_enabled boolean DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS oclick_enabled boolean DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS health_check_interval_hours integer DEFAULT 8;
+\`\`\`
+
+| 컬럼값 | 의미 | 작동 조건 |
+|--------|------|-----------|
+| \`NULL\` (자동) | 헬스 체크 결과 따름 | healthy 상태일 때만 처리 |
+| \`TRUE\` (강제 ON) | 강제 활성 | healthy 상태에서만 설정 가능 |
+| \`FALSE\` (강제 OFF) | 강제 비활성 | 항상 skip |
+
+### 헬스 체크 주기 설정
+
+\`worker_config.health_check_interval_hours\`: 4 / 8 / 12 / 24 (기본: 8h)
+
+워커 시작 시 \`_health_check_loop\` 백그라운드 태스크가 기동되어 지정 주기마다 N/I/O 헬스 체크를 자동 실행합니다.
 `;
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
+
+## 2026-04-16 (2)
+
+### Station + Worker — 헬스 체크 정의 + 체계적 활성화 제어
+- \`src/types/health.ts\` 신규: \`HEALTH_CHECK_DEFS\` 상수로 카테고리별 헬스 체크 규정 명시
+  - 방법(method), 대상(target), 통과/실패 조건, 타임아웃 문서화
+- 헬스 상태 4단계: \`healthy\` / \`degraded\`(24h stale) / \`unhealthy\` / \`unknown\`
+- 강제 ON 버튼: \`healthy\` 상태일 때만 활성화, 나머지 상태는 disabled
+- ⓘ 툴팁: 각 카테고리 행에서 헬스 체크 규정 + 현재 상태 표시
+- 헬스 체크 주기 설정 추가 (4h / 8h / 12h / 24h, 기본 8h)
+- Worker: \`_health_check_loop()\` 백그라운드 태스크 추가
+  - N시간마다 N/I/O 헬스 체크 자동 실행
+  - 결과를 \`HEALTH_CHECK_DEFS\` 기준으로 로그 출력 후 \`workers.test_results\` 저장
+- Worker: \`HEALTH_CHECK_DEFS\` 상수 정의 (Station UI와 동기화)
+- 연동 가이드 §9 헬스 체크 섹션 추가
 
 ## 2026-04-16
 
@@ -331,11 +394,7 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 - 워커 설정 패널에 "카테고리 활성화" 섹션 추가 (네이버/인스타/Oclick)
 - 3가지 상태 선택: **자동** (테스트 통과 시에만 작동) / **강제 ON** (테스트 무관) / **강제 OFF**
 - 설정값은 \`worker_config\` 테이블의 \`naver_enabled\`, \`instagram_enabled\`, \`oclick_enabled\` 컬럼에 저장 (nullable boolean)
-- 도트 인디케이터: 초록(통과·강제ON) / 빨강(실패·강제OFF) / 회색(미테스트)
 - Worker: 시작 시 \`workers.test_results\` 로드 → 작업 처리 전 카테고리 활성화 체크
-  - \`false\`: 즉시 건너뜀 ("강제 비활성화")
-  - \`null\`: 테스트 통과 여부 확인 후 결정 ("자동")
-  - \`true\`: 테스트 무관하게 처리 ("강제 활성")
 - DB 마이그레이션 필요: \`ALTER TABLE worker_config ADD COLUMN IF NOT EXISTS naver_enabled boolean DEFAULT NULL, ADD COLUMN IF NOT EXISTS instagram_enabled boolean DEFAULT NULL, ADD COLUMN IF NOT EXISTS oclick_enabled boolean DEFAULT NULL;\`
 
 ## 2026-04-15 (2)
