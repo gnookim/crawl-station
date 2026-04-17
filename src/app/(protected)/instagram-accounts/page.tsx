@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Fragment, useEffect, useState, useCallback } from "react";
 
 type AccountStatus = "active" | "cooling" | "blocked" | "banned";
 type TestStatus = "ok" | "fail" | null;
@@ -36,10 +36,10 @@ interface InstagramAccount {
 }
 
 const STATUS_CONFIG: Record<AccountStatus, { label: string; color: string; dot: string }> = {
-  active:  { label: "활성",    color: "bg-green-100 text-green-700",  dot: "bg-green-500" },
-  cooling: { label: "쿨다운",  color: "bg-yellow-100 text-yellow-700", dot: "bg-yellow-400" },
-  blocked: { label: "차단됨",  color: "bg-red-100 text-red-700",      dot: "bg-red-500" },
-  banned:  { label: "영구차단", color: "bg-gray-200 text-gray-500",   dot: "bg-gray-400" },
+  active:  { label: "활성",     color: "bg-green-100 text-green-700",   dot: "bg-green-500"  },
+  cooling: { label: "쿨다운",   color: "bg-yellow-100 text-yellow-700", dot: "bg-yellow-400" },
+  blocked: { label: "차단됨",   color: "bg-red-100 text-red-700",       dot: "bg-red-500"    },
+  banned:  { label: "영구차단", color: "bg-gray-200 text-gray-500",     dot: "bg-gray-400"   },
 };
 
 function timeAgo(iso: string): string {
@@ -55,9 +55,19 @@ function fmtDateShort(iso: string): string {
   return new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-// ── 계정 테스트 결과 상태 ──────────────────────────
 type TestCheck = { label: string; ok: boolean; detail?: string };
 type LocalTest = { status: "idle" | "running" | "ok" | "fail"; error?: string; checks?: TestCheck[]; versionWarning?: string };
+
+const inputCls = "w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-400";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs text-gray-500 mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
 
 export default function InstagramAccountsPage() {
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
@@ -77,7 +87,6 @@ export default function InstagramAccountsPage() {
   const [editWorkerId, setEditWorkerId] = useState<string>("");
   const [showEditPw, setShowEditPw] = useState(false);
 
-  // 로컬 테스트 상태 (세션 내, 탭 새로고침 시 초기화)
   const [testState, setTestState] = useState<Record<string, LocalTest>>({});
 
   const loadAccounts = useCallback(async () => {
@@ -100,11 +109,10 @@ export default function InstagramAccountsPage() {
     fetch("/api/workers").then(r => r.json()).then(d => setWorkers(d.workers || [])).catch(() => setWorkers([]));
   }, []);
 
-  // ── 필터링 ──────────────────────────────────────
   const filtered = accounts.filter((a) => {
     const matchTab =
       filter === "all" ||
-      (filter === "active" && a.status === "active" && a.is_active) ||
+      (filter === "active"  && a.status === "active" && a.is_active) ||
       (filter === "cooling" && a.status === "cooling") ||
       (filter === "blocked" && (a.status === "blocked" || a.status === "banned"));
     const q = search.toLowerCase();
@@ -116,13 +124,13 @@ export default function InstagramAccountsPage() {
     return matchTab && matchSearch;
   });
 
-  const totalCount = accounts.length;
-  const activeCount = accounts.filter(a => a.is_active && a.status === "active").length;
+  const totalCount   = accounts.length;
+  const activeCount  = accounts.filter(a => a.is_active && a.status === "active").length;
   const coolingCount = accounts.filter(a => a.status === "cooling").length;
   const blockedCount = accounts.filter(a => a.status === "blocked" || a.status === "banned").length;
-  const okCount = accounts.filter(a => a.last_test_status === "ok").length;
+  const okCount      = accounts.filter(a => a.last_test_status === "ok").length;
 
-  // ── CRUD ────────────────────────────────────────
+  // ── CRUD ──────────────────────────────────────
   async function addAccount() {
     if (!form.username.trim() || !form.password.trim()) return;
     setSubmitting(true);
@@ -137,7 +145,6 @@ export default function InstagramAccountsPage() {
       setForm({ username: "", password: "", email: "", phone: "", team: "", creator: "", note: "", assigned_worker_id: "" });
       setShowAddForm(false);
       await loadAccounts();
-      // 등록 즉시 자동 테스트
       if (newId) runTest(newId);
     } finally { setSubmitting(false); }
   }
@@ -145,10 +152,10 @@ export default function InstagramAccountsPage() {
   async function saveEdit(id: string) {
     const { note, email, phone, team, creator, password } = editFields;
     const updates: Record<string, string | null> = {};
-    if (note !== undefined) updates.note = note || null;
-    if (email !== undefined) updates.email = email || null;
-    if (phone !== undefined) updates.phone = phone || null;
-    if (team !== undefined) updates.team = team || null;
+    if (note !== undefined)    updates.note = note || null;
+    if (email !== undefined)   updates.email = email || null;
+    if (phone !== undefined)   updates.phone = phone || null;
+    if (team !== undefined)    updates.team = team || null;
     if (creator !== undefined) updates.creator = creator || null;
     if (password) updates.password = password;
     updates.assigned_worker_id = editWorkerId || null;
@@ -197,51 +204,36 @@ export default function InstagramAccountsPage() {
     loadAccounts();
   }
 
-  // ── 테스트 (POST → request_id 즉시 반환 → GET 폴링) ──────────
+  // ── 테스트 ────────────────────────────────────
   async function runTest(accountId: string) {
-    // 이전 에러 즉시 초기화 후 running 상태로 전환
     setTestState(s => ({ ...s, [accountId]: { status: "running", error: undefined } }));
-    // DB에 저장된 이전 에러도 화면에서 즉시 숨기기 위해 accounts 상태 업데이트
-    setAccounts(prev => prev.map(a => a.id === accountId
-      ? { ...a, last_test_status: null, last_test_error: null }
-      : a
-    ));
+    setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, last_test_status: null, last_test_error: null } : a));
     try {
-      // 1단계: 테스트 요청 생성
       const postRes = await fetch("/api/test/instagram-account", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ account_id: accountId }),
       });
       const postData = await postRes.json();
-
       if (!postData.pending) {
-        // 즉시 실패 (워커 없음 등)
         setTestState(s => ({ ...s, [accountId]: { status: "fail", error: postData.error } }));
         loadAccounts();
         return;
       }
-
-      // 버전 경고 있으면 즉시 표시
       if (postData.version_warning) {
         setTestState(s => ({ ...s, [accountId]: { status: "running", error: postData.version_warning } }));
       }
-
-      // 2단계: 결과 폴링 (최대 90초, 3초 간격)
       const requestId = postData.request_id;
       const startTime = Date.now();
       while (Date.now() - startTime < 95_000) {
         await new Promise(r => setTimeout(r, 3000));
         const getRes = await fetch(`/api/test/instagram-account?request_id=${requestId}&account_id=${accountId}`);
         const getData = await getRes.json();
-
         if (getData.done) {
           setTestState(s => ({ ...s, [accountId]: { status: getData.ok ? "ok" : "fail", error: getData.error, checks: getData.checks } }));
           loadAccounts();
           return;
         }
       }
-
-      // 폴링 타임아웃
       setTestState(s => ({ ...s, [accountId]: { status: "fail", error: "폴링 타임아웃 — 결과를 확인할 수 없습니다" } }));
     } catch {
       setTestState(s => ({ ...s, [accountId]: { status: "fail", error: "네트워크 오류" } }));
@@ -249,12 +241,10 @@ export default function InstagramAccountsPage() {
   }
 
   async function runTestAll() {
-    // 모든 활성 계정을 동시에 테스트 시작 (폴링은 각자 비동기)
-    const targets = accounts.filter(a => a.is_active && a.status === "active");
-    targets.forEach(acc => runTest(acc.id));
+    accounts.filter(a => a.is_active && a.status === "active").forEach(acc => runTest(acc.id));
   }
 
-  // ── 렌더 ────────────────────────────────────────
+  // ── 렌더 ──────────────────────────────────────
   return (
     <div className="p-4 sm:p-6">
       {/* 헤더 */}
@@ -264,23 +254,17 @@ export default function InstagramAccountsPage() {
           <p className="text-xs text-gray-400 mt-0.5">크롤링 워커에 할당되는 로그인 계정 풀</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={runTestAll}
-            className="px-3 py-1.5 text-sm border border-pink-300 text-pink-600 rounded-md hover:bg-pink-50"
-          >
+          <button onClick={runTestAll} className="px-3 py-1.5 text-sm border border-pink-300 text-pink-600 rounded-md hover:bg-pink-50">
             전체 테스트
           </button>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="px-3 py-1.5 text-sm bg-pink-600 text-white rounded-md hover:bg-pink-700"
-          >
+          <button onClick={() => setShowAddForm(!showAddForm)} className="px-3 py-1.5 text-sm bg-pink-600 text-white rounded-md hover:bg-pink-700">
             + 계정 추가
           </button>
         </div>
       </div>
 
-      {/* 요약 — 컴팩트 인라인 */}
-      <div className="flex items-center gap-4 mb-5 text-sm">
+      {/* 요약 */}
+      <div className="flex items-center gap-4 mb-4 text-sm">
         <span className="text-gray-500">총 <strong className="text-gray-900">{totalCount}</strong>개</span>
         <span className="text-green-600">활성 <strong>{activeCount}</strong></span>
         <span className="text-yellow-600">쿨다운 <strong>{coolingCount}</strong></span>
@@ -290,9 +274,9 @@ export default function InstagramAccountsPage() {
 
       {/* 계정 추가 폼 */}
       {showAddForm && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 mb-5">
+        <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
           <h3 className="text-sm font-semibold mb-3">계정 추가</h3>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-3 gap-3 mb-3">
             <Field label="사용자명 *">
               <input type="text" value={form.username} onChange={(e) => setForm(f => ({ ...f, username: e.target.value }))} placeholder="instagram_username" className={inputCls} />
             </Field>
@@ -301,6 +285,12 @@ export default function InstagramAccountsPage() {
                 <input type={showFormPw ? "text" : "password"} value={form.password} onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))} placeholder="비밀번호" className={`${inputCls} pr-12`} />
                 <button type="button" onClick={() => setShowFormPw(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">{showFormPw ? "숨김" : "표시"}</button>
               </div>
+            </Field>
+            <Field label="전용 워커">
+              <select value={form.assigned_worker_id} onChange={(e) => setForm(f => ({ ...f, assigned_worker_id: e.target.value }))} className={`${inputCls} bg-white`}>
+                <option value="">공용 (미지정)</option>
+                {workers.map(w => <option key={w.id} value={w.id}>{w.name || w.id.slice(0, 12)} {w.is_active ? "● 온라인" : "○ 오프라인"}</option>)}
+              </select>
             </Field>
             <Field label="등록 이메일">
               <input type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} placeholder="계정 생성 이메일" className={inputCls} />
@@ -313,12 +303,6 @@ export default function InstagramAccountsPage() {
             </Field>
             <Field label="생성자">
               <input type="text" value={form.creator} onChange={(e) => setForm(f => ({ ...f, creator: e.target.value }))} placeholder="담당자 이름" className={inputCls} />
-            </Field>
-            <Field label="전용 워커">
-              <select value={form.assigned_worker_id} onChange={(e) => setForm(f => ({ ...f, assigned_worker_id: e.target.value }))} className={`${inputCls} bg-white`}>
-                <option value="">공용 (미지정)</option>
-                {workers.map(w => <option key={w.id} value={w.id}>{w.name || w.id.slice(0, 12)} {w.is_active ? "● 온라인" : "○ 오프라인"}</option>)}
-              </select>
             </Field>
             <Field label="메모">
               <input type="text" value={form.note} onChange={(e) => setForm(f => ({ ...f, note: e.target.value }))} placeholder="계정 용도 설명" className={inputCls} />
@@ -336,32 +320,25 @@ export default function InstagramAccountsPage() {
       )}
 
       {/* 필터 + 검색 */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-3">
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
           {(["all", "active", "cooling", "blocked"] as FilterTab[]).map(tab => {
             const labels: Record<FilterTab, string> = { all: "전체", active: "활성", cooling: "쿨다운", blocked: "차단됨" };
             const counts: Record<FilterTab, number> = { all: totalCount, active: activeCount, cooling: coolingCount, blocked: blockedCount };
             return (
-              <button
-                key={tab}
-                onClick={() => setFilter(tab)}
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${filter === tab ? "bg-white text-gray-900 shadow-sm font-medium" : "text-gray-500 hover:text-gray-700"}`}
-              >
+              <button key={tab} onClick={() => setFilter(tab)}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${filter === tab ? "bg-white text-gray-900 shadow-sm font-medium" : "text-gray-500 hover:text-gray-700"}`}>
                 {labels[tab]} <span className="ml-1 text-gray-400">{counts[tab]}</span>
               </button>
             );
           })}
         </div>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="계정명, 이메일, 팀 검색..."
-          className="flex-1 max-w-xs px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400"
-        />
+          className="flex-1 max-w-xs px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400" />
       </div>
 
-      {/* 계정 목록 */}
+      {/* 계정 목록 — 테이블 */}
       {loading ? (
         <div className="bg-white border border-gray-200 rounded-lg p-10 text-center text-gray-400 text-sm">로딩 중...</div>
       ) : filtered.length === 0 ? (
@@ -369,269 +346,222 @@ export default function InstagramAccountsPage() {
           {search || filter !== "all" ? "검색 결과가 없습니다." : "등록된 Instagram 계정이 없습니다."}
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map(acc => {
-            const scfg = STATUS_CONFIG[acc.status] || STATUS_CONFIG.active;
-            const isExpanded = expandedId === acc.id;
-            const localTest = testState[acc.id];
-            const assignedWorker = workers.find(w => w.id === acc.assigned_worker_id);
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-medium">
+              <tr>
+                <th className="w-6 px-4 py-2.5" />
+                <th className="text-left px-3 py-2.5">계정</th>
+                <th className="text-center px-3 py-2.5 w-24">로그인 / 차단</th>
+                <th className="text-center px-3 py-2.5 w-24">마지막 활동</th>
+                <th className="text-center px-3 py-2.5 w-32">테스트</th>
+                <th className="text-right px-4 py-2.5 w-28">액션</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filtered.map(acc => {
+                const scfg = STATUS_CONFIG[acc.status] || STATUS_CONFIG.active;
+                const isExpanded = expandedId === acc.id;
+                const localTest = testState[acc.id];
+                const assignedWorker = workers.find(w => w.id === acc.assigned_worker_id);
+                const lastActivity = acc.last_used_at || acc.last_login_at;
 
-            // 테스트 표시: 로컬 > DB
-            const testDisplay = localTest
-              ? localTest
-              : acc.last_test_status
-                ? { status: acc.last_test_status as "ok" | "fail", testedAt: acc.last_test_at }
-                : { status: "idle" as const };
+                const testDisplay = localTest
+                  ? localTest
+                  : acc.last_test_status
+                    ? { status: acc.last_test_status as "ok" | "fail", testedAt: acc.last_test_at }
+                    : { status: "idle" as const };
 
-            return (
-              <div
-                key={acc.id}
-                className={`bg-white border rounded-lg overflow-hidden transition-all ${!acc.is_active ? "opacity-60" : ""} ${isExpanded ? "border-pink-300 shadow-sm" : "border-gray-200"}`}
-              >
-                {/* 메인 행 — 4칼럼 그리드: [계정정보] [로그인/차단] [테스트] [버튼] */}
-                <div className="px-4 py-3 grid grid-cols-[auto_minmax(0,1fr)_72px_160px_auto] items-center gap-x-4">
-                  {/* 상태 표시등 */}
-                  <div className="relative">
-                    <div className={`w-2.5 h-2.5 rounded-full ${scfg.dot}`} />
-                    {acc.is_active && acc.status === "active" && (
-                      <div className={`absolute inset-0 w-2.5 h-2.5 rounded-full ${scfg.dot} animate-ping opacity-60`} />
-                    )}
-                  </div>
+                const failMsg = testState[acc.id]?.error || acc.last_test_error;
 
-                  {/* 계정 정보 */}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-gray-900 text-sm">@{acc.username}</span>
-                      <span className={`px-1.5 py-0.5 text-xs rounded ${scfg.color}`}>{scfg.label}</span>
-                      {acc.blocked_until && new Date(acc.blocked_until) > new Date() && (
-                        <span className="text-xs text-gray-400">
-                          ~{new Date(acc.blocked_until).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5 flex gap-2 flex-wrap">
-                      {assignedWorker ? (
-                        <span className={assignedWorker.is_active ? "text-green-600" : "text-gray-400"}>
-                          워커: {assignedWorker.name || assignedWorker.id.slice(0, 10)}
-                        </span>
-                      ) : <span>공용</span>}
-                      {acc.team && <span>· {acc.team}</span>}
-                      {acc.creator && <span>· {acc.creator}</span>}
-                      {acc.note && <span className="truncate max-w-[200px]">· {acc.note}</span>}
-                    </div>
-                  </div>
+                return (
+                  <Fragment key={acc.id}>
+                    {/* 메인 행 */}
+                    <tr className={`hover:bg-gray-50 transition-colors ${!acc.is_active ? "opacity-60" : ""} ${isExpanded ? "bg-pink-50/40" : ""}`}>
 
-                  {/* 로그인 / 차단 통계 */}
-                  <div className="text-center">
-                    <div className="text-xs tabular-nums">
-                      <span className="text-green-600 font-semibold">{acc.login_count}</span>
-                      <span className="text-gray-300 mx-0.5">/</span>
-                      <span className="text-red-500 font-semibold">{acc.block_count}</span>
-                    </div>
-                    <div className="text-xs text-gray-400">로그인/차단</div>
-                  </div>
+                      {/* 상태 도트 */}
+                      <td className="px-4 py-3">
+                        <div className="relative w-2.5 h-2.5">
+                          <div className={`w-2.5 h-2.5 rounded-full ${scfg.dot}`} />
+                          {acc.is_active && acc.status === "active" && (
+                            <div className={`absolute inset-0 w-2.5 h-2.5 rounded-full ${scfg.dot} animate-ping opacity-60`} />
+                          )}
+                        </div>
+                      </td>
 
-                  {/* 테스트 상태 + 에러 원인 */}
-                  {(() => {
-                    const errMsg = testState[acc.id]?.error || acc.last_test_error;
-                    const testedAt = acc.last_test_at;
-                    return (
-                      <div>
+                      {/* 계정 정보 */}
+                      <td className="px-3 py-3 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <span className="font-semibold text-gray-900">@{acc.username}</span>
+                          <span className={`px-1.5 py-0.5 text-xs rounded ${scfg.color}`}>{scfg.label}</span>
+                          {acc.blocked_until && new Date(acc.blocked_until) > new Date() && (
+                            <span className="text-xs text-gray-400">
+                              ~{new Date(acc.blocked_until).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 flex gap-2 flex-wrap">
+                          {assignedWorker
+                            ? <span className={assignedWorker.is_active ? "text-green-600" : ""}>{assignedWorker.name || assignedWorker.id.slice(0, 10)}</span>
+                            : <span>공용</span>}
+                          {acc.team    && <span>· {acc.team}</span>}
+                          {acc.creator && <span>· {acc.creator}</span>}
+                          {acc.note    && <span className="truncate max-w-[200px]">· {acc.note}</span>}
+                        </div>
+                      </td>
+
+                      {/* 로그인 / 차단 */}
+                      <td className="px-3 py-3 text-center tabular-nums">
+                        <span className="text-green-600 font-semibold">{acc.login_count}</span>
+                        <span className="text-gray-300 mx-1">/</span>
+                        <span className="text-red-500 font-semibold">{acc.block_count}</span>
+                      </td>
+
+                      {/* 마지막 활동 */}
+                      <td className="px-3 py-3 text-center">
+                        <span className="text-xs text-gray-400">{lastActivity ? timeAgo(lastActivity) : "—"}</span>
+                      </td>
+
+                      {/* 테스트 결과 — 배지만 */}
+                      <td className="px-3 py-3 text-center">
                         {testDisplay.status === "running" ? (
-                          <div>
-                            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full animate-pulse">테스트 중...</span>
-                            {testState[acc.id]?.error && (
-                              <div className="text-xs text-orange-500 mt-0.5 leading-tight line-clamp-2" title={testState[acc.id]?.error}>
-                                ⚠ {testState[acc.id]?.error}
-                              </div>
-                            )}
-                          </div>
+                          <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full animate-pulse">테스트 중</span>
                         ) : testDisplay.status === "ok" ? (
-                          <>
-                            <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">✓ 정상</span>
-                            {localTest?.checks ? (
-                              <div className="mt-1 space-y-0.5">
-                                {localTest.checks.map((c, i) => (
-                                  <div key={i} className="text-xs flex items-start gap-1 leading-tight">
-                                    <span className={c.ok ? "text-green-500" : "text-red-400"}>
-                                      {c.ok ? "✓" : "✗"}
-                                    </span>
-                                    <span className={c.ok ? "text-gray-500" : "text-red-500"}>
-                                      {c.label}{c.detail ? ` — ${c.detail}` : ""}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : testedAt ? (
-                              <div className="text-xs text-gray-400 mt-0.5">{timeAgo(testedAt)}</div>
-                            ) : null}
-                          </>
+                          <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">✓ 정상</span>
                         ) : testDisplay.status === "fail" ? (
-                          <>
-                            <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded-full">✗ 실패</span>
-                            {localTest?.checks ? (
-                              <div className="mt-1 space-y-0.5">
-                                {localTest.checks.map((c, i) => (
-                                  <div key={i} className="text-xs flex items-start gap-1 leading-tight">
-                                    <span className={c.ok ? "text-green-500" : "text-red-400"}>
-                                      {c.ok ? "✓" : "✗"}
-                                    </span>
-                                    <span className={c.ok ? "text-gray-500" : "text-red-500"}>
-                                      {c.label}{c.detail ? ` — ${c.detail}` : ""}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : errMsg ? (
-                              <div
-                                className="text-xs text-red-500 mt-0.5 leading-tight cursor-help line-clamp-2"
-                                title={errMsg}
-                              >
-                                {errMsg}
-                              </div>
-                            ) : testedAt ? (
-                              <div className="text-xs text-gray-400 mt-0.5">{timeAgo(testedAt)}</div>
-                            ) : null}
-                          </>
+                          <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded-full cursor-help" title={failMsg || ""}>✗ 실패</span>
                         ) : (
                           <span className="text-xs text-gray-300">미확인</span>
                         )}
-                      </div>
-                    );
-                  })()}
+                        {acc.last_test_at && testDisplay.status !== "running" && (
+                          <div className="text-xs text-gray-300 mt-0.5">{timeAgo(acc.last_test_at)}</div>
+                        )}
+                      </td>
 
-                  {/* 액션 버튼 */}
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => runTest(acc.id)}
-                      disabled={testDisplay.status === "running"}
-                      className="px-2 py-1 text-xs border border-pink-200 text-pink-600 rounded hover:bg-pink-50 disabled:opacity-50"
-                    >
-                      테스트
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (isExpanded) {
-                          setExpandedId(null);
-                          setEditFields({});
-                        } else {
-                          setExpandedId(acc.id);
-                          startEdit(acc);
-                        }
-                      }}
-                      className="px-2 py-1 text-xs border border-gray-200 text-gray-500 rounded hover:bg-gray-50"
-                    >
-                      {isExpanded ? "닫기" : "편집"}
-                    </button>
-                  </div>
-                </div>
+                      {/* 액션 */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button onClick={() => runTest(acc.id)} disabled={testDisplay.status === "running"}
+                            className="px-2 py-1 text-xs border border-pink-200 text-pink-600 rounded hover:bg-pink-50 disabled:opacity-50">
+                            테스트
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (isExpanded) { setExpandedId(null); setEditFields({}); }
+                              else { setExpandedId(acc.id); startEdit(acc); }
+                            }}
+                            className={`px-2 py-1 text-xs border rounded ${isExpanded ? "border-pink-300 text-pink-700 bg-pink-50" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                            {isExpanded ? "닫기" : "편집"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
 
-                {/* 확장 영역 — 편집 폼 */}
-                {isExpanded && (
-                  <div className="border-t border-gray-100 px-4 py-4 bg-gray-50 space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="등록 이메일">
-                        <input type="email" value={editFields.email ?? ""} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="이메일" className={inputCls} />
-                      </Field>
-                      <Field label="전화번호">
-                        <input type="text" value={editFields.phone ?? ""} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="전화번호" className={inputCls} />
-                      </Field>
-                      <Field label="관리팀">
-                        <input type="text" value={editFields.team ?? ""} onChange={(e) => setEditFields(f => ({ ...f, team: e.target.value }))} placeholder="관리팀" className={inputCls} />
-                      </Field>
-                      <Field label="생성자">
-                        <input type="text" value={editFields.creator ?? ""} onChange={(e) => setEditFields(f => ({ ...f, creator: e.target.value }))} placeholder="생성자" className={inputCls} />
-                      </Field>
-                      <Field label="전용 워커">
-                        <select value={editWorkerId} onChange={(e) => setEditWorkerId(e.target.value)} className={`${inputCls} bg-white`}>
-                          <option value="">공용 (미지정)</option>
-                          {workers.map(w => <option key={w.id} value={w.id}>{w.name || w.id.slice(0, 12)} {w.is_active ? "● 온라인" : "○ 오프라인"}</option>)}
-                        </select>
-                      </Field>
-                      <Field label="메모">
-                        <input type="text" value={editFields.note ?? ""} onChange={(e) => setEditFields(f => ({ ...f, note: e.target.value }))} placeholder="메모" className={inputCls} />
-                      </Field>
-                      <Field label="비밀번호 변경">
-                        <div className="relative">
-                          <input type={showEditPw ? "text" : "password"} value={editFields.password ?? ""} onChange={(e) => setEditFields(f => ({ ...f, password: e.target.value }))} placeholder="변경할 비밀번호 (빈칸 = 유지)" className={`${inputCls} pr-12`} />
-                          <button type="button" onClick={() => setShowEditPw(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">{showEditPw ? "숨김" : "표시"}</button>
-                        </div>
-                      </Field>
-                    </div>
+                    {/* 확장 행 — 테스트 상세 + 편집 폼 */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-4 bg-gray-50 border-t border-pink-100">
 
-                    {/* 테스트 실패 에러 로그 */}
-                    {(acc.last_test_status === "fail" || testState[acc.id]?.status === "fail") && (
-                      <div className="bg-red-50 border border-red-100 rounded-md p-3">
-                        <div className="text-xs font-medium text-red-700 mb-1">
-                          테스트 실패 — {acc.last_test_at ? fmtDateShort(acc.last_test_at) : "방금"}
-                        </div>
-                        <div className="text-xs text-red-600 font-mono whitespace-pre-wrap break-all">
-                          {testState[acc.id]?.error || acc.last_test_error || "에러 메시지 없음"}
-                        </div>
-                      </div>
+                          {/* 테스트 체크 항목 (세션 내 결과 있을 때만) */}
+                          {localTest?.checks && localTest.checks.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              {localTest.checks.map((c, i) => (
+                                <span key={i} className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${c.ok ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>
+                                  {c.ok ? "✓" : "✗"} {c.label}{c.detail ? ` — ${c.detail}` : ""}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* 테스트 실패 에러 (체크 없을 때) */}
+                          {(testDisplay.status === "fail") && failMsg && !localTest?.checks && (
+                            <div className="mb-4 bg-red-50 border border-red-100 rounded-md p-3">
+                              <div className="text-xs font-medium text-red-700 mb-1">
+                                테스트 실패 — {acc.last_test_at ? fmtDateShort(acc.last_test_at) : "방금"}
+                              </div>
+                              <div className="text-xs text-red-600 font-mono whitespace-pre-wrap break-all">{failMsg}</div>
+                            </div>
+                          )}
+
+                          {/* 편집 폼 */}
+                          <div className="grid grid-cols-3 gap-3 mb-3">
+                            <Field label="등록 이메일">
+                              <input type="email" value={editFields.email ?? ""} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="이메일" className={inputCls} />
+                            </Field>
+                            <Field label="전화번호">
+                              <input type="text" value={editFields.phone ?? ""} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="전화번호" className={inputCls} />
+                            </Field>
+                            <Field label="관리팀">
+                              <input type="text" value={editFields.team ?? ""} onChange={(e) => setEditFields(f => ({ ...f, team: e.target.value }))} placeholder="관리팀" className={inputCls} />
+                            </Field>
+                            <Field label="생성자">
+                              <input type="text" value={editFields.creator ?? ""} onChange={(e) => setEditFields(f => ({ ...f, creator: e.target.value }))} placeholder="생성자" className={inputCls} />
+                            </Field>
+                            <Field label="전용 워커">
+                              <select value={editWorkerId} onChange={(e) => setEditWorkerId(e.target.value)} className={`${inputCls} bg-white`}>
+                                <option value="">공용 (미지정)</option>
+                                {workers.map(w => <option key={w.id} value={w.id}>{w.name || w.id.slice(0, 12)} {w.is_active ? "● 온라인" : "○ 오프라인"}</option>)}
+                              </select>
+                            </Field>
+                            <Field label="메모">
+                              <input type="text" value={editFields.note ?? ""} onChange={(e) => setEditFields(f => ({ ...f, note: e.target.value }))} placeholder="메모" className={inputCls} />
+                            </Field>
+                            <Field label="비밀번호 변경">
+                              <div className="relative">
+                                <input type={showEditPw ? "text" : "password"} value={editFields.password ?? ""} onChange={(e) => setEditFields(f => ({ ...f, password: e.target.value }))} placeholder="변경할 비밀번호 (빈칸 = 유지)" className={`${inputCls} pr-12`} />
+                                <button type="button" onClick={() => setShowEditPw(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">{showEditPw ? "숨김" : "표시"}</button>
+                              </div>
+                            </Field>
+                          </div>
+
+                          {/* 계정 상세 */}
+                          <div className="text-xs text-gray-400 flex flex-wrap gap-4 mb-3">
+                            <span>ID: {acc.id.slice(0, 16)}...</span>
+                            {acc.last_login_at   && <span>마지막 로그인: {fmtDateShort(acc.last_login_at)}</span>}
+                            {acc.last_blocked_at && <span>마지막 차단: {fmtDateShort(acc.last_blocked_at)}</span>}
+                            {acc.last_test_at    && <span>마지막 테스트: {fmtDateShort(acc.last_test_at)} ({acc.last_test_status === "ok" ? "✓ 정상" : "✗ 실패"})</span>}
+                            <span>등록일: {fmtDateShort(acc.created_at)}</span>
+                          </div>
+
+                          {/* 액션 버튼 */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex gap-2">
+                              <button onClick={() => toggleActive(acc.id, acc.is_active)}
+                                className={`px-3 py-1.5 text-xs rounded border ${acc.is_active ? "border-gray-300 text-gray-500 hover:bg-gray-100" : "border-green-300 text-green-600 hover:bg-green-50"}`}>
+                                {acc.is_active ? "비활성화" : "활성화"}
+                              </button>
+                              {(acc.status === "cooling" || acc.status === "blocked") && (
+                                <button onClick={() => clearBlock(acc.id)} className="px-3 py-1.5 text-xs rounded border border-blue-300 text-blue-600 hover:bg-blue-50">차단 해제</button>
+                              )}
+                              {acc.last_login_at && (
+                                <button onClick={() => clearSession(acc.id)} className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-500 hover:bg-gray-100">세션 초기화</button>
+                              )}
+                              <button onClick={() => deleteAccount(acc.id, acc.username)} className="px-3 py-1.5 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50">삭제</button>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => { setExpandedId(null); setEditFields({}); }} className="px-3 py-1.5 text-xs border border-gray-300 text-gray-500 rounded hover:bg-gray-100">취소</button>
+                              <button onClick={() => saveEdit(acc.id)} className="px-4 py-1.5 text-xs bg-pink-600 text-white rounded hover:bg-pink-700">저장</button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-
-                    {/* 계정 상세 정보 */}
-                    <div className="text-xs text-gray-400 flex flex-wrap gap-4">
-                      <span>계정 ID: {acc.id.slice(0, 16)}...</span>
-                      {acc.last_login_at && <span>마지막 로그인: {fmtDateShort(acc.last_login_at)}</span>}
-                      {acc.last_blocked_at && <span>마지막 차단: {fmtDateShort(acc.last_blocked_at)}</span>}
-                      {acc.last_test_at && <span>마지막 테스트: {fmtDateShort(acc.last_test_at)} ({acc.last_test_status === "ok" ? "✓ 정상" : "✗ 실패"})</span>}
-                      <span>등록일: {fmtDateShort(acc.created_at)}</span>
-                    </div>
-
-                    {/* 액션 버튼 행 */}
-                    <div className="flex items-center justify-between pt-1">
-                      <div className="flex gap-2">
-                        <button onClick={() => toggleActive(acc.id, acc.is_active)} className={`px-3 py-1.5 text-xs rounded border ${acc.is_active ? "border-gray-300 text-gray-500 hover:bg-gray-100" : "border-green-300 text-green-600 hover:bg-green-50"}`}>
-                          {acc.is_active ? "비활성화" : "활성화"}
-                        </button>
-                        {(acc.status === "cooling" || acc.status === "blocked") && (
-                          <button onClick={() => clearBlock(acc.id)} className="px-3 py-1.5 text-xs rounded border border-blue-300 text-blue-600 hover:bg-blue-50">
-                            차단 해제
-                          </button>
-                        )}
-                        {acc.last_login_at && (
-                          <button onClick={() => clearSession(acc.id)} className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-500 hover:bg-gray-100">
-                            세션 초기화
-                          </button>
-                        )}
-                        <button onClick={() => deleteAccount(acc.id, acc.username)} className="px-3 py-1.5 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50">
-                          삭제
-                        </button>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => { setExpandedId(null); setEditFields({}); }} className="px-3 py-1.5 text-xs border border-gray-300 text-gray-500 rounded hover:bg-gray-100">취소</button>
-                        <button onClick={() => saveEdit(acc.id)} className="px-4 py-1.5 text-xs bg-pink-600 text-white rounded hover:bg-pink-700">저장</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* 안내 */}
-      <div className="mt-5 p-3 bg-pink-50 border border-pink-100 rounded-lg text-xs text-pink-700 space-y-1">
+      <div className="mt-4 p-3 bg-pink-50 border border-pink-100 rounded-lg text-xs text-pink-700 space-y-1">
         <p className="font-medium">사용 방식</p>
         <p>• 워커가 Instagram 크롤링 시 이 목록에서 계정을 자동 선택하여 로그인 세션을 사용합니다.</p>
         <p>• <strong>테스트</strong>: 해당 계정으로 실제 Instagram 로그인 가능 여부를 확인합니다. 온라인 워커가 필요합니다.</p>
         <p>• 계정이 차단되면 자동으로 &quot;쿨다운&quot;으로 변경되고 다른 계정으로 전환합니다.</p>
         <p>• 전용 워커를 지정하면 해당 워커만 그 계정을 사용하고, 미지정 시 공용으로 공유됩니다.</p>
       </div>
-    </div>
-  );
-}
-
-const inputCls = "w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-400";
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs text-gray-500 mb-1">{label}</label>
-      {children}
     </div>
   );
 }

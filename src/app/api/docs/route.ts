@@ -373,6 +373,18 @@ ALTER TABLE worker_config
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
+## 2026-04-16 (3)
+
+### Worker — COALESCE 타입 불일치 버그 수정 + Instagram 계정 페이지 UI 개선
+- Worker: \`increment_daily_used_cat\` RPC 호출 제거 — Supabase RPC 함수의 \`COALESCE(timestamp, text)\` 타입 불일치 에러 우회
+  - \`sb.rpc(...)\` → \`sb.table("worker_config").update({...}).eq(...)\` 직접 업데이트로 교체
+  - \`daily_used\`, \`daily_used_naver\`, \`daily_used_instagram\` 를 로컬 계산 후 단일 쿼리로 저장
+- Station: Instagram 계정 페이지 테이블 레이아웃 전면 개편
+  - 카드형 \`space-y-2\` → \`<table>\` 헤더 포함 테이블로 전환
+  - 헤더: (dot) | 계정 | 로그인 / 차단 | 마지막 활동 | 테스트 | 액션
+  - 테스트 체크 항목(로그인, 크롤링 등)을 확장 행으로 이동 — 기본 행 높이 균일화
+  - 편집 폼 그리드를 \`grid-cols-3\` 으로 조정
+
 ## 2026-04-16 (2)
 
 ### Station + Worker — 헬스 체크 정의 + 체계적 활성화 제어
