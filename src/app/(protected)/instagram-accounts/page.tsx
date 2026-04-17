@@ -352,10 +352,11 @@ export default function InstagramAccountsPage() {
               <tr>
                 <th className="w-6 px-4 py-2.5" />
                 <th className="text-left px-3 py-2.5">계정</th>
+                <th className="text-left px-3 py-2.5 w-32">워커</th>
                 <th className="text-center px-3 py-2.5 w-24">로그인 / 차단</th>
                 <th className="text-center px-3 py-2.5 w-24">마지막 활동</th>
                 <th className="text-center px-3 py-2.5 w-32">테스트</th>
-                <th className="text-right px-4 py-2.5 w-28">액션</th>
+                <th className="w-16 px-4 py-2.5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -391,7 +392,7 @@ export default function InstagramAccountsPage() {
 
                       {/* 계정 정보 */}
                       <td className="px-3 py-2 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gray-900">@{acc.username}</span>
                           <span className={`px-1.5 py-0.5 text-xs rounded ${scfg.color}`}>{scfg.label}</span>
                           {acc.blocked_until && new Date(acc.blocked_until) > new Date() && (
@@ -400,14 +401,24 @@ export default function InstagramAccountsPage() {
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-gray-400 flex gap-2 flex-wrap">
-                          {assignedWorker
-                            ? <span className={assignedWorker.is_active ? "text-green-600" : ""}>{assignedWorker.name || assignedWorker.id.slice(0, 10)}</span>
-                            : <span>공용</span>}
-                          {acc.team    && <span>· {acc.team}</span>}
-                          {acc.creator && <span>· {acc.creator}</span>}
-                          {acc.note    && <span className="truncate max-w-[200px]">· {acc.note}</span>}
-                        </div>
+                        {(acc.team || acc.creator || acc.note) && (
+                          <div className="text-xs text-gray-400 flex gap-1.5 flex-wrap mt-0.5">
+                            {acc.team    && <span>{acc.team}</span>}
+                            {acc.creator && <span>· {acc.creator}</span>}
+                            {acc.note    && <span className="truncate max-w-[200px]">· {acc.note}</span>}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 워커 */}
+                      <td className="px-3 py-2 min-w-0">
+                        {assignedWorker ? (
+                          <span className={`text-xs font-medium ${assignedWorker.is_active ? "text-green-600" : "text-gray-400"}`}>
+                            {assignedWorker.name || assignedWorker.id.slice(0, 10)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">공용</span>
+                        )}
                       </td>
 
                       {/* 로그인 / 차단 */}
@@ -440,18 +451,34 @@ export default function InstagramAccountsPage() {
 
                       {/* 액션 */}
                       <td className="px-4 py-2">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => runTest(acc.id)} disabled={testDisplay.status === "running"}
-                            className="px-2 py-1 text-xs border border-pink-200 text-pink-600 rounded hover:bg-pink-50 disabled:opacity-50">
-                            테스트
+                        <div className="flex items-center justify-end gap-1">
+                          {/* 테스트 */}
+                          <button
+                            onClick={() => runTest(acc.id)}
+                            disabled={testDisplay.status === "running"}
+                            title="테스트"
+                            className="p-1.5 rounded text-gray-400 hover:text-pink-500 hover:bg-pink-50 disabled:opacity-30 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                            </svg>
                           </button>
+                          {/* 편집 / 닫기 */}
                           <button
                             onClick={() => {
                               if (isExpanded) { setExpandedId(null); setEditFields({}); }
                               else { setExpandedId(acc.id); startEdit(acc); }
                             }}
-                            className={`px-2 py-1 text-xs border rounded ${isExpanded ? "border-pink-300 text-pink-700 bg-pink-50" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
-                            {isExpanded ? "닫기" : "편집"}
+                            title={isExpanded ? "닫기" : "편집"}
+                            className={`p-1.5 rounded transition-colors ${isExpanded ? "text-pink-500 bg-pink-50 hover:bg-pink-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}>
+                            {isExpanded ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                              </svg>
+                            )}
                           </button>
                         </div>
                       </td>
@@ -460,7 +487,7 @@ export default function InstagramAccountsPage() {
                     {/* 확장 행 — 테스트 상세 + 편집 폼 */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-4 bg-gray-50 border-t border-pink-100">
+                        <td colSpan={7} className="px-4 py-4 bg-gray-50 border-t border-pink-100">
 
                           {/* 테스트 체크 항목 (세션 내 결과 있을 때만) */}
                           {localTest?.checks && localTest.checks.length > 0 && (
