@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthGuard";
-import { ssoLogout } from "@/lib/sso";
+import { ssoLogout, getAuthHeaders } from "@/lib/sso";
 
 const NAV_GROUPS = [
   {
@@ -39,11 +39,12 @@ const NAV_GROUPS = [
   {
     label: "시스템",
     items: [
-      { href: "/apps", label: "연결된 앱", icon: "🔑" },
-      { href: "/guide", label: "연동 가이드", icon: "📖" },
+      { href: "/apps",      label: "연결된 앱",    icon: "🔑" },
+      { href: "/guide",     label: "연동 가이드",  icon: "📖" },
       { href: "/changelog", label: "업데이트 기록", icon: "📝" },
-      { href: "/users", label: "회원 관리", icon: "👥" },
-      { href: "/settings", label: "시스템 설정", icon: "🔧" },
+      { href: "/feedback",  label: "피드백",       icon: "💬" },
+      { href: "/users",     label: "회원 관리",    icon: "👥" },
+      { href: "/settings",  label: "시스템 설정",  icon: "🔧" },
     ],
   },
 ];
@@ -52,11 +53,29 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed,        setCollapsed]        = useState(false);
+  const [mobileOpen,       setMobileOpen]       = useState(false);
+  const [feedbackBadge,    setFeedbackBadge]    = useState(0);
 
   // 페이지 이동 시 모바일 메뉴 닫기
   useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  // 미해결 피드백 뱃지
+  useEffect(() => {
+    async function fetchBadge() {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch("/api/feedback?count=true", { headers });
+        if (res.ok) {
+          const { unresolved } = await res.json();
+          setFeedbackBadge(unresolved ?? 0);
+        }
+      } catch { /* 무시 */ }
+    }
+    fetchBadge();
+    const id = setInterval(fetchBadge, 60_000); // 1분마다 갱신
+    return () => clearInterval(id);
+  }, []);
 
   async function handleLogout() {
     await ssoLogout();
@@ -66,6 +85,7 @@ export function Sidebar() {
   type NavItem = { href: string; label: string; icon: string };
   const NavLink = ({ item }: { item: NavItem }) => {
     const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+    const badge = item.href === "/feedback" && feedbackBadge > 0 ? feedbackBadge : 0;
     return (
       <Link
         href={item.href}
@@ -79,7 +99,15 @@ export function Sidebar() {
         }`}
       >
         <span className="shrink-0 text-base">{item.icon}</span>
-        {!collapsed && <span className="truncate">{item.label}</span>}
+        {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+        {badge > 0 && !collapsed && (
+          <span className="ml-auto shrink-0 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
+        {badge > 0 && collapsed && (
+          <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
+        )}
       </Link>
     );
   };
@@ -149,7 +177,9 @@ export function Sidebar() {
               {collapsed && gi > 0 && <div className="my-1 border-t border-gray-100" />}
               <div className="space-y-0.5">
                 {group.items.map((item) => (
-                  <NavLink key={item.href} item={item} />
+                  <div key={item.href} className="relative">
+                    <NavLink item={item} />
+                  </div>
                 ))}
               </div>
             </div>

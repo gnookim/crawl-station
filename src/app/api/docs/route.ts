@@ -373,6 +373,20 @@ ALTER TABLE worker_config
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
+## 2026-04-17
+
+### Station — 피드백 & 요청 시스템 추가
+- 새 페이지 \`/feedback\` — 버그 보고 · 기능 요청 · 개선 제안
+- DB: \`feedback_requests\` + \`feedback_comments\` 테이블 (SQL은 \`/api/feedback/route.ts\` 상단 주석 참조)
+- Supabase Storage: \`feedback-images\` 버킷 (Public, 5MB)
+- API 7개: GET·POST /api/feedback, PATCH·DELETE /api/feedback/[id], POST /api/feedback/upload, GET·POST /api/feedback/[id]/comments, DELETE /api/feedback/[id]/comments/[cid]
+- 상태 흐름: pending → in_progress → resolved → done
+- 관리자: 상태 드롭다운, 답변 모달(이미지 5장), 결과 캡처 첨부
+- 요청자: 확인 완료(done) 버튼 (resolved 상태일 때)
+- 말풍선 댓글 스레드 (관리자 왼쪽, 사용자 오른쪽)
+- 📋 원본 복사 / 🤖 Claude 프롬프트 복사 버튼
+- 사이드바 "피드백" 메뉴 추가 + 미해결 건수 뱃지 (1분마다 갱신)
+
 ## 2026-04-16 (3)
 
 ### Worker — COALESCE 타입 불일치 버그 수정 + Instagram 계정 페이지 UI 개선
