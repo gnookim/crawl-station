@@ -380,7 +380,7 @@ export default function InstagramAccountsPage() {
                     <tr className={`hover:bg-gray-50 transition-colors ${!acc.is_active ? "opacity-60" : ""} ${isExpanded ? "bg-pink-50/40" : ""}`}>
 
                       {/* 상태 도트 */}
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2">
                         <div className="relative w-2.5 h-2.5">
                           <div className={`w-2.5 h-2.5 rounded-full ${scfg.dot}`} />
                           {acc.is_active && acc.status === "active" && (
@@ -390,7 +390,7 @@ export default function InstagramAccountsPage() {
                       </td>
 
                       {/* 계정 정보 */}
-                      <td className="px-3 py-3 min-w-0">
+                      <td className="px-3 py-2 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
                           <span className="font-semibold text-gray-900">@{acc.username}</span>
                           <span className={`px-1.5 py-0.5 text-xs rounded ${scfg.color}`}>{scfg.label}</span>
@@ -411,19 +411,19 @@ export default function InstagramAccountsPage() {
                       </td>
 
                       {/* 로그인 / 차단 */}
-                      <td className="px-3 py-3 text-center tabular-nums">
+                      <td className="px-3 py-2 text-center tabular-nums">
                         <span className="text-green-600 font-semibold">{acc.login_count}</span>
                         <span className="text-gray-300 mx-1">/</span>
                         <span className="text-red-500 font-semibold">{acc.block_count}</span>
                       </td>
 
                       {/* 마지막 활동 */}
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-3 py-2 text-center">
                         <span className="text-xs text-gray-400">{lastActivity ? timeAgo(lastActivity) : "—"}</span>
                       </td>
 
                       {/* 테스트 결과 — 배지만 */}
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-3 py-2 text-center">
                         {testDisplay.status === "running" ? (
                           <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full animate-pulse">테스트 중</span>
                         ) : testDisplay.status === "ok" ? (
@@ -439,7 +439,7 @@ export default function InstagramAccountsPage() {
                       </td>
 
                       {/* 액션 */}
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2">
                         <div className="flex items-center justify-end gap-1.5">
                           <button onClick={() => runTest(acc.id)} disabled={testDisplay.status === "running"}
                             className="px-2 py-1 text-xs border border-pink-200 text-pink-600 rounded hover:bg-pink-50 disabled:opacity-50">
