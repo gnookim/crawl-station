@@ -244,7 +244,7 @@ function NewRequestModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">의견 및 개발 요청</h2>
+          <h2 className="text-base font-semibold text-gray-900">오류 신고 & 기능 개발</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full text-lg leading-none transition-colors">✕</button>
         </div>
 
@@ -856,13 +856,13 @@ export default function FeedbackPage() {
       {/* ── 헤더 ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">피드백</h1>
+          <h1 className="text-xl font-bold text-gray-900">오류 신고 & 기능 개발</h1>
           <p className="text-sm text-gray-500 mt-0.5">버그 보고 · 기능 요청 · 개선 제안</p>
         </div>
         <button
           onClick={() => setShowNew(true)}
           className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
-          + 의견 및 개발 요청
+          + 오류 신고 & 기능 개발
         </button>
       </div>
 

@@ -42,7 +42,7 @@ const NAV_GROUPS = [
       { href: "/apps",      label: "연결된 앱",    icon: "🔑" },
       { href: "/guide",     label: "연동 가이드",  icon: "📖" },
       { href: "/changelog", label: "업데이트 기록", icon: "📝" },
-      { href: "/feedback",  label: "피드백",       icon: "💬" },
+      { href: "/feedback",  label: "오류 신고 & 기능 개발", icon: "💬" },
       { href: "/users",     label: "회원 관리",    icon: "👥" },
       { href: "/settings",  label: "시스템 설정",  icon: "🔧" },
     ],
