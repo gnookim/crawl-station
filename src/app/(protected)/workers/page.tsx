@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Worker, TetheringCarrier, TetheringReconnectInterval } from "@/types";
 import { WORKER_ONLINE_THRESHOLD_MS, CRAWL_CATEGORIES } from "@/types";
@@ -51,6 +51,26 @@ interface WorkerLog {
   message: string;
   context: Record<string, unknown>;
   created_at: string;
+}
+
+interface IpGroup {
+  ip: string;
+  workers: Worker[];
+  onlineCount: number;
+  hasBlocked: boolean;
+}
+
+interface CatGroup {
+  key: string;
+  label: string;
+  color: string;
+  workers: Worker[];
+  onlineCount: number;
+  hasBlocked: boolean;
+  usedNaver: number;
+  quotaNaver: number;
+  usedInsta: number;
+  quotaInsta: number;
 }
 
 const DEFAULT_NET_CONFIG: WorkerNetConfig = {
@@ -572,6 +592,75 @@ export default function WorkersPage() {
   // 테이블 총 컬럼 수 (체크박스 + 워커 + 테스트 + 제어 = 4 고정)
   const TABLE_COLS = 4 + visibleConfigCols.length;
 
+  /* ── 뷰 모드 (list / ip / category) ── */
+  const [viewMode, setViewMode] = useState<"list" | "ip" | "category">(() => {
+    if (typeof window === "undefined") return "list";
+    return (localStorage.getItem("workers_view_mode") as "list" | "ip" | "category") || "list";
+  });
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  function saveViewMode(m: "list" | "ip" | "category") {
+    setViewMode(m);
+    localStorage.setItem("workers_view_mode", m);
+  }
+  function toggleGroup(key: string) {
+    setCollapsedGroups((prev) => {
+      const s = new Set(prev);
+      s.has(key) ? s.delete(key) : s.add(key);
+      return s;
+    });
+  }
+
+  const ipGroups: IpGroup[] = useMemo(() => {
+    const map = new Map<string, Worker[]>();
+    for (const w of workers) {
+      const key = w.current_ip || "미확인";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(w);
+    }
+    return Array.from(map.entries())
+      .map(([ip, ws]) => {
+        const sorted = [...ws].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0));
+        return {
+          ip,
+          workers: sorted,
+          onlineCount: sorted.filter((w) => w.is_active).length,
+          hasBlocked: sorted.some((w) => !!w.block_status),
+        };
+      })
+      .sort((a, b) => {
+        if (a.ip === "미확인") return 1;
+        if (b.ip === "미확인") return -1;
+        return b.onlineCount - a.onlineCount || b.workers.length - a.workers.length;
+      });
+  }, [workers]);
+
+  const catGroups: CatGroup[] = useMemo(() => {
+    const ORDER = ["naver", "instagram", "oclick", "all"];
+    const LABELS: Record<string, string> = { naver: "네이버", instagram: "인스타그램", oclick: "Oclick", all: "전체 허용" };
+    const COLORS: Record<string, string> = { naver: "green", instagram: "pink", oclick: "orange", all: "gray" };
+    const map = new Map<string, Worker[]>(ORDER.map((k) => [k, []]));
+    for (const w of workers) {
+      const cat = getWorkerCat(w.allowed_types || []);
+      map.get(cat)!.push(w);
+    }
+    return ORDER.map((key) => {
+      const ws = [...(map.get(key) || [])].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0));
+      return {
+        key,
+        label: LABELS[key],
+        color: COLORS[key],
+        workers: ws,
+        onlineCount: ws.filter((w) => w.is_active).length,
+        hasBlocked: ws.some((w) => !!w.block_status),
+        usedNaver: ws.reduce((s, w) => s + (workerConfigs[w.id]?.daily_used_naver || 0), 0),
+        quotaNaver: ws.reduce((s, w) => s + (workerConfigs[w.id]?.daily_quota_naver || 0), 0),
+        usedInsta: ws.reduce((s, w) => s + (workerConfigs[w.id]?.daily_used_instagram || 0), 0),
+        quotaInsta: ws.reduce((s, w) => s + (workerConfigs[w.id]?.daily_quota_instagram || 0), 0),
+      };
+    }).filter((g) => g.workers.length > 0);
+  }, [workers, workerConfigs]);
+
   function toggleColVisible(key: ColKey) {
     const next = { ...colVisible, [key]: !colVisible[key] };
     setColVisible(next);
@@ -650,7 +739,20 @@ export default function WorkersPage() {
               {sec === 0 ? "끄기" : `${sec}s`}
             </button>
           ))}
-          {/* 컬럼 설정 버튼 */}
+          <div className="w-px h-4 bg-gray-200 mx-1" />
+          {(["list", "ip", "category"] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => saveViewMode(mode)}
+              title={mode === "list" ? "리스트 뷰" : mode === "ip" ? "IP 그룹 뷰" : "기능 그룹 뷰"}
+              className={`px-2 py-0.5 text-xs rounded-md transition-colors ${
+                viewMode === mode ? "bg-gray-800 text-white" : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              {mode === "list" ? "≡ 리스트" : mode === "ip" ? "🌐 IP" : "🏷 기능"}
+            </button>
+          ))}
+          {/* 컬럼 설정 버튼 (리스트 뷰에서만) */}
           <div className="relative ml-1" ref={colSettingsRef}>
             <button
               onClick={() => setShowColSettings(v => !v)}
@@ -802,7 +904,7 @@ export default function WorkersPage() {
           <div className="p-8 text-center text-gray-300 text-sm">연결 오류로 데이터를 불러올 수 없습니다.</div>
         ) : workers.length === 0 ? (
           <div className="p-8 text-center text-gray-400 text-sm">등록된 워커가 없습니다.</div>
-        ) : (
+        ) : viewMode === "list" ? (
           <div className="overflow-x-auto"><table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
@@ -1021,6 +1123,107 @@ export default function WorkersPage() {
               })}
             </tbody>
           </table></div>
+        ) : viewMode === "ip" ? (
+          /* ── IP 그룹 뷰 ── */
+          <div className="divide-y divide-gray-100">
+            {ipGroups.map((group) => {
+              const isCollapsed = collapsedGroups.has(group.ip);
+              return (
+                <div key={group.ip}>
+                  <button
+                    onClick={() => toggleGroup(group.ip)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-left border-b border-gray-100"
+                  >
+                    <span className="text-gray-400 text-xs">🌐</span>
+                    <span className="font-mono text-sm font-semibold text-gray-800">{group.ip}</span>
+                    <span className="text-xs text-gray-400 ml-0.5">{group.workers.length}대</span>
+                    {group.onlineCount > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />{group.onlineCount} 온라인
+                      </span>
+                    )}
+                    {group.workers.length - group.onlineCount > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />{group.workers.length - group.onlineCount} 오프라인
+                      </span>
+                    )}
+                    {group.hasBlocked && (
+                      <span className="px-1.5 py-0.5 text-xs bg-red-100 text-red-600 rounded-full font-medium ml-1">⚠ 차단</span>
+                    )}
+                    <span className="ml-auto text-gray-300 text-xs">{isCollapsed ? "▶" : "▼"}</span>
+                  </button>
+                  {!isCollapsed && group.workers.map((w) => (
+                    <GroupWorkerRow
+                      key={w.id} w={w} showIp={false}
+                      selectedIds={selectedIds} toggleSelect={toggleSelect}
+                      panelWorkerId={panelWorkerId} toggleSettings={toggleSettings}
+                      testStates={testStates} runTest={runTest}
+                      latestVersion={latestVersion} commandLoading={commandLoading}
+                      sendCommand={sendCommand} deleteWorker={deleteWorker}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* ── 기능 그룹 뷰 ── */
+          <div className="divide-y divide-gray-100">
+            {catGroups.map((group) => {
+              const isCollapsed = collapsedGroups.has(group.key);
+              const borderColor =
+                group.color === "green" ? "#22c55e"
+                : group.color === "pink" ? "#ec4899"
+                : group.color === "orange" ? "#f97316"
+                : "#9ca3af";
+              return (
+                <div key={group.key}>
+                  <button
+                    onClick={() => toggleGroup(group.key)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-left border-b border-gray-100 border-l-4"
+                    style={{ borderLeftColor: borderColor }}
+                  >
+                    <span className="text-sm font-semibold text-gray-800">{group.label}</span>
+                    <span className="text-xs text-gray-400">{group.workers.length}대</span>
+                    {group.onlineCount > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />{group.onlineCount} 온라인
+                      </span>
+                    )}
+                    {group.workers.length - group.onlineCount > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />{group.workers.length - group.onlineCount} 오프라인
+                      </span>
+                    )}
+                    {group.hasBlocked && (
+                      <span className="px-1.5 py-0.5 text-xs bg-red-100 text-red-600 rounded-full font-medium">⚠ 차단</span>
+                    )}
+                    {group.quotaNaver > 0 && (
+                      <span className={`text-xs tabular-nums px-1.5 py-0.5 rounded ${group.usedNaver >= group.quotaNaver ? "bg-red-50 text-red-500 font-medium" : "text-gray-400"}`}>
+                        N {group.usedNaver}/{group.quotaNaver}
+                      </span>
+                    )}
+                    {group.quotaInsta > 0 && (
+                      <span className={`text-xs tabular-nums px-1.5 py-0.5 rounded ${group.usedInsta >= group.quotaInsta ? "bg-red-50 text-red-500 font-medium" : "text-gray-400"}`}>
+                        I {group.usedInsta}/{group.quotaInsta}
+                      </span>
+                    )}
+                    <span className="ml-auto text-gray-300 text-xs">{isCollapsed ? "▶" : "▼"}</span>
+                  </button>
+                  {!isCollapsed && group.workers.map((w) => (
+                    <GroupWorkerRow
+                      key={w.id} w={w} showIp={true}
+                      selectedIds={selectedIds} toggleSelect={toggleSelect}
+                      panelWorkerId={panelWorkerId} toggleSettings={toggleSettings}
+                      testStates={testStates} runTest={runTest}
+                      latestVersion={latestVersion} commandLoading={commandLoading}
+                      sendCommand={sendCommand} deleteWorker={deleteWorker}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -1399,6 +1602,134 @@ export default function WorkersPage() {
           </>
         );
       })()}
+    </div>
+  );
+}
+
+/* ── 그룹 뷰 워커 행 ── */
+function GroupWorkerRow({
+  w, showIp,
+  selectedIds, toggleSelect,
+  panelWorkerId, toggleSettings,
+  testStates, runTest,
+  latestVersion, commandLoading, sendCommand, deleteWorker,
+}: {
+  w: Worker;
+  showIp: boolean;
+  selectedIds: Set<string>;
+  toggleSelect: (id: string) => void;
+  panelWorkerId: string | null;
+  toggleSettings: (id: string) => void;
+  testStates: Record<string, WorkerTestState>;
+  runTest: (id: string, cat: "naver" | "instagram" | "oclick") => void;
+  latestVersion: string;
+  commandLoading: string | null;
+  sendCommand: (cmd: "stop" | "restart" | "update", ids?: string[]) => void;
+  deleteWorker: (id: string) => void;
+}) {
+  const isActive = w.is_active;
+  const isSelected = selectedIds.has(w.id);
+  const ts = testStates[w.id];
+  const displayStatus = isActive ? w.status : "offline";
+
+  return (
+    <div className={`flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition-colors text-sm ${isSelected ? "bg-blue-50" : ""}`}>
+      <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(w.id)} className="rounded shrink-0" />
+
+      {/* 이름 + 뱃지 */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-nowrap">
+          <span className="font-medium truncate">{w.name || w.id}</span>
+          <WorkerTestBadges worker={w} />
+        </div>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {w.location && <span className="text-xs text-gray-400">📍 {w.location}</span>}
+          <span className="text-xs text-gray-300 font-mono truncate">{w.id}</span>
+        </div>
+      </div>
+
+      {/* IP (기능 그룹 뷰) / 타입 배지 (IP 그룹 뷰) */}
+      {showIp ? (
+        <span className="text-xs font-mono text-gray-400 whitespace-nowrap hidden md:block w-28 text-right truncate">
+          {w.current_ip || "-"}
+        </span>
+      ) : (
+        <WorkerTypeBadge allowedTypes={w.allowed_types} />
+      )}
+
+      {/* 버전 */}
+      <VersionBadge version={w.version} latest={latestVersion} />
+
+      {/* 상태 */}
+      <div className="flex items-center gap-1 shrink-0">
+        <WorkerStatusBadge status={displayStatus} />
+        <BlockBadge worker={w} />
+      </div>
+
+      {/* 마지막 응답 */}
+      <span className="text-xs whitespace-nowrap w-14 text-right shrink-0">
+        <LastSeenLabel lastSeen={w.last_seen} />
+      </span>
+
+      {/* 처리/에러 */}
+      <span className="text-xs tabular-nums text-right shrink-0 w-10">
+        <span className="text-green-600">{w.total_processed}</span>
+        <span className="text-gray-300">/</span>
+        <span className="text-red-500">{w.error_count}</span>
+      </span>
+
+      {/* 테스트 버튼 */}
+      {isActive ? (
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button onClick={() => runTest(w.id, "naver")} disabled={ts?.naver.loading}
+            className="px-1.5 py-0.5 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100 disabled:opacity-50">
+            {ts?.naver.loading ? "·" : "N"}
+          </button>
+          <button onClick={() => runTest(w.id, "instagram")} disabled={ts?.instagram.loading}
+            className="px-1.5 py-0.5 text-xs bg-pink-50 text-pink-700 rounded hover:bg-pink-100 disabled:opacity-50">
+            {ts?.instagram.loading ? "·" : "I"}
+          </button>
+          <button onClick={() => runTest(w.id, "oclick")} disabled={ts?.oclick?.loading}
+            className="px-1.5 py-0.5 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 disabled:opacity-50">
+            {ts?.oclick?.loading ? "·" : "O"}
+          </button>
+        </div>
+      ) : (
+        <div className="w-[60px] shrink-0" />
+      )}
+
+      {/* 제어 버튼 */}
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          onClick={() => toggleSettings(w.id)}
+          className={`px-2 py-1 text-xs rounded border transition-colors ${
+            panelWorkerId === w.id
+              ? "bg-indigo-100 text-indigo-700 border-indigo-300"
+              : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+          }`}
+        >
+          수정
+        </button>
+        {isActive ? (
+          <>
+            {latestVersion && w.version !== latestVersion && (
+              <button
+                onClick={() => sendCommand("update", [w.id])}
+                disabled={commandLoading !== null}
+                title={`v${w.version} → v${latestVersion}`}
+                className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 disabled:opacity-50 font-medium"
+              >업↑</button>
+            )}
+            <button onClick={() => sendCommand("restart", [w.id])} disabled={commandLoading !== null}
+              className="px-2 py-1 text-xs bg-orange-50 text-orange-700 rounded hover:bg-orange-100 disabled:opacity-50">재시작</button>
+            <button onClick={() => sendCommand("stop", [w.id])} disabled={commandLoading !== null}
+              className="px-2 py-1 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 disabled:opacity-50">정지</button>
+          </>
+        ) : (
+          <button onClick={() => deleteWorker(w.id)}
+            className="px-2 py-1 text-xs text-red-500 hover:text-red-700 rounded hover:bg-red-50">삭제</button>
+        )}
+      </div>
     </div>
   );
 }
