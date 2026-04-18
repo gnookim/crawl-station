@@ -216,6 +216,11 @@ function WorkerTestBadges({ worker }: { worker: Worker }) {
   );
 }
 
+/* ── 적응형 폴링 상수 ── */
+type AutoLevel = "HIGH" | "MED" | "LOW" | "IDLE";
+const AUTO_INTERVALS: Record<AutoLevel, number> = { HIGH: 5, MED: 15, LOW: 30, IDLE: 60 };
+const LEVEL_ORDER: AutoLevel[] = ["IDLE", "LOW", "MED", "HIGH"];
+
 export default function WorkersPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [latestVersion, setLatestVersion] = useState<string>("");
@@ -227,11 +232,17 @@ export default function WorkersPage() {
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
   const [oclickTest, setOclickTest] = useState<OclickTestState>({ loading: false, result: null });
   const [refreshInterval, setRefreshInterval] = useState(10);
+  const [autoMode, setAutoMode] = useState(true);
+  const [autoLevel, setAutoLevel] = useState<AutoLevel>("LOW");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const autoModeRef = useRef<boolean>(true);
+  const autoLevelRef = useRef<AutoLevel>("LOW");
+  const noChangeCountRef = useRef<number>(0);
+  const prevSnapshotRef = useRef<string>("");
 
   /* ── 컬럼 표시 설정 ── */
   const [colOrder, setColOrder] = useState<ColKey[]>(() => loadColOrder());
@@ -290,10 +301,13 @@ export default function WorkersPage() {
     if (showSpinner) setIsRefreshing(true);
 
     let enriched: Worker[] = [];
+    let releaseVer = "";
     try {
-      const [workersRes, releaseRes] = await Promise.all([
+      const [workersRes, releaseRes, runningRes, pendingRes] = await Promise.all([
         supabase.from("workers").select("*").order("registered_at", { ascending: false }),
         supabase.from("worker_releases").select("version").eq("is_latest", true).limit(1),
+        supabase.from("crawl_requests").select("id", { count: "exact", head: true }).eq("status", "running"),
+        supabase.from("crawl_requests").select("id", { count: "exact", head: true }).in("status", ["pending", "assigned"]),
       ]);
 
       if (workersRes.error) {
@@ -312,11 +326,60 @@ export default function WorkersPage() {
           : false,
       })) as Worker[];
 
+      releaseVer = releaseRes.data?.[0]?.version || "";
       setWorkers(enriched);
-      if (releaseRes.data?.[0]) setLatestVersion(releaseRes.data[0].version);
+      if (releaseVer) setLatestVersion(releaseVer);
       setLastUpdated(new Date());
       setIsLoading(false);
       if (showSpinner) setTimeout(() => setIsRefreshing(false), 300);
+
+      // ── 적응형 폴링 상태머신 ──
+      if (autoModeRef.current) {
+        const runningCount = runningRes.count ?? 0;
+        const pendingCount = pendingRes.count ?? 0;
+        const offlineCount = enriched.filter(w => !w.is_active).length;
+        const updatePending = releaseVer
+          ? enriched.filter(w => w.is_active && w.version && w.version !== releaseVer).length
+          : 0;
+
+        let targetLevel: AutoLevel;
+        if (runningCount > 0 || pendingCount > 5 || offlineCount > 0) {
+          targetLevel = "HIGH";
+        } else if (updatePending > 0) {
+          targetLevel = "MED";
+        } else {
+          targetLevel = "LOW";
+        }
+
+        const snapshot = JSON.stringify({
+          ws: enriched.map(w => `${w.id}:${w.status}:${w.is_active ? 1 : 0}`).sort(),
+          r: runningCount, p: pendingCount,
+        });
+        const changed = snapshot !== prevSnapshotRef.current;
+        prevSnapshotRef.current = snapshot;
+
+        if (changed) {
+          noChangeCountRef.current = 0;
+          const curIdx = LEVEL_ORDER.indexOf(autoLevelRef.current);
+          const tgtIdx = LEVEL_ORDER.indexOf(targetLevel);
+          const nextLevel = LEVEL_ORDER[Math.max(curIdx, tgtIdx)];
+          if (nextLevel !== autoLevelRef.current) {
+            autoLevelRef.current = nextLevel;
+            setAutoLevel(nextLevel);
+          }
+        } else {
+          noChangeCountRef.current += 1;
+          if (noChangeCountRef.current >= 3) {
+            noChangeCountRef.current = 0;
+            const curIdx = LEVEL_ORDER.indexOf(autoLevelRef.current);
+            if (curIdx > 0) {
+              const nextLevel = LEVEL_ORDER[curIdx - 1];
+              autoLevelRef.current = nextLevel;
+              setAutoLevel(nextLevel);
+            }
+          }
+        }
+      }
     } catch (e) {
       setDbError(`DB 연결 실패 — Supabase가 응답하지 않습니다. 대시보드에서 프로젝트 상태를 확인하세요.`);
       console.error("[workers] loadData error:", e);
@@ -367,13 +430,18 @@ export default function WorkersPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // ref 동기화 — loadData는 [] deps라 state를 읽을 수 없으므로 ref로 전달
+  useEffect(() => { autoModeRef.current = autoMode; }, [autoMode]);
+  useEffect(() => { autoLevelRef.current = autoLevel; }, [autoLevel]);
+
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    if (refreshInterval > 0) {
-      intervalRef.current = setInterval(() => loadData(), refreshInterval * 1000);
+    const effectiveSec = autoMode ? AUTO_INTERVALS[autoLevel] : refreshInterval;
+    if (effectiveSec > 0) {
+      intervalRef.current = setInterval(() => loadData(), effectiveSec * 1000);
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [refreshInterval, loadData]);
+  }, [autoMode, autoLevel, refreshInterval, loadData]);
 
   /* ── 워커 관리 ── */
   async function registerManually() {
@@ -744,10 +812,16 @@ export default function WorkersPage() {
           {lastUpdated ? lastUpdated.toLocaleTimeString("ko-KR") : "새로고침"}
         </button>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-300 mr-1">자동</span>
+          <button
+            onClick={() => setAutoMode(true)}
+            className={`px-2 py-0.5 text-xs rounded-md transition-colors ${autoMode ? "bg-blue-600 text-white" : "text-gray-400 hover:text-gray-600"}`}
+          >
+            {autoMode ? `자동 (${AUTO_INTERVALS[autoLevel]}s)` : "자동"}
+          </button>
           {[5, 10, 30, 0].map((sec) => (
-            <button key={sec} onClick={() => setRefreshInterval(sec)}
-              className={`px-2 py-0.5 text-xs rounded-md transition-colors ${refreshInterval === sec ? "bg-gray-800 text-white" : "text-gray-400 hover:text-gray-600"}`}>
+            <button key={sec}
+              onClick={() => { setAutoMode(false); setRefreshInterval(sec); }}
+              className={`px-2 py-0.5 text-xs rounded-md transition-colors ${!autoMode && refreshInterval === sec ? "bg-gray-800 text-white" : "text-gray-400 hover:text-gray-600"}`}>
               {sec === 0 ? "끄기" : `${sec}s`}
             </button>
           ))}
