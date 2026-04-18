@@ -9,6 +9,25 @@ import { TaskStatusBadge } from "@/components/ui/status-badge";
 const PAGE_SIZE = 30;
 const STATIC_STATUSES = new Set(["completed", "failed"]);
 
+type Source = "crawl" | "orch";
+
+interface AgentTask {
+  id: string;
+  type: string;
+  status: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+  updated_at?: string;
+}
+
+const ORCH_STATUS_TABS = [
+  { key: "all",       label: "전체" },
+  { key: "pending",   label: "대기" },
+  { key: "running",   label: "실행중" },
+  { key: "completed", label: "완료" },
+  { key: "failed",    label: "실패" },
+];
+
 const STATUS_TABS = [
   { key: "all",       label: "전체" },
   { key: "pending",   label: "대기" },
@@ -19,6 +38,9 @@ const STATUS_TABS = [
 ];
 
 export default function QueuePage() {
+  const [source, setSource]           = useState<Source>("crawl");
+
+  // crawl_requests 상태
   const [requests, setRequests]       = useState<CrawlRequest[]>([]);
   const [workers, setWorkers]         = useState<Worker[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
@@ -33,6 +55,15 @@ export default function QueuePage() {
   const [expandedId, setExpandedId]   = useState<string | null>(null);
   const [resultData, setResultData]   = useState<Record<string, unknown>[] | null>(null);
   const [loadingResult, setLoadingResult] = useState(false);
+
+  // agent_tasks 상태
+  const [orchTasks, setOrchTasks]         = useState<AgentTask[]>([]);
+  const [orchFilter, setOrchFilter]       = useState<string>("all");
+  const [orchCounts, setOrchCounts]       = useState<Record<string, number>>({});
+  const [orchPage, setOrchPage]           = useState(0);
+  const [orchTotal, setOrchTotal]         = useState(0);
+  const orchIsStatic = STATIC_STATUSES.has(orchFilter);
+  const orchTotalPages = Math.ceil(orchTotal / PAGE_SIZE);
 
   const isStatic = STATIC_STATUSES.has(filter);
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -49,6 +80,50 @@ export default function QueuePage() {
     setPage(0);
     setExpandedId(null);
     setResultData(null);
+  }
+
+  function changeOrchFilter(f: string) {
+    setOrchFilter(f);
+    setOrchPage(0);
+  }
+
+  async function loadOrchCounts() {
+    const statuses = ["pending", "running", "completed", "failed"];
+    const results = await Promise.all(
+      statuses.map(async (s) => {
+        const { count } = await supabase
+          .from("agent_tasks")
+          .select("*", { count: "exact", head: true })
+          .eq("status", s);
+        return [s, count ?? 0] as [string, number];
+      })
+    );
+    const counts = Object.fromEntries(results);
+    counts.all = results.reduce((sum, [, c]) => sum + c, 0);
+    setOrchCounts(counts);
+  }
+
+  async function loadOrchTasks() {
+    if (orchIsStatic) {
+      let q = supabase
+        .from("agent_tasks")
+        .select("*", { count: "exact" })
+        .eq("status", orchFilter)
+        .order("created_at", { ascending: false })
+        .range(orchPage * PAGE_SIZE, (orchPage + 1) * PAGE_SIZE - 1);
+      const { data, count } = await q;
+      setOrchTasks((data ?? []) as AgentTask[]);
+      if (count !== null) setOrchTotal(count);
+    } else {
+      let q = supabase
+        .from("agent_tasks")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (orchFilter !== "all") q = q.eq("status", orchFilter);
+      const { data } = await q;
+      setOrchTasks((data ?? []) as AgentTask[]);
+    }
   }
 
   async function loadCounts() {
@@ -109,18 +184,24 @@ export default function QueuePage() {
   }
 
   useEffect(() => {
+    if (source !== "crawl") return;
     loadData();
     loadCounts();
-
-    if (isStatic) return; // 완료/실패 탭은 폴링 없음
-
-    const interval = setInterval(() => {
-      loadData();
-      loadCounts();
-    }, 5000);
+    if (isStatic) return;
+    const interval = setInterval(() => { loadData(); loadCounts(); }, 5000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, category, page]);
+  }, [source, filter, category, page]);
+
+  useEffect(() => {
+    if (source !== "orch") return;
+    loadOrchTasks();
+    loadOrchCounts();
+    if (orchIsStatic) return;
+    const interval = setInterval(() => { loadOrchTasks(); loadOrchCounts(); }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, orchFilter, orchPage]);
 
   async function createTasks() {
     const keywords = newKeywords
@@ -169,14 +250,155 @@ export default function QueuePage() {
   return (
     <div className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">작업 큐</h2>
-        <button
-          onClick={() => setShowNewTask(!showNewTask)}
-          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
-          + 작업 등록
-        </button>
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold">작업 큐</h2>
+          {/* 소스 토글 */}
+          <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setSource("crawl")}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${source === "crawl" ? "bg-white text-gray-900 font-medium shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              크롤 요청
+            </button>
+            <button
+              onClick={() => setSource("orch")}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${source === "orch" ? "bg-white text-gray-900 font-medium shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              오케스트레이터
+              {orchCounts.all > 0 && orchCounts.pending > 0 && (
+                <span className="ml-1 px-1 py-0.5 rounded-full text-[10px] bg-orange-100 text-orange-600">{orchCounts.pending}</span>
+              )}
+            </button>
+          </div>
+        </div>
+        {source === "crawl" && (
+          <button
+            onClick={() => setShowNewTask(!showNewTask)}
+            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            + 작업 등록
+          </button>
+        )}
       </div>
+
+      {/* 오케스트레이터 뷰 */}
+      {source === "orch" && (
+        <div>
+          {/* 상태 탭 */}
+          <div className="flex gap-0.5 mb-4 border-b border-gray-200">
+            {ORCH_STATUS_TABS.map((tab) => {
+              const count = orchCounts[tab.key];
+              const isActive = orchFilter === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => changeOrchFilter(tab.key)}
+                  className={`px-3 py-2 text-xs flex items-center gap-1.5 border-b-2 transition-colors -mb-px ${
+                    isActive ? "border-blue-600 text-blue-600 font-medium" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  {tab.label}
+                  {count !== undefined && count > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                      tab.key === "failed" ? (isActive ? "bg-red-100 text-red-600" : "bg-red-50 text-red-400")
+                      : tab.key === "running" ? (isActive ? "bg-green-100 text-green-700" : "bg-green-50 text-green-600")
+                      : (isActive ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500")
+                    }`}>
+                      {count.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {!orchIsStatic && (
+              <span className="ml-auto self-center pr-1 text-[10px] text-gray-300 flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                실시간
+              </span>
+            )}
+          </div>
+
+          {/* agent_tasks 테이블 */}
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            {orchTasks.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 text-sm">작업이 없습니다.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm table-fixed">
+                  <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-4 py-2.5 font-medium w-[140px]">앱</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-[80px]">타입</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-[120px]">트리거</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-[80px]">상태</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-[100px]">커밋</th>
+                      <th className="text-left px-4 py-2.5 font-medium">결과</th>
+                      <th className="text-right px-4 py-2.5 font-medium w-[110px] whitespace-nowrap">생성</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {orchTasks.map((t) => {
+                      const p = t.payload;
+                      const commit = String(p.commit_hash ?? "").slice(0, 7);
+                      const deployUrl = String(p.deploy_url ?? "");
+                      const trigger = String(p.trigger ?? "");
+                      const resultSummary = p.result as Record<string, unknown> | undefined;
+                      return (
+                        <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-2.5 font-medium text-gray-800 text-sm truncate">{String(p.app ?? "—")}</td>
+                          <td className="px-4 py-2.5 text-xs text-gray-500 truncate">{t.type}</td>
+                          <td className="px-4 py-2.5">
+                            <OrchTriggerBadge trigger={trigger} />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <TaskStatusBadge status={t.status} />
+                          </td>
+                          <td className="px-4 py-2.5 text-xs font-mono text-gray-400">
+                            {commit ? (
+                              deployUrl ? (
+                                <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{commit}</a>
+                              ) : commit
+                            ) : "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-gray-500 truncate">
+                            {t.status === "completed" && resultSummary ? (
+                              <span className="text-green-600">
+                                {String(resultSummary.passed ?? "")} / {String(resultSummary.total ?? "")} 통과
+                              </span>
+                            ) : t.status === "failed" && p.error ? (
+                              <span className="text-red-400 truncate block max-w-[160px]" title={String(p.error)}>{String(p.error).slice(0, 40)}</span>
+                            ) : "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-xs text-gray-400 whitespace-nowrap">
+                            {new Date(t.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* 페이지네이션 */}
+          {orchIsStatic && orchTotal > 0 && (
+            <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
+              <span className="text-xs">총 <strong className="text-gray-700">{orchTotal.toLocaleString()}</strong>개</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setOrchPage((p) => Math.max(0, p - 1))} disabled={orchPage === 0}
+                  className="px-3 py-1 text-xs rounded-md border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">← 이전</button>
+                <span className="text-xs tabular-nums">{orchPage + 1} / {orchTotalPages}</span>
+                <button onClick={() => setOrchPage((p) => Math.min(orchTotalPages - 1, p + 1))} disabled={orchPage >= orchTotalPages - 1}
+                  className="px-3 py-1 text-xs rounded-md border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">다음 →</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 크롤 요청 뷰 */}
+      {source === "crawl" && <>
 
       {/* 카테고리 탭 */}
       <div className="flex gap-1 mb-3 bg-gray-100 rounded-lg p-0.5 w-fit">
@@ -438,6 +660,7 @@ export default function QueuePage() {
           최근 200개 표시 — 완료/실패 탭에서 전체 조회
         </p>
       )}
+      </> /* end crawl view */}
     </div>
   );
 }
@@ -606,6 +829,20 @@ const SOURCE_MAP: Record<string, { label: string; color: string }> = {
   "station":      { label: "Station",    color: "bg-blue-50 text-blue-700" },
   "api":          { label: "API",        color: "bg-green-50 text-green-700" },
 };
+
+function OrchTriggerBadge({ trigger }: { trigger: string }) {
+  const map: Record<string, { label: string; color: string }> = {
+    "post-push":     { label: "git push",     color: "bg-purple-50 text-purple-700" },
+    "vercel-deploy": { label: "Vercel 배포",  color: "bg-blue-50 text-blue-700" },
+    "manual":        { label: "수동",          color: "bg-gray-50 text-gray-600" },
+  };
+  const cfg = map[trigger] ?? { label: trigger || "—", color: "bg-gray-50 text-gray-500" };
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-xs inline-block ${cfg.color}`}>
+      {cfg.label}
+    </span>
+  );
+}
 
 function SourceBadge({ options }: { options: Record<string, unknown> | null }) {
   if (!options) return <span className="text-xs text-gray-300">—</span>;
