@@ -372,7 +372,18 @@ export default function WorkersPage() {
     setRealtimeStatus("connecting");
     const channel = supabase
       .channel("workers-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "workers" }, () => loadData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "workers" }, (payload) => {
+        if (payload.eventType === "UPDATE") {
+          const o = payload.old as Record<string, unknown>;
+          const n = payload.new as Record<string, unknown>;
+          const meaningful = o.status !== n.status
+            || o.version !== n.version
+            || o.current_keyword !== n.current_keyword
+            || o.command !== n.command;
+          if (!meaningful) return;
+        }
+        loadData();
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setRealtimeStatus("connected");
         else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setRealtimeStatus("error");
