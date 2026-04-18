@@ -373,6 +373,13 @@ ALTER TABLE worker_config
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
+## 2026-04-18
+
+### DB — 카테고리별 일일 한도 마이그레이션 (v0.9.43/v0.9.44 연동)
+- `worker_config` 테이블에 `daily_quota_naver`, `daily_quota_instagram`, `daily_used_naver`, `daily_used_instagram` 컬럼 추가
+- `increment_daily_used_cat(wid, cat)` RPC 추가 — 네이버/인스타 카운터 독립 증가
+- `reset_daily_quotas(wid)` RPC 추가 — 전체 카운터(전체/네이버/인스타) KST 자정 리셋
+
 ## 2026-04-17
 
 ### Station — 워커 관리 그룹 뷰 추가
