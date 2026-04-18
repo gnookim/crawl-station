@@ -373,6 +373,14 @@ ALTER TABLE worker_config
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
+## 2026-04-18 (4)
+
+### Station — 대시보드 Instagram 계정 상태 위젯
+- Instagram 계정이 1개 이상일 때 대시보드에 위젯 자동 표시
+- 활성/쿨다운/차단 카운트, 3시간 이내 수집 예정 건수, 활성 계정 없음 경고
+- 계정별 상태 도트 미리보기 (hover 시 username + 다음 수집 시각 툴팁)
+- 30초 자동 갱신, "관리 →" 링크로 계정 관리 페이지 바로가기
+
 ## 2026-04-18 (3)
 
 ### Station + Cron — Instagram 수집 주기 스케줄러

@@ -6,6 +6,15 @@ import type { Worker } from "@/types";
 import { WORKER_ONLINE_THRESHOLD_MS, CRAWL_CATEGORIES, type CrawlCategory } from "@/types";
 import { WorkerStatusBadge } from "@/components/ui/status-badge";
 
+interface InstaAccount {
+  id: string;
+  username: string;
+  status: string;
+  is_active: boolean;
+  next_check_at: string | null;
+  check_interval_hours: number | null;
+}
+
 export default function DashboardPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [category, setCategory] = useState<CrawlCategory>("all");
@@ -17,12 +26,25 @@ export default function DashboardPage() {
     completedToday: 0,
     failedToday: 0,
   });
+  const [instaAccounts, setInstaAccounts] = useState<InstaAccount[]>([]);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
   }, [category]);
+
+  useEffect(() => {
+    const loadInsta = async () => {
+      const res = await fetch("/api/instagram-accounts").catch(() => null);
+      if (!res?.ok) return;
+      const data = await res.json();
+      setInstaAccounts(data.accounts || []);
+    };
+    loadInsta();
+    const t = setInterval(loadInsta, 30000);
+    return () => clearInterval(t);
+  }, []);
 
   async function loadData() {
     const catTypes = CRAWL_CATEGORIES.find((c) => c.key === category)?.types || [];
@@ -126,6 +148,11 @@ export default function DashboardPage() {
         />
         <StatCard label="오늘 실패" value={stats.failedToday} color="red" />
       </div>
+
+      {/* Instagram 계정 상태 위젯 */}
+      {instaAccounts.length > 0 && (
+        <InstagramWidget accounts={instaAccounts} />
+      )}
 
       {/* 워커 현황 */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -254,4 +281,56 @@ function timeAgo(date: Date): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}분 전`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}시간 전`;
   return `${Math.floor(seconds / 86400)}일 전`;
+}
+
+function InstagramWidget({ accounts }: { accounts: InstaAccount[] }) {
+  const total    = accounts.length;
+  const active   = accounts.filter(a => a.is_active && a.status === "active").length;
+  const cooling  = accounts.filter(a => a.status === "cooling").length;
+  const blocked  = accounts.filter(a => a.status === "blocked" || a.status === "banned").length;
+  const now      = new Date();
+  const dueSoon  = accounts.filter(a => a.is_active && a.status === "active" && a.next_check_at && new Date(a.next_check_at) <= new Date(now.getTime() + 3 * 60 * 60 * 1000)).length;
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 mb-6">
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+        <h3 className="font-semibold text-sm flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-pink-500 inline-block" />
+          Instagram 계정
+        </h3>
+        <a href="/instagram-accounts" className="text-xs text-pink-500 hover:underline">관리 →</a>
+      </div>
+      <div className="px-4 py-3 flex items-center gap-6 text-sm">
+        <span className="text-gray-500">총 <strong className="text-gray-900">{total}</strong></span>
+        <span className="text-green-600">활성 <strong>{active}</strong></span>
+        {cooling > 0 && <span className="text-yellow-600">쿨다운 <strong>{cooling}</strong></span>}
+        {blocked > 0 && <span className="text-red-600">차단 <strong>{blocked}</strong></span>}
+        {dueSoon > 0 && (
+          <span className="text-orange-500 font-medium">⏱ {dueSoon}개 수집 예정 (3h 이내)</span>
+        )}
+        {active === 0 && total > 0 && (
+          <span className="text-red-500 font-medium text-xs">⚠ 활성 계정 없음 — Instagram 크롤링 불가</span>
+        )}
+      </div>
+      {/* 계정 도트 미리보기 */}
+      <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+        {accounts.map(a => {
+          const isDue = a.next_check_at && new Date(a.next_check_at) <= now;
+          const dotColor =
+            !a.is_active ? "bg-gray-300" :
+            a.status === "cooling" ? "bg-yellow-400" :
+            a.status === "blocked" || a.status === "banned" ? "bg-red-500" :
+            isDue ? "bg-orange-400" :
+            "bg-green-500";
+          return (
+            <div
+              key={a.id}
+              title={`@${a.username} — ${a.status}${a.next_check_at ? ` | 다음 수집: ${new Date(a.next_check_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : ""}`}
+              className={`w-2.5 h-2.5 rounded-full ${dotColor} cursor-default`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
 }
