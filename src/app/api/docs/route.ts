@@ -373,6 +373,13 @@ ALTER TABLE worker_config
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
+## 2026-04-19
+
+### 워커 v0.9.45 — DNS stale resolver 자가 복구
+- supabase_rest.py: macOS 장기 실행 후 [Errno 8] nodename nor servname 에러 발생 시
+  res_init()으로 DNS 재초기화 후 1회 자동 재시도 (재시작 없이 자가 복구)
+- handlers/__init__.py: InstagramLoginTestHandler 누락 → InstagramProfileHandler로 대체
+
 ## 2026-04-18 (4)
 
 ### Station — 대시보드 Instagram 계정 상태 위젯
@@ -384,24 +391,24 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 ## 2026-04-18 (3)
 
 ### Station + Cron — Instagram 수집 주기 스케줄러
-- `instagram_accounts` 테이블에 `check_interval_hours` (기본 24h), `next_check_at` 컬럼 추가
-- `cron/daily-rank`에 인스타 스케줄 디스패치 통합 (Hobby 플랜 cron 1개 제한 대응)
-  - `next_check_at <= NOW()` 또는 NULL인 활성 계정에 `instagram_profile` 요청 자동 생성
-  - 디스패치 완료 후 `next_check_at = NOW() + check_interval_hours` 갱신
+- instagram_accounts 테이블에 check_interval_hours (기본 24h), next_check_at 컬럼 추가
+- cron/daily-rank에 인스타 스케줄 디스패치 통합 (Hobby 플랜 cron 1개 제한 대응)
+  - next_check_at <= NOW() 또는 NULL인 활성 계정에 instagram_profile 요청 자동 생성
+  - 디스패치 완료 후 next_check_at = NOW() + check_interval_hours 갱신
 - Instagram 계정 관리 UI: 수집 주기 드롭다운 (6h/12h/24h/48h/72h/주1회) + 다음 수집 시각 표시
 
 ## 2026-04-18 (2)
 
 ### Cron — daily-rank quota 중복 집계 제거
-- `increment_daily_used` RPC를 작업 수만큼 루프 호출하던 코드 제거
-- 워커가 실제 처리 시 `increment_daily_used_cat`을 호출하므로 cron 쪽 집계는 이중 카운팅
+- increment_daily_used RPC를 작업 수만큼 루프 호출하던 코드 제거
+- 워커가 실제 처리 시 increment_daily_used_cat을 호출하므로 cron 쪽 집계는 이중 카운팅
 
 ## 2026-04-18
 
 ### DB — 카테고리별 일일 한도 마이그레이션 (v0.9.43/v0.9.44 연동)
-- `worker_config` 테이블에 `daily_quota_naver`, `daily_quota_instagram`, `daily_used_naver`, `daily_used_instagram` 컬럼 추가
-- `increment_daily_used_cat(wid, cat)` RPC 추가 — 네이버/인스타 카운터 독립 증가
-- `reset_daily_quotas(wid)` RPC 추가 — 전체 카운터(전체/네이버/인스타) KST 자정 리셋
+- worker_config 테이블에 daily_quota_naver, daily_quota_instagram, daily_used_naver, daily_used_instagram 컬럼 추가
+- increment_daily_used_cat(wid, cat) RPC 추가 — 네이버/인스타 카운터 독립 증가
+- reset_daily_quotas(wid) RPC 추가 — 전체 카운터(전체/네이버/인스타) KST 자정 리셋
 
 ## 2026-04-17
 
