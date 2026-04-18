@@ -373,6 +373,12 @@ ALTER TABLE worker_config
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
+## 2026-04-18 (2)
+
+### Cron — daily-rank quota 중복 집계 제거
+- `increment_daily_used` RPC를 작업 수만큼 루프 호출하던 코드 제거
+- 워커가 실제 처리 시 `increment_daily_used_cat`을 호출하므로 cron 쪽 집계는 이중 카운팅
+
 ## 2026-04-18
 
 ### DB — 카테고리별 일일 한도 마이그레이션 (v0.9.43/v0.9.44 연동)

@@ -148,15 +148,8 @@ export async function GET(request: NextRequest) {
         tasksCreated += rows.length;
       }
 
-      // quota 증가
-      if (workerIds.length) {
-        const perWorker = Math.ceil(tasksCreated / workerIds.length);
-        for (const wid of workerIds) {
-          for (let j = 0; j < perWorker; j++) {
-            await sb.rpc("increment_daily_used", { wid });
-          }
-        }
-      }
+      // quota 증가 — 워커가 실제 처리 시 increment_daily_used_cat을 호출하므로
+      // cron에서는 중복 집계를 방지하기 위해 quota 업데이트 생략
 
       // 디스패치 로그
       await sb.from("daily_rank_dispatch_log").insert({
