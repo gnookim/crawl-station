@@ -281,13 +281,12 @@ export default function QueuePage() {
                 <table className="w-full text-sm table-fixed">
                   <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                     <tr>
-                      <th className="text-left px-4 py-2.5 font-medium w-[140px]">앱</th>
-                      <th className="text-left px-4 py-2.5 font-medium w-[80px]">타입</th>
-                      <th className="text-left px-4 py-2.5 font-medium w-[120px]">트리거</th>
-                      <th className="text-left px-4 py-2.5 font-medium w-[80px]">상태</th>
-                      <th className="text-left px-4 py-2.5 font-medium w-[90px]">커밋</th>
-                      <th className="text-left px-4 py-2.5 font-medium">결과</th>
-                      <th className="text-right px-4 py-2.5 font-medium w-[110px] whitespace-nowrap">생성</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-[130px]">앱</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-[110px]">트리거</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-[70px]">상태</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-[80px]">커밋</th>
+                      <th className="text-left px-4 py-2.5 font-medium">환경 결과</th>
+                      <th className="text-right px-4 py-2.5 font-medium w-[100px] whitespace-nowrap">생성</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -296,29 +295,92 @@ export default function QueuePage() {
                       const commit = String(p.commit_hash ?? "").slice(0, 7);
                       const deployUrl = String(p.deploy_url ?? "");
                       const trigger = String(p.trigger ?? "");
-                      const resultSummary = (t as any).result as Record<string, unknown> | undefined;
+                      const result = (t as any).result as Record<string, unknown> | undefined;
+                      const envResults = (result?.environments ?? []) as Record<string, unknown>[];
+                      const isDone = t.status === "done" || t.status === "completed";
                       return (
-                        <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-2.5 font-medium text-gray-800 text-sm truncate">{String(p.app ?? "—")}</td>
-                          <td className="px-4 py-2.5 text-xs text-gray-500 truncate">{t.type}</td>
-                          <td className="px-4 py-2.5"><OrchTriggerBadge trigger={trigger} /></td>
-                          <td className="px-4 py-2.5"><TaskStatusBadge status={t.status} /></td>
-                          <td className="px-4 py-2.5 text-xs font-mono text-gray-400">
-                            {commit ? (deployUrl
-                              ? <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{commit}</a>
-                              : commit) : "—"}
-                          </td>
-                          <td className="px-4 py-2.5 text-xs text-gray-500 truncate">
-                            {(t.status === "done" || t.status === "completed") && resultSummary
-                              ? <span className="text-green-600">{String(resultSummary.passed ?? "")} / {String(resultSummary.total ?? "")} 환경 통과</span>
-                              : t.status === "failed" && resultSummary?.error
-                              ? <span className="text-red-400 truncate block max-w-[160px]" title={String(resultSummary.error)}>{String(resultSummary.error).slice(0, 40)}</span>
-                              : "—"}
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-xs text-gray-400 whitespace-nowrap">
-                            {new Date(t.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          </td>
-                        </tr>
+                        <>
+                          <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-2.5 font-medium text-gray-800 text-sm truncate">{String(p.app ?? "—")}</td>
+                            <td className="px-4 py-2.5"><OrchTriggerBadge trigger={trigger} /></td>
+                            <td className="px-4 py-2.5"><TaskStatusBadge status={t.status} /></td>
+                            <td className="px-4 py-2.5 text-xs font-mono text-gray-400">
+                              {commit ? (deployUrl
+                                ? <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{commit}</a>
+                                : commit) : "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs">
+                              {isDone && result
+                                ? <span className={Number(result.passed) === Number(result.total) ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
+                                    {str(result.passed)}/{str(result.total)} 환경 통과
+                                  </span>
+                                : t.status === "failed" && result?.error
+                                ? <span className="text-red-400">{str(result.error).slice(0, 50)}</span>
+                                : t.status === "running"
+                                ? <span className="text-blue-400 animate-pulse">테스트 중...</span>
+                                : <span className="text-gray-300">대기중</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-xs text-gray-400 whitespace-nowrap">
+                              {new Date(t.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </td>
+                          </tr>
+                          {/* 환경별 상세 결과 */}
+                          {envResults.length > 0 && (
+                            <tr key={`${t.id}-envs`}>
+                              <td colSpan={6} className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+                                <div className="space-y-1">
+                                  {envResults.map((e, i) => {
+                                    const ok = Boolean(e.passed);
+                                    const envLogs = (e.logs ?? []) as string[];
+                                    return (
+                                      <details key={i} className="group">
+                                        <summary className="flex items-center gap-3 text-xs cursor-pointer list-none hover:bg-gray-100 rounded px-1 py-0.5">
+                                          <span className={ok ? "text-green-500" : "text-red-400"}>{ok ? "✅" : "❌"}</span>
+                                          {/* 테스트 환경 */}
+                                          <span className="font-medium text-gray-700 w-[160px] shrink-0">{str(e.label ?? e.env_id)}</span>
+                                          {/* 실제 실행 OS */}
+                                          <EnvOsBadge os={str(e.worker_os)} arch={str(e.worker_arch)} />
+                                          {/* 호스트명 */}
+                                          <span className="text-gray-400 font-mono text-[10px]">{str(e.worker_hostname)}</span>
+                                          {/* 케이스 결과 */}
+                                          <span className={`ml-auto ${ok ? "text-green-600" : "text-red-400"}`}>
+                                            {str(e.cases_passed)}/{str(e.cases_total)} 케이스
+                                          </span>
+                                          {/* 소요시간 */}
+                                          <span className="text-gray-300 tabular-nums">{str(e.duration_ms)}ms</span>
+                                          {/* 에러 */}
+                                          {!ok && Boolean(e.errors) && (
+                                            <span className="text-red-300 truncate max-w-[180px]" title={str((e.errors as string[])[0])}>
+                                              {str((e.errors as string[])[0]).slice(0, 35)}
+                                            </span>
+                                          )}
+                                          {envLogs.length > 0 && <span className="text-gray-300 text-[10px]">▶ 로그</span>}
+                                        </summary>
+                                        {envLogs.length > 0 && (
+                                          <div className="mt-1 ml-4 bg-gray-900 rounded px-3 py-2 font-mono text-[10px] text-gray-300 space-y-0.5 max-h-40 overflow-y-auto">
+                                            {envLogs.map((line, li) => (
+                                              <div key={li} className={line.includes("❌") ? "text-red-400" : line.includes("✅") ? "text-green-400" : "text-gray-400"}>
+                                                {line}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </details>
+                                    );
+                                  })}
+                                  {/* 워커 공통 환경 (result.worker) */}
+                                  {result?.worker != null && (
+                                    <div className="mt-1 pt-1 border-t border-gray-200 text-[10px] text-gray-400 flex gap-3">
+                                      <span>실행 워커:</span>
+                                      <span className="font-mono">{str((result.worker as any).hostname)}</span>
+                                      <EnvOsBadge os={str((result.worker as any).os)} arch={str((result.worker as any).arch)} small />
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
                       );
                     })}
                   </tbody>
@@ -491,6 +553,8 @@ export default function QueuePage() {
   );
 }
 
+function str(v: unknown): string { return String(v ?? "") }
+
 // ── 서브 컴포넌트 ─────────────────────────────────────
 
 function OrchTriggerBadge({ trigger }: { trigger: string }) {
@@ -623,6 +687,28 @@ const SOURCE_MAP: Record<string, { label: string; color: string }> = {
   "station":      { label: "Station",    color: "bg-blue-50 text-blue-700" },
   "api":          { label: "API",        color: "bg-green-50 text-green-700" },
 };
+
+function EnvOsBadge({ os, arch, small }: { os: string; arch: string; small?: boolean }) {
+  const osMap: Record<string, { label: string; color: string }> = {
+    Darwin:  { label: "Mac",   color: "bg-gray-100 text-gray-700" },
+    Windows: { label: "Win",   color: "bg-blue-50 text-blue-700" },
+    Linux:   { label: "Linux", color: "bg-yellow-50 text-yellow-700" },
+  };
+  const archMap: Record<string, string> = {
+    arm64: "ARM",
+    aarch64: "ARM",
+    x86_64: "x64",
+    AMD64: "x64",
+  };
+  const osCfg = osMap[os] ?? { label: os || "?", color: "bg-gray-50 text-gray-500" };
+  const archLabel = archMap[arch] ?? arch;
+  const sz = small ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0.5";
+  return (
+    <span className={`inline-flex items-center gap-0.5 rounded font-medium ${sz} ${osCfg.color}`}>
+      {osCfg.label}{archLabel ? <span className="opacity-60">/{archLabel}</span> : null}
+    </span>
+  );
+}
 
 function SourceBadge({ options }: { options: Record<string, unknown> | null }) {
   if (!options) return <span className="text-xs text-gray-300">—</span>;
