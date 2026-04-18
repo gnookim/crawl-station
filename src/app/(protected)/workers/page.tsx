@@ -636,20 +636,21 @@ export default function WorkersPage() {
   }, [workers]);
 
   const catGroups: CatGroup[] = useMemo(() => {
-    const ORDER = ["naver", "instagram", "oclick", "all"];
-    const LABELS: Record<string, string> = { naver: "네이버", instagram: "인스타그램", oclick: "Oclick", all: "전체 허용" };
-    const COLORS: Record<string, string> = { naver: "green", instagram: "pink", oclick: "orange", all: "gray" };
-    const map = new Map<string, Worker[]>(ORDER.map((k) => [k, []]));
-    for (const w of workers) {
-      const cat = getWorkerCat(w.allowed_types || []);
-      map.get(cat)!.push(w);
-    }
-    return ORDER.map((key) => {
-      const ws = [...(map.get(key) || [])].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0));
+    // workerHasCategory 기준: allowed_types=[] 이면 모든 카테고리 가능
+    // → 무제한 워커가 네이버/인스타/Oclick 세 그룹에 모두 등장
+    const CATS: { key: CategoryKey; label: string; color: string }[] = [
+      { key: "naver",     label: "네이버",      color: "green"  },
+      { key: "instagram", label: "인스타그램",  color: "pink"   },
+      { key: "oclick",    label: "Oclick",      color: "orange" },
+    ];
+    return CATS.map(({ key, label, color }) => {
+      const ws = workers
+        .filter((w) => workerHasCategory(w.allowed_types, key))
+        .sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0));
       return {
         key,
-        label: LABELS[key],
-        color: COLORS[key],
+        label,
+        color,
         workers: ws,
         onlineCount: ws.filter((w) => w.is_active).length,
         hasBlocked: ws.some((w) => !!w.block_status),
