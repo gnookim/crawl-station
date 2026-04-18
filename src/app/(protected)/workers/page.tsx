@@ -567,10 +567,10 @@ export default function WorkersPage() {
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === workers.length) {
+    if (filteredWorkers.every(w => selectedIds.has(w.id))) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(workers.map(w => w.id)));
+      setSelectedIds(new Set(filteredWorkers.map(w => w.id)));
     }
   }
 
@@ -592,17 +592,27 @@ export default function WorkersPage() {
   // 테이블 총 컬럼 수 (체크박스 + 워커 + 테스트 + 제어 = 4 고정)
   const TABLE_COLS = 4 + visibleConfigCols.length;
 
-  /* ── 뷰 모드 (list / ip / category) ── */
-  const [viewMode, setViewMode] = useState<"list" | "ip" | "category">(() => {
+  /* ── 뷰 모드 (list / ip) ── */
+  const [viewMode, setViewMode] = useState<"list" | "ip">(() => {
     if (typeof window === "undefined") return "list";
-    return (localStorage.getItem("workers_view_mode") as "list" | "ip" | "category") || "list";
+    const v = localStorage.getItem("workers_view_mode");
+    return v === "ip" ? "ip" : "list";
   });
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-  function saveViewMode(m: "list" | "ip" | "category") {
+  function saveViewMode(m: "list" | "ip") {
     setViewMode(m);
     localStorage.setItem("workers_view_mode", m);
   }
+
+  /* ── 카테고리 필터 ── */
+  const [catFilter, setCatFilter] = useState<"all" | CategoryKey>("all");
+
+  // 카테고리 필터 적용
+  const filteredWorkers = catFilter === "all"
+    ? workers
+    : workers.filter((w) => workerHasCategory(w.allowed_types, catFilter));
+
   function toggleGroup(key: string) {
     setCollapsedGroups((prev) => {
       const s = new Set(prev);
@@ -612,8 +622,9 @@ export default function WorkersPage() {
   }
 
   const ipGroups: IpGroup[] = useMemo(() => {
+    const source = catFilter === "all" ? workers : workers.filter((w) => workerHasCategory(w.allowed_types, catFilter));
     const map = new Map<string, Worker[]>();
-    for (const w of workers) {
+    for (const w of source) {
       const key = w.current_ip || "미확인";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(w);
@@ -633,7 +644,7 @@ export default function WorkersPage() {
         if (b.ip === "미확인") return -1;
         return b.onlineCount - a.onlineCount || b.workers.length - a.workers.length;
       });
-  }, [workers]);
+  }, [workers, catFilter]);
 
   const catGroups: CatGroup[] = useMemo(() => {
     // workerHasCategory 기준: allowed_types=[] 이면 모든 카테고리 가능
@@ -741,16 +752,33 @@ export default function WorkersPage() {
             </button>
           ))}
           <div className="w-px h-4 bg-gray-200 mx-1" />
-          {(["list", "ip", "category"] as const).map((mode) => (
+          {(["list", "ip"] as const).map((mode) => (
             <button
               key={mode}
               onClick={() => saveViewMode(mode)}
-              title={mode === "list" ? "리스트 뷰" : mode === "ip" ? "IP 그룹 뷰" : "기능 그룹 뷰"}
+              title={mode === "list" ? "리스트 뷰" : "IP 그룹 뷰"}
               className={`px-2 py-0.5 text-xs rounded-md transition-colors ${
                 viewMode === mode ? "bg-gray-800 text-white" : "text-gray-400 hover:text-gray-600"
               }`}
             >
-              {mode === "list" ? "≡ 리스트" : mode === "ip" ? "🌐 IP" : "🏷 기능"}
+              {mode === "list" ? "≡ 리스트" : "🌐 IP"}
+            </button>
+          ))}
+          <div className="w-px h-4 bg-gray-200 mx-1" />
+          {([
+            { key: "all",       label: "전체",    cls: "hover:text-gray-600",        active: "bg-gray-800 text-white" },
+            { key: "naver",     label: "네이버",  cls: "hover:text-green-700",       active: "bg-green-600 text-white" },
+            { key: "instagram", label: "인스타",  cls: "hover:text-pink-600",        active: "bg-pink-500 text-white" },
+            { key: "oclick",    label: "Oclick",  cls: "hover:text-orange-600",      active: "bg-orange-500 text-white" },
+          ] as const).map(({ key, label, cls, active }) => (
+            <button
+              key={key}
+              onClick={() => setCatFilter(key)}
+              className={`px-2 py-0.5 text-xs rounded-md transition-colors ${
+                catFilter === key ? active : `text-gray-400 ${cls}`
+              }`}
+            >
+              {label}
             </button>
           ))}
           {/* 컬럼 설정 버튼 (리스트 뷰에서만) */}
@@ -903,8 +931,10 @@ export default function WorkersPage() {
           <div className="p-8 text-center text-gray-400 text-sm">워커 목록 로드 중...</div>
         ) : dbError ? (
           <div className="p-8 text-center text-gray-300 text-sm">연결 오류로 데이터를 불러올 수 없습니다.</div>
-        ) : workers.length === 0 ? (
-          <div className="p-8 text-center text-gray-400 text-sm">등록된 워커가 없습니다.</div>
+        ) : filteredWorkers.length === 0 ? (
+          <div className="p-8 text-center text-gray-400 text-sm">
+            {workers.length === 0 ? "등록된 워커가 없습니다." : `"${catFilter === "naver" ? "네이버" : catFilter === "instagram" ? "인스타그램" : "Oclick"}" 카테고리 워커가 없습니다.`}
+          </div>
         ) : viewMode === "list" ? (
           <div className="overflow-x-auto"><table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-500 text-xs">
@@ -912,8 +942,8 @@ export default function WorkersPage() {
                 <th className="px-3 py-2 w-8">
                   <input
                     type="checkbox"
-                    checked={workers.length > 0 && selectedIds.size === workers.length}
-                    ref={(el) => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < workers.length; }}
+                    checked={filteredWorkers.length > 0 && filteredWorkers.every(w => selectedIds.has(w.id))}
+                    ref={(el) => { if (el) el.indeterminate = filteredWorkers.some(w => selectedIds.has(w.id)) && !filteredWorkers.every(w => selectedIds.has(w.id)); }}
                     onChange={toggleSelectAll}
                     className="rounded"
                   />
@@ -930,7 +960,7 @@ export default function WorkersPage() {
               </tr>
             </thead>
             <tbody>
-              {workers.map((w) => {
+              {filteredWorkers.map((w) => {
                 const displayStatus = w.is_active ? w.status : "offline";
                 const isActive = w.is_active;
                 const ts = testStates[w.id];
