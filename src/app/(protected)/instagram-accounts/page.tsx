@@ -32,6 +32,8 @@ interface InstagramAccount {
   last_test_at: string | null;
   last_test_status: TestStatus;
   last_test_error: string | null;
+  check_interval_hours: number | null;
+  next_check_at: string | null;
   created_at: string;
 }
 
@@ -85,6 +87,7 @@ export default function InstagramAccountsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editFields, setEditFields] = useState<Partial<InstagramAccount & { password: string }>>({});
   const [editWorkerId, setEditWorkerId] = useState<string>("");
+  const [editIntervalHours, setEditIntervalHours] = useState<number>(24);
   const [showEditPw, setShowEditPw] = useState(false);
 
   const [testState, setTestState] = useState<Record<string, LocalTest>>({});
@@ -151,7 +154,7 @@ export default function InstagramAccountsPage() {
 
   async function saveEdit(id: string) {
     const { note, email, phone, team, creator, password } = editFields;
-    const updates: Record<string, string | null> = {};
+    const updates: Record<string, unknown> = {};
     if (note !== undefined)    updates.note = note || null;
     if (email !== undefined)   updates.email = email || null;
     if (phone !== undefined)   updates.phone = phone || null;
@@ -159,6 +162,7 @@ export default function InstagramAccountsPage() {
     if (creator !== undefined) updates.creator = creator || null;
     if (password) updates.password = password;
     updates.assigned_worker_id = editWorkerId || null;
+    updates.check_interval_hours = editIntervalHours;
     await fetch(`/api/instagram-accounts?id=${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -171,6 +175,7 @@ export default function InstagramAccountsPage() {
   function startEdit(acc: InstagramAccount) {
     setEditFields({ note: acc.note || "", email: acc.email || "", phone: acc.phone || "", team: acc.team || "", creator: acc.creator || "", password: "" });
     setEditWorkerId(acc.assigned_worker_id || "");
+    setEditIntervalHours(acc.check_interval_hours ?? 24);
     setShowEditPw(false);
   }
 
@@ -530,6 +535,16 @@ export default function InstagramAccountsPage() {
                                 {workers.map(w => <option key={w.id} value={w.id}>{w.name || w.id.slice(0, 12)} {w.is_active ? "● 온라인" : "○ 오프라인"}</option>)}
                               </select>
                             </Field>
+                            <Field label="수집 주기 (시간)">
+                              <select value={editIntervalHours} onChange={(e) => setEditIntervalHours(parseInt(e.target.value))} className={`${inputCls} bg-white`}>
+                                <option value={6}>6시간마다</option>
+                                <option value={12}>12시간마다</option>
+                                <option value={24}>24시간마다 (기본)</option>
+                                <option value={48}>48시간마다</option>
+                                <option value={72}>72시간마다</option>
+                                <option value={168}>주 1회 (168h)</option>
+                              </select>
+                            </Field>
                             <Field label="메모">
                               <input type="text" value={editFields.note ?? ""} onChange={(e) => setEditFields(f => ({ ...f, note: e.target.value }))} placeholder="메모" className={inputCls} />
                             </Field>
@@ -547,6 +562,12 @@ export default function InstagramAccountsPage() {
                             {acc.last_login_at   && <span>마지막 로그인: {fmtDateShort(acc.last_login_at)}</span>}
                             {acc.last_blocked_at && <span>마지막 차단: {fmtDateShort(acc.last_blocked_at)}</span>}
                             {acc.last_test_at    && <span>마지막 테스트: {fmtDateShort(acc.last_test_at)} ({acc.last_test_status === "ok" ? "✓ 정상" : "✗ 실패"})</span>}
+                            {acc.next_check_at   && (
+                              <span className={new Date(acc.next_check_at) <= new Date() ? "text-orange-500" : ""}>
+                                다음 수집: {fmtDateShort(acc.next_check_at)}{new Date(acc.next_check_at) <= new Date() ? " (대기 중)" : ""}
+                              </span>
+                            )}
+                            <span>수집 주기: {acc.check_interval_hours ?? 24}h</span>
                             <span>등록일: {fmtDateShort(acc.created_at)}</span>
                           </div>
 

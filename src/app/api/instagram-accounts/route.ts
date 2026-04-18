@@ -21,7 +21,7 @@ export async function GET() {
   // 기본 필드만으로 먼저 조회 (항상 성공)
   const { data: base, error: baseErr } = await sb
     .from("instagram_accounts")
-    .select("id, username, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, created_at")
+    .select("id, username, is_active, status, last_login_at, last_used_at, last_blocked_at, blocked_until, assigned_worker_id, login_count, block_count, note, check_interval_hours, next_check_at, created_at")
     .order("created_at", { ascending: false });
 
   if (baseErr) return NextResponse.json({ error: baseErr.message }, { status: 500 });
@@ -29,7 +29,7 @@ export async function GET() {
   const rows = base ?? [];
 
   // 신규 컬럼 개별 조회 후 병합 (없으면 null로 fallback)
-  const nullExtras = { email: null, phone: null, team: null, creator: null, last_test_at: null, last_test_status: null, last_test_error: null };
+  const nullExtras = { email: null, phone: null, team: null, creator: null, last_test_at: null, last_test_status: null, last_test_error: null, check_interval_hours: 24, next_check_at: null };
 
   const { data: ext, error: extErr } = await sb
     .from("instagram_accounts")
@@ -183,6 +183,7 @@ export async function PATCH(request: NextRequest) {
   if (body.phone !== undefined) updates.phone = body.phone || null;
   if (body.team !== undefined) updates.team = body.team || null;
   if (body.creator !== undefined) updates.creator = body.creator || null;
+  if (body.check_interval_hours !== undefined) updates.check_interval_hours = body.check_interval_hours;
   if (body.clear_session) { updates.session_state = null; updates.last_login_at = null; }
   if (body.clear_block) { updates.status = "active"; updates.blocked_until = null; updates.last_blocked_at = null; }
 

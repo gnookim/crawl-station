@@ -169,6 +169,46 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Instagram 수집 주기 디스패치 ──
+  // next_check_at이 현재 이전인 활성 계정에 대해 instagram_profile 요청 생성
+  let instaDispatched = 0;
+  try {
+    const now = new Date().toISOString();
+    const { data: dueAccounts } = await sb
+      .from("instagram_accounts")
+      .select("id, username, assigned_worker_id")
+      .eq("is_active", true)
+      .eq("status", "active")
+      .or(`next_check_at.is.null,next_check_at.lte.${now}`);
+
+    if (dueAccounts?.length) {
+      const rows = dueAccounts.map((acc) => ({
+        keyword: acc.username,
+        type: "instagram_profile",
+        options: { account_id: acc.id },
+        status: acc.assigned_worker_id ? "assigned" as const : "pending" as const,
+        assigned_worker: acc.assigned_worker_id || null,
+        priority: 2,
+      }));
+      await sb.from("crawl_requests").insert(rows);
+
+      // next_check_at 갱신 (check_interval_hours 기준)
+      for (const acc of dueAccounts) {
+        const { data: cfg } = await sb
+          .from("instagram_accounts")
+          .select("check_interval_hours")
+          .eq("id", acc.id)
+          .single();
+        const intervalHours = cfg?.check_interval_hours ?? 24;
+        const nextCheck = new Date(Date.now() + intervalHours * 60 * 60 * 1000).toISOString();
+        await sb.from("instagram_accounts").update({ next_check_at: nextCheck }).eq("id", acc.id);
+      }
+      instaDispatched = dueAccounts.length;
+    }
+  } catch {
+    // 컬럼 미존재 등 무시
+  }
+
   // AI 회피 분석도 함께 실행 (Hobby 플랜 cron 1개 제한 대응)
   let aiAnalysis = null;
   try {
@@ -187,6 +227,7 @@ export async function GET(request: NextRequest) {
     kst_hour: kstHour,
     kst_date: kstDate,
     dispatched: results,
+    instagram_dispatched: instaDispatched,
     ai_analysis: aiAnalysis,
   });
 }

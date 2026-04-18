@@ -373,6 +373,15 @@ ALTER TABLE worker_config
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
+## 2026-04-18 (3)
+
+### Station + Cron — Instagram 수집 주기 스케줄러
+- `instagram_accounts` 테이블에 `check_interval_hours` (기본 24h), `next_check_at` 컬럼 추가
+- `cron/daily-rank`에 인스타 스케줄 디스패치 통합 (Hobby 플랜 cron 1개 제한 대응)
+  - `next_check_at <= NOW()` 또는 NULL인 활성 계정에 `instagram_profile` 요청 자동 생성
+  - 디스패치 완료 후 `next_check_at = NOW() + check_interval_hours` 갱신
+- Instagram 계정 관리 UI: 수집 주기 드롭다운 (6h/12h/24h/48h/72h/주1회) + 다음 수집 시각 표시
+
 ## 2026-04-18 (2)
 
 ### Cron — daily-rank quota 중복 집계 제거
