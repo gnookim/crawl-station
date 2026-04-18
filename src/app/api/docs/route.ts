@@ -375,6 +375,15 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-17
 
+### Station — 워커 기능 명세 페이지 추가
+- 새 페이지 \`/worker-spec\` — 기획자·개발자용 크롤러 워커 내부 레퍼런스
+- 크롤 타입 13종 (naver 7 / instagram 3 / oclick 2 + internal) 전체 설명 + 우선순위 테이블
+- 작업 처리 흐름 8단계, 워커 상태 머신, 차단 감지 레벨(1~3) 상세 기술
+- 헬스 체크 규칙, IP 로테이션 로직(Mac/Win), 일일 할당량 시스템
+- worker_config 전 필드 레퍼런스 (5개 그룹, 35개 필드)
+- 원격 명령(stop/restart/update), 핫 리로드, Watchdog, Heartbeat 동작 명세
+- 사이드바 "설치" 그룹에 🔬 워커 기능 명세 메뉴 추가
+
 ### Station — 피드백 & 요청 시스템 추가
 - 새 페이지 \`/feedback\` — 버그 보고 · 기능 요청 · 개선 제안
 - DB: \`feedback_requests\` + \`feedback_comments\` 테이블 (SQL은 \`/api/feedback/route.ts\` 상단 주석 참조)

@@ -22,6 +22,7 @@ const NAV_GROUPS = [
       { href: "/install", label: "워커 설치", icon: "⬇️" },
       { href: "/installs", label: "설치 모니터링", icon: "📡" },
       { href: "/releases", label: "릴리즈", icon: "🚀" },
+      { href: "/worker-spec", label: "워커 기능 명세", icon: "🔬" },
     ],
   },
   {
