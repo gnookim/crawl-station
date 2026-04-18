@@ -135,7 +135,7 @@ export default function QueuePage() {
 
   // ── agent_tasks ──────────────────────────────────────
   async function loadOrchCounts() {
-    const statuses = ["pending", "running", "completed", "failed"];
+    const statuses = ["pending", "running", "done", "failed"];
     const results = await Promise.all(
       statuses.map(async (s) => {
         const { count } = await supabase.from("agent_tasks").select("*", { count: "exact", head: true }).eq("status", s);
@@ -143,20 +143,24 @@ export default function QueuePage() {
       })
     );
     const counts = Object.fromEntries(results);
+    // UI는 "completed" 키로 표시
+    counts.completed = counts.done ?? 0;
     counts.all = results.reduce((sum, [, c]) => sum + c, 0);
     setOrchCounts(counts);
   }
 
   async function loadOrchTasks() {
+    // DB status: pending | running | done | failed
+    const dbFilter = orchFilter === "completed" ? "done" : orchFilter;
     if (orchIsStatic) {
       const { data, count } = await supabase.from("agent_tasks").select("*", { count: "exact" })
-        .eq("status", orchFilter).order("created_at", { ascending: false })
+        .eq("status", dbFilter).order("created_at", { ascending: false })
         .range(orchPage * PAGE_SIZE, (orchPage + 1) * PAGE_SIZE - 1);
       setOrchTasks((data ?? []) as AgentTask[]);
       if (count !== null) setOrchTotal(count);
     } else {
       let q = supabase.from("agent_tasks").select("*").order("created_at", { ascending: false }).limit(200);
-      if (orchFilter !== "all") q = q.eq("status", orchFilter);
+      if (orchFilter !== "all") q = q.eq("status", dbFilter);
       const { data } = await q;
       setOrchTasks((data ?? []) as AgentTask[]);
     }
@@ -292,7 +296,7 @@ export default function QueuePage() {
                       const commit = String(p.commit_hash ?? "").slice(0, 7);
                       const deployUrl = String(p.deploy_url ?? "");
                       const trigger = String(p.trigger ?? "");
-                      const resultSummary = p.result as Record<string, unknown> | undefined;
+                      const resultSummary = (t as any).result as Record<string, unknown> | undefined;
                       return (
                         <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-2.5 font-medium text-gray-800 text-sm truncate">{String(p.app ?? "—")}</td>
@@ -305,10 +309,10 @@ export default function QueuePage() {
                               : commit) : "—"}
                           </td>
                           <td className="px-4 py-2.5 text-xs text-gray-500 truncate">
-                            {t.status === "completed" && resultSummary
-                              ? <span className="text-green-600">{String(resultSummary.passed ?? "")} / {String(resultSummary.total ?? "")} 통과</span>
-                              : t.status === "failed" && p.error
-                              ? <span className="text-red-400 truncate block max-w-[160px]" title={String(p.error)}>{String(p.error).slice(0, 40)}</span>
+                            {(t.status === "done" || t.status === "completed") && resultSummary
+                              ? <span className="text-green-600">{String(resultSummary.passed ?? "")} / {String(resultSummary.total ?? "")} 환경 통과</span>
+                              : t.status === "failed" && resultSummary?.error
+                              ? <span className="text-red-400 truncate block max-w-[160px]" title={String(resultSummary.error)}>{String(resultSummary.error).slice(0, 40)}</span>
                               : "—"}
                           </td>
                           <td className="px-4 py-2.5 text-right text-xs text-gray-400 whitespace-nowrap">
