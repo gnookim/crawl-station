@@ -373,7 +373,28 @@ ALTER TABLE worker_config
 
 const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
+## 2026-04-20
+
+### Station — 작업 큐 오케스트레이터 탭 std_test 지원
+- agent_tasks.payload 필드가 service_name 구조인 std_test 타입 지원
+- 컬럼 재설계: 앱/타입/상태/결과/생성 (트리거/커밋 제거)
+- std_test 결과: 항목별 pass/fail 세부 내용 접기/펼치기 표시
+- app_test 결과: 환경별 pass/fail + 커밋 해시 인라인 표시 유지
+- TaskTypeBadge 컴포넌트 추가 (표준 테스트 / 앱 테스트)
+
 ## 2026-04-19
+
+### Station — 워커 관리 Realtime 구독 + Heartbeat 노이즈 필터
+- workers 페이지: 5s 폴링 → Supabase Realtime postgres_changes 구독
+- status/version/current_keyword/command 변경 시만 loadData() 호출 (헤드비트 노이즈 차단)
+- Visibility API: 탭 숨김 시 Realtime 일시정지, 복귀 시 즉시 재조회
+- 30s 폴백 타이머: Realtime 연결 불안정 대비
+
+### 워커 v0.9.47 — IP 미확인 + KinPost 로그 스팸 수정
+- IP 조회 실패해도 타임스탬프 갱신 안 함 (성공 시만 갱신 → 즉시 재시도)
+- ipify/checkip.amazonaws/ifconfig.me 3개 서비스 폴백 체인
+- KinPost 배정 계정 없음 시 5분 대기 (기존 5초)
+- oclick_sales 핸들러 추가 (OrdeMstSelect3.jsp XML API)
 
 ### 워커 v0.9.45 — DNS stale resolver 자가 복구
 - supabase_rest.py: macOS 장기 실행 후 [Errno 8] nodename nor servname 에러 발생 시
