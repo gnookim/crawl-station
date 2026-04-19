@@ -30,6 +30,7 @@ export function TaskStatusBadge({ status }: { status: string }) {
     assigned: { label: "할당됨", color: "bg-yellow-50 text-yellow-700" },
     running: { label: "실행 중", color: "bg-blue-50 text-blue-700" },
     completed: { label: "완료", color: "bg-green-50 text-green-700" },
+    done: { label: "완료", color: "bg-green-50 text-green-700" },
     failed: { label: "실패", color: "bg-red-50 text-red-700" },
   };
 
