@@ -404,6 +404,74 @@ export default function QueuePage() {
         </>
       )}
 
+      {/* ── 전체 탭: 오케스트레이터 작업 요약 ── */}
+      {!isOrch && category === "all" && orchTasks.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">오케스트레이터</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-orange-100 text-orange-600 font-medium">
+              {orchCounts.all ?? 0}
+            </span>
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm table-fixed">
+              <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium w-[130px]">앱</th>
+                  <th className="text-left px-4 py-2 font-medium w-[110px]">트리거</th>
+                  <th className="text-left px-4 py-2 font-medium w-[70px]">상태</th>
+                  <th className="text-left px-4 py-2 font-medium w-[80px]">커밋</th>
+                  <th className="text-left px-4 py-2 font-medium">환경 결과</th>
+                  <th className="text-right px-4 py-2 font-medium w-[100px]">생성</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {orchTasks.map((t) => {
+                  const p = t.payload;
+                  const commit = String(p.commit_hash ?? "").slice(0, 7);
+                  const deployUrl = String(p.deploy_url ?? "");
+                  const trigger = String(p.trigger ?? "");
+                  const result = (t as any).result as Record<string, unknown> | undefined;
+                  const isDone = t.status === "done" || t.status === "completed";
+                  return (
+                    <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-2 font-medium text-gray-800 text-sm truncate">{String(p.app ?? "—")}</td>
+                      <td className="px-4 py-2"><OrchTriggerBadge trigger={trigger} /></td>
+                      <td className="px-4 py-2"><TaskStatusBadge status={t.status} /></td>
+                      <td className="px-4 py-2 text-xs font-mono text-gray-400">
+                        {commit ? (deployUrl
+                          ? <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{commit}</a>
+                          : commit) : "—"}
+                      </td>
+                      <td className="px-4 py-2 text-xs">
+                        {isDone && result
+                          ? <span className={Number(result.passed) === Number(result.total) ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
+                              {str(result.passed)}/{str(result.total)} 환경 통과
+                            </span>
+                          : t.status === "failed" && result?.error
+                          ? <span className="text-red-400">{str(result.error).slice(0, 40)}</span>
+                          : t.status === "running"
+                          ? <span className="text-blue-400 animate-pulse">테스트 중...</span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-2 text-right text-xs text-gray-400 whitespace-nowrap">
+                        {new Date(t.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {orchTasks.length >= 200 && (
+            <p className="mt-1.5 text-center text-xs text-gray-400">
+              최근 200개 표시 —{" "}
+              <button onClick={() => changeCategory("orch")} className="text-blue-500 hover:underline">오케스트레이터 탭에서 전체 조회</button>
+            </p>
+          )}
+        </div>
+      )}
+
       {/* ── 크롤 요청 뷰 ── */}
       {!isOrch && (
         <>
@@ -549,73 +617,6 @@ export default function QueuePage() {
             <p className="mt-2 text-center text-xs text-gray-400">최근 200개 표시 — 완료/실패 탭에서 전체 조회</p>
           )}
 
-          {/* 전체 탭일 때 오케스트레이터 최근 작업 요약 */}
-          {category === "all" && orchTasks.length > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">오케스트레이터</span>
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-orange-100 text-orange-600 font-medium">
-                  {orchCounts.all ?? 0}
-                </span>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <table className="w-full text-sm table-fixed">
-                  <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
-                    <tr>
-                      <th className="text-left px-4 py-2 font-medium w-[130px]">앱</th>
-                      <th className="text-left px-4 py-2 font-medium w-[110px]">트리거</th>
-                      <th className="text-left px-4 py-2 font-medium w-[70px]">상태</th>
-                      <th className="text-left px-4 py-2 font-medium w-[80px]">커밋</th>
-                      <th className="text-left px-4 py-2 font-medium">환경 결과</th>
-                      <th className="text-right px-4 py-2 font-medium w-[100px]">생성</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {orchTasks.map((t) => {
-                      const p = t.payload;
-                      const commit = String(p.commit_hash ?? "").slice(0, 7);
-                      const deployUrl = String(p.deploy_url ?? "");
-                      const trigger = String(p.trigger ?? "");
-                      const result = (t as any).result as Record<string, unknown> | undefined;
-                      const isDone = t.status === "done" || t.status === "completed";
-                      return (
-                        <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-2 font-medium text-gray-800 text-sm truncate">{String(p.app ?? "—")}</td>
-                          <td className="px-4 py-2"><OrchTriggerBadge trigger={trigger} /></td>
-                          <td className="px-4 py-2"><TaskStatusBadge status={t.status} /></td>
-                          <td className="px-4 py-2 text-xs font-mono text-gray-400">
-                            {commit ? (deployUrl
-                              ? <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{commit}</a>
-                              : commit) : "—"}
-                          </td>
-                          <td className="px-4 py-2 text-xs">
-                            {isDone && result
-                              ? <span className={Number(result.passed) === Number(result.total) ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
-                                  {str(result.passed)}/{str(result.total)} 환경 통과
-                                </span>
-                              : t.status === "failed" && result?.error
-                              ? <span className="text-red-400">{str(result.error).slice(0, 40)}</span>
-                              : t.status === "running"
-                              ? <span className="text-blue-400 animate-pulse">테스트 중...</span>
-                              : <span className="text-gray-300">—</span>}
-                          </td>
-                          <td className="px-4 py-2 text-right text-xs text-gray-400 whitespace-nowrap">
-                            {new Date(t.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {orchTasks.length >= 200 && (
-                <p className="mt-1.5 text-center text-xs text-gray-400">
-                  최근 200개 표시 —{" "}
-                  <button onClick={() => changeCategory("orch")} className="text-blue-500 hover:underline">오케스트레이터 탭에서 전체 조회</button>
-                </p>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>
