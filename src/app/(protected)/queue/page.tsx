@@ -399,14 +399,6 @@ export default function QueuePage() {
       {/* ── 전체 탭: 오케스트레이터 작업 요약 ── */}
       {!isOrch && category === "all" && orchTasks.length > 0 && (
         <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">오케스트레이터</span>
-            {orchCounts.pending > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-orange-100 text-orange-600 font-medium">
-                대기 {orchCounts.pending}
-              </span>
-            )}
-          </div>
           <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
               <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
