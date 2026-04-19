@@ -13,10 +13,12 @@ type Category = "all" | "naver" | "instagram" | "oclick" | "orch";
 
 interface AgentTask {
   id: string;
-  type: string;
+  task_type: string;
   status: string;
-  payload: Record<string, unknown>;
+  payload: Record<string, unknown> | null;
+  result?: Record<string, unknown> | null;
   created_at: string;
+  created_by?: string | null;
 }
 
 const CRAWL_STATUS_TABS = [
@@ -282,41 +284,48 @@ export default function QueuePage() {
                 <table className="w-full text-sm min-w-[620px]">
                   <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                     <tr>
-                      <th className="text-left px-4 py-2.5 font-medium w-28">앱</th>
-                      <th className="text-left px-4 py-2.5 font-medium w-24">트리거</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-32">앱</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-28">타입</th>
                       <th className="text-left px-4 py-2.5 font-medium w-16">상태</th>
-                      <th className="text-left px-4 py-2.5 font-medium w-16">커밋</th>
-                      <th className="text-left px-4 py-2.5 font-medium">환경 결과</th>
+                      <th className="text-left px-4 py-2.5 font-medium">결과</th>
                       <th className="text-right px-4 py-2.5 font-medium w-32 whitespace-nowrap">생성</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {orchTasks.map((t) => {
-                      const p = t.payload;
+                      const p = t.payload ?? {};
+                      const result = t.result as Record<string, unknown> | undefined | null;
+                      const isStd = t.task_type === "std_test";
+                      const appName = String(p.app ?? p.service_name ?? result?.app ?? result?.service_name ?? "—");
                       const commit = String(p.commit_hash ?? "").slice(0, 7);
                       const deployUrl = String(p.deploy_url ?? "");
-                      const trigger = String(p.trigger ?? "");
-                      const result = (t as any).result as Record<string, unknown> | undefined;
                       const envResults = (result?.environments ?? []) as Record<string, unknown>[];
                       const isDone = t.status === "done" || t.status === "completed";
+                      const totalPassed = Number(result?.total_passed ?? 0);
+                      const total = Number(result?.total ?? 0);
+                      const envPassed = Number(result?.passed ?? 0);
                       return (
                         <>
                           <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-2.5 font-medium text-gray-800 text-sm truncate">{String(p.app ?? "—")}</td>
-                            <td className="px-4 py-2.5"><OrchTriggerBadge trigger={trigger} /></td>
+                            <td className="px-4 py-2.5 font-medium text-gray-800 text-sm truncate">{appName}</td>
+                            <td className="px-4 py-2.5"><TaskTypeBadge taskType={t.task_type} /></td>
                             <td className="px-4 py-2.5"><TaskStatusBadge status={t.status} /></td>
-                            <td className="px-4 py-2.5 text-xs font-mono text-gray-400">
-                              {commit ? (deployUrl
-                                ? <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{commit}</a>
-                                : commit) : "—"}
-                            </td>
                             <td className="px-4 py-2.5 text-xs">
-                              {isDone && result
-                                ? <span className={Number(result.passed) === Number(result.total) ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
-                                    {str(result.passed)}/{str(result.total)} 환경 통과
-                                  </span>
+                              {isDone
+                                ? isStd
+                                  ? <span className={totalPassed === total && total > 0 ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
+                                      {totalPassed}/{total} 항목 통과
+                                    </span>
+                                  : envResults.length > 0
+                                    ? <span className={envPassed === envResults.length ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
+                                        {envPassed}/{envResults.length} 환경 통과
+                                        {commit && (deployUrl
+                                          ? <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="ml-2 text-blue-400 hover:underline font-mono normal-case">{commit}</a>
+                                          : <span className="ml-2 text-gray-400 font-mono">{commit}</span>)}
+                                      </span>
+                                    : <span className="text-gray-300">—</span>
                                 : t.status === "failed" && result?.error
-                                ? <span className="text-red-400">{str(result.error).slice(0, 50)}</span>
+                                ? <span className="text-red-400">{str(result.error).slice(0, 60)}</span>
                                 : t.status === "running"
                                 ? <span className="text-blue-400 animate-pulse">테스트 중...</span>
                                 : <span className="text-gray-300">—</span>}
@@ -325,10 +334,43 @@ export default function QueuePage() {
                               {new Date(t.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </td>
                           </tr>
-                          {/* 환경별 상세 결과 */}
-                          {envResults.length > 0 && (
+                          {/* std_test 항목별 상세 */}
+                          {isDone && isStd && Array.isArray(result?.results) && (result.results as Record<string, unknown>[]).length > 0 && (
+                            <tr key={`${t.id}-std`}>
+                              <td colSpan={5} className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+                                <div className="space-y-1">
+                                  {(result.results as Record<string, unknown>[]).map((r, i) => {
+                                    const rPassed = Boolean(r.passed);
+                                    const items = (r.items ?? []) as Record<string, unknown>[];
+                                    return (
+                                      <details key={i} className="group">
+                                        <summary className="flex items-center gap-2 text-xs cursor-pointer list-none hover:bg-gray-100 rounded px-1 py-0.5">
+                                          <span className={rPassed ? "text-green-500" : "text-red-400"} style={{fontSize:"11px"}}>{rPassed ? "✓" : "✗"}</span>
+                                          <span className="font-medium text-gray-700 w-36 shrink-0">{str(r.std_key)}</span>
+                                          <span className={`tabular-nums ${rPassed ? "text-green-600" : "text-red-400"}`}>
+                                            {items.filter((it) => it.passed).length}/{items.length}
+                                          </span>
+                                        </summary>
+                                        <div className="mt-1 ml-4 space-y-0.5">
+                                          {items.map((it, j) => (
+                                            <div key={j} className="flex items-center gap-2 text-xs">
+                                              <span className={Boolean(it.passed) ? "text-green-500" : "text-red-400"} style={{fontSize:"10px"}}>{Boolean(it.passed) ? "✓" : "✗"}</span>
+                                              <span className="text-gray-600">{str(it.item_label)}</span>
+                                              {it.error != null && <span className="text-red-400 text-[10px]">— {str(it.error)}</span>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </details>
+                                    );
+                                  })}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {/* app_test 환경별 상세 결과 */}
+                          {isDone && !isStd && envResults.length > 0 && (
                             <tr key={`${t.id}-envs`}>
-                              <td colSpan={6} className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+                              <td colSpan={5} className="px-4 py-2 bg-gray-50 border-b border-gray-100">
                                 <div className="space-y-1">
                                   {envResults.map((e, i) => {
                                     const ok = Boolean(e.passed);
@@ -361,7 +403,6 @@ export default function QueuePage() {
                                       </details>
                                     );
                                   })}
-                                  {/* 워커 공통 환경 (result.worker) */}
                                   {result?.worker != null && (
                                     <div className="mt-1 pt-1 border-t border-gray-200 text-[10px] text-gray-400 flex gap-3">
                                       <span>실행 워커:</span>
@@ -404,44 +445,42 @@ export default function QueuePage() {
               <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium w-32">앱</th>
-                  <th className="text-left px-4 py-2 font-medium w-28">트리거</th>
+                  <th className="text-left px-4 py-2 font-medium w-28">타입</th>
                   <th className="text-left px-4 py-2 font-medium w-20">상태</th>
-                  <th className="text-left px-4 py-2 font-medium w-20">커밋</th>
-                  <th className="text-left px-4 py-2 font-medium">환경 결과</th>
+                  <th className="text-left px-4 py-2 font-medium">결과</th>
                   <th className="text-right px-4 py-2 font-medium w-36 shrink-0">생성</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {orchTasks.map((t) => {
-                  const p = t.payload;
-                  const commit = String(p.commit_hash ?? "").slice(0, 7);
-                  const deployUrl = String(p.deploy_url ?? "");
-                  const trigger = String(p.trigger ?? "");
-                  const result = (t as any).result as Record<string, unknown> | undefined;
+                  const p = t.payload ?? {};
+                  const result = t.result as Record<string, unknown> | undefined | null;
+                  const isStd = t.task_type === "std_test";
+                  const appName = String(p.app ?? p.service_name ?? result?.app ?? result?.service_name ?? "—");
                   const isDone = t.status === "done" || t.status === "completed";
-                  const passed = Number(result?.passed ?? 0);
+                  const totalPassed = Number(result?.total_passed ?? 0);
                   const total = Number(result?.total ?? 0);
-                  const allPass = passed === total && total > 0;
-                  const envs = (result?.environments ?? []) as Record<string, unknown>[];
-                  const firstError = envs.flatMap((e) => (e.errors as string[]) ?? []).find(Boolean);
+                  const envResults = (result?.environments ?? []) as Record<string, unknown>[];
+                  const envPassed = Number(result?.passed ?? 0);
+                  const allPass = isStd ? (totalPassed === total && total > 0) : (envPassed === envResults.length && envResults.length > 0);
+                  const firstError = isStd ? undefined : envResults.flatMap((e) => (e.errors as string[]) ?? []).find(Boolean);
                   return (
                     <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-2 font-medium text-gray-800 text-sm truncate">{String(p.app ?? "—")}</td>
-                      <td className="px-4 py-2"><OrchTriggerBadge trigger={trigger} /></td>
+                      <td className="px-4 py-2 font-medium text-gray-800 text-sm truncate">{appName}</td>
+                      <td className="px-4 py-2"><TaskTypeBadge taskType={t.task_type} /></td>
                       <td className="px-4 py-2"><TaskStatusBadge status={t.status} /></td>
-                      <td className="px-4 py-2 text-xs font-mono text-gray-400">
-                        {commit ? (deployUrl
-                          ? <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{commit}</a>
-                          : commit) : "—"}
-                      </td>
                       <td className="px-4 py-2 text-xs">
-                        {isDone && total > 0
-                          ? <span className={allPass ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
-                              {allPass ? `✓ ${passed}/${total} 통과` : `✗ ${passed}/${total} 통과`}
-                              {!allPass && firstError && (
-                                <span className="ml-2 text-gray-400 font-normal">— {firstError.slice(0, 50)}</span>
-                              )}
-                            </span>
+                        {isDone
+                          ? isStd
+                            ? <span className={allPass ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
+                                {allPass ? `✓ ${totalPassed}/${total} 통과` : `✗ ${totalPassed}/${total} 통과`}
+                              </span>
+                            : envResults.length > 0
+                              ? <span className={allPass ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
+                                  {allPass ? `✓ ${envPassed}/${envResults.length} 환경` : `✗ ${envPassed}/${envResults.length} 환경`}
+                                  {!allPass && firstError && <span className="ml-2 text-gray-400 font-normal">— {firstError.slice(0, 40)}</span>}
+                                </span>
+                              : <span className="text-gray-300">—</span>
                           : t.status === "failed"
                           ? <span className="text-red-400">{str((result as any)?.error ?? "실패").slice(0, 50)}</span>
                           : t.status === "running"
@@ -621,13 +660,12 @@ function str(v: unknown): string { return String(v ?? "") }
 
 // ── 서브 컴포넌트 ─────────────────────────────────────
 
-function OrchTriggerBadge({ trigger }: { trigger: string }) {
+function TaskTypeBadge({ taskType }: { taskType: string }) {
   const map: Record<string, { label: string; color: string }> = {
-    "post-push":     { label: "git push",    color: "bg-purple-50 text-purple-700" },
-    "vercel-deploy": { label: "Vercel 배포", color: "bg-blue-50 text-blue-700" },
-    "manual":        { label: "수동",         color: "bg-gray-50 text-gray-600" },
+    "std_test": { label: "표준 테스트", color: "bg-teal-50 text-teal-700" },
+    "app_test": { label: "앱 테스트",  color: "bg-purple-50 text-purple-700" },
   };
-  const cfg = map[trigger] ?? { label: trigger || "—", color: "bg-gray-50 text-gray-500" };
+  const cfg = map[taskType] ?? { label: taskType || "—", color: "bg-gray-50 text-gray-500" };
   return <span className={`px-1.5 py-0.5 rounded text-xs inline-block ${cfg.color}`}>{cfg.label}</span>;
 }
 
