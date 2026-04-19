@@ -279,15 +279,15 @@ export default function QueuePage() {
               <div className="p-8 text-center text-gray-400 text-sm">작업이 없습니다.</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm table-fixed">
+                <table className="w-full text-sm min-w-[620px]">
                   <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                     <tr>
-                      <th className="text-left px-4 py-2.5 font-medium w-[130px]">앱</th>
-                      <th className="text-left px-4 py-2.5 font-medium w-[110px]">트리거</th>
-                      <th className="text-left px-4 py-2.5 font-medium w-[70px]">상태</th>
-                      <th className="text-left px-4 py-2.5 font-medium w-[80px]">커밋</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-28">앱</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-24">트리거</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-16">상태</th>
+                      <th className="text-left px-4 py-2.5 font-medium w-16">커밋</th>
                       <th className="text-left px-4 py-2.5 font-medium">환경 결과</th>
-                      <th className="text-right px-4 py-2.5 font-medium w-[100px] whitespace-nowrap">생성</th>
+                      <th className="text-right px-4 py-2.5 font-medium w-32 whitespace-nowrap">생성</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -335,27 +335,19 @@ export default function QueuePage() {
                                     const envLogs = (e.logs ?? []) as string[];
                                     return (
                                       <details key={i} className="group">
-                                        <summary className="flex items-center gap-3 text-xs cursor-pointer list-none hover:bg-gray-100 rounded px-1 py-0.5">
-                                          <span className={ok ? "text-green-500" : "text-red-400"}>{ok ? "✅" : "❌"}</span>
-                                          {/* 테스트 환경 */}
-                                          <span className="font-medium text-gray-700 w-[160px] shrink-0">{str(e.label ?? e.env_id)}</span>
-                                          {/* 실제 실행 OS */}
-                                          <EnvOsBadge os={str(e.worker_os)} arch={str(e.worker_arch)} />
-                                          {/* 호스트명 */}
-                                          <span className="text-gray-400 font-mono text-[10px]">{str(e.worker_hostname)}</span>
-                                          {/* 케이스 결과 */}
-                                          <span className={`ml-auto ${ok ? "text-green-600" : "text-red-400"}`}>
-                                            {str(e.cases_passed)}/{str(e.cases_total)} 케이스
+                                        <summary className="flex items-center gap-2 text-xs cursor-pointer list-none hover:bg-gray-100 rounded px-1 py-0.5">
+                                          <span className={ok ? "text-green-500" : "text-red-400"} style={{fontSize: "11px"}}>{ok ? "✓" : "✗"}</span>
+                                          <span className="font-medium text-gray-700 w-36 shrink-0">{str(e.label ?? e.env_id)}</span>
+                                          <span className={`tabular-nums ${ok ? "text-green-600" : "text-red-400"}`}>
+                                            {str(e.cases_passed)}/{str(e.cases_total)}
                                           </span>
-                                          {/* 소요시간 */}
                                           <span className="text-gray-300 tabular-nums">{str(e.duration_ms)}ms</span>
-                                          {/* 에러 */}
                                           {!ok && Boolean(e.errors) && (
-                                            <span className="text-red-300 truncate max-w-[180px]" title={str((e.errors as string[])[0])}>
-                                              {str((e.errors as string[])[0]).slice(0, 35)}
+                                            <span className="text-red-400 truncate" title={str((e.errors as string[])[0])}>
+                                              — {str((e.errors as string[])[0]).slice(0, 40)}
                                             </span>
                                           )}
-                                          {envLogs.length > 0 && <span className="text-gray-300 text-[10px]">▶ 로그</span>}
+                                          {envLogs.length > 0 && <span className="ml-auto text-gray-300 text-[10px] shrink-0">▶ 로그</span>}
                                         </summary>
                                         {envLogs.length > 0 && (
                                           <div className="mt-1 ml-4 bg-gray-900 rounded px-3 py-2 font-mono text-[10px] text-gray-300 space-y-0.5 max-h-40 overflow-y-auto">
