@@ -1,3 +1,4 @@
+// @orch-std: orch_ts v1.0.0
 // Orchestrator 공통 헬퍼
 // 복사 위치: src/lib/orch.ts (각 앱에 그대로 복사)
 // APP_NAME은 .orch-app-name 파일과 동일한 값 사용
@@ -25,7 +26,7 @@ export async function orchEvent(
 export async function orchHealth(status: 'ok' | 'warn' | 'error') {
   try {
     await orchClient().from('orch_services').update({
-      health_status: status,
+      // health_status 컬럼 제거됨
       last_seen_at: new Date().toISOString(),
     }).eq('name', APP_NAME)
   } catch {}
