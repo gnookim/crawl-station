@@ -1,44 +1,36 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
-import { getSSOUser } from "@/lib/feedback-auth";
+// GET/POST /api/feedback/[id]/comments
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
-type Params = { params: Promise<{ id: string }> };
-
-/** GET /api/feedback/[id]/comments */
-export async function GET(_req: NextRequest, { params }: Params) {
-  const { id } = await params;
-  const sb = createServerClient();
-  const { data, error } = await sb
-    .from("feedback_comments")
-    .select("*")
-    .eq("feedback_id", id)
-    .order("created_at", { ascending: true });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ comments: data ?? [] });
+function db() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 }
 
-/** POST /api/feedback/[id]/comments */
-export async function POST(req: NextRequest, { params }: Params) {
-  const { id } = await params;
-  const user = await getSSOUser(req);
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const { data, error } = await db()
+    .from('orch_issue_comments')
+    .select('*')
+    .eq('issue_id', id)
+    .order('created_at', { ascending: true })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data ?? [])
+}
 
-  const { body: text, author_name } = body;
-  if (!text?.trim()) return NextResponse.json({ error: "댓글 내용이 필요합니다." }, { status: 400 });
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const { body, author_name, is_admin } = await req.json()
+  if (!body?.trim()) return NextResponse.json({ error: '내용은 필수입니다' }, { status: 400 })
 
-  const sb = createServerClient();
-  const { data, error } = await sb
-    .from("feedback_comments")
-    .insert({
-      feedback_id: id,
-      user_id:     user?.id ?? null,
-      author_name: author_name?.trim() || user?.name || "익명",
-      is_admin:    user?.role === "admin",
-      body:        text.trim(),
-    })
-    .select()
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, comment: data }, { status: 201 });
+  const { data, error } = await db().from('orch_issue_comments').insert({
+    issue_id: id,
+    author_name: author_name ?? null,
+    is_admin: is_admin ?? false,
+    body: body.trim(),
+  }).select().single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data, { status: 201 })
 }

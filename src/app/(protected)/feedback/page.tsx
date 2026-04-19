@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser, getAuthHeaders } from "@/lib/sso";
 import type { SSOUser } from "@/lib/sso";
+import { supabase } from "@/lib/supabase"; // supabase named export
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
 
@@ -552,6 +553,7 @@ export default function FeedbackPage() {
   const [tab,         setTab]         = useState<Tab>("all");
   const [showNew,     setShowNew]     = useState(false);
   const [replyItem,   setReplyItem]   = useState<FeedbackItem | null>(null);
+  const [toast,       setToast]       = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
 
@@ -563,6 +565,34 @@ export default function FeedbackPage() {
   }, []);
 
   useEffect(() => { getCurrentUser().then(setUser); load(); }, [load]);
+
+  // Realtime: 관리자 답변 토스트
+  useEffect(() => {
+    const channel = supabase
+      .channel('feedback-replies-crawl-station')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orch_issues',
+        filter: 'service_name=eq.crawl-station'
+      }, (payload) => {
+        const newRow = payload.new as { admin_reply?: string; status?: string; id: string };
+        const oldRow = payload.old as { admin_reply?: string; status?: string };
+
+        if (newRow.admin_reply && !oldRow.admin_reply) {
+          setToast('관리자 답변이 도착했습니다 💬');
+          setTimeout(() => setToast(null), 4000);
+        } else if (newRow.status && newRow.status !== oldRow.status) {
+          const statusLabel = S_CFG[newRow.status as FStatus]?.label ?? newRow.status;
+          setToast(`요청 상태가 '${statusLabel}'로 변경됐습니다`);
+          setTimeout(() => setToast(null), 4000);
+        }
+        setItems(prev => prev.map(f => f.id === newRow.id ? { ...f, ...newRow } as FeedbackItem : f));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   function upd(id: string, p: Partial<FeedbackItem>) { setItems(prev => prev.map(i => i.id === id ? { ...i, ...p } : i)); }
   function del(id: string)                            { setItems(prev => prev.filter(i => i.id !== id)); }
@@ -627,6 +657,13 @@ export default function FeedbackPage() {
 
       {showNew   && <NewModal   user={user}   onClose={() => setShowNew(false)}    onDone={load} />}
       {replyItem && <ReplyModal item={replyItem} onClose={() => setReplyItem(null)} onDone={load} />}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium"
+          style={{ background: '#6366f1', color: '#fff', animation: 'fadeIn 0.2s ease' }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

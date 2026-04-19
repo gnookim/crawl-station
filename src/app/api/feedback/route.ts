@@ -1,100 +1,61 @@
-/**
- * GET /api/feedback   — 목록 조회 | count=true → 미해결 수
- * POST /api/feedback  — 새 요청 제출 (비로그인 허용)
- *
- * ── Supabase SQL (최초 1회 실행) ─────────────────────────────────────────────
- *
- * CREATE TABLE IF NOT EXISTS feedback_requests (
- *   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- *   type             varchar(20)  NOT NULL DEFAULT 'feature',   -- bug | feature | improvement
- *   priority         varchar(10)  NOT NULL DEFAULT 'medium',    -- high | medium | low
- *   title            varchar(200) NOT NULL,
- *   description      text         NOT NULL,
- *   status           varchar(20)  NOT NULL DEFAULT 'pending',   -- pending | in_progress | resolved | done
- *   submitted_by     varchar(100),
- *   user_id          uuid,
- *   admin_reply      text,
- *   reply_image_urls text[]       DEFAULT '{}',
- *   replied_at       timestamptz,
- *   replied_by       uuid,
- *   completed_at     timestamptz,
- *   image_urls       text[]       DEFAULT '{}',
- *   created_at       timestamptz  NOT NULL DEFAULT now(),
- *   updated_at       timestamptz  NOT NULL DEFAULT now()
- * );
- * CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback_requests(status);
- * ALTER TABLE feedback_requests ENABLE ROW LEVEL SECURITY;
- * CREATE POLICY "feedback_all" ON feedback_requests FOR ALL USING (true);
- *
- * CREATE TABLE IF NOT EXISTS feedback_comments (
- *   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- *   feedback_id uuid NOT NULL REFERENCES feedback_requests(id) ON DELETE CASCADE,
- *   user_id     uuid,
- *   author_name varchar(100),
- *   is_admin    boolean NOT NULL DEFAULT false,
- *   body        text    NOT NULL,
- *   created_at  timestamptz NOT NULL DEFAULT now()
- * );
- * CREATE INDEX IF NOT EXISTS idx_feedback_comments_fid ON feedback_comments(feedback_id);
- * ALTER TABLE feedback_comments ENABLE ROW LEVEL SECURITY;
- * CREATE POLICY "feedback_comments_all" ON feedback_comments FOR ALL USING (true);
- *
- * -- Storage: Supabase > Storage > New bucket
- * --   이름: feedback-images  /  Public ON  /  최대 파일 크기: 5MB
- * ─────────────────────────────────────────────────────────────────────────────
- */
+// GET/POST /api/feedback
+// 복사 위치: src/app/api/feedback/route.ts
+// APP_NAME은 앱별로 변경
 
-import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
-import { getSSOUser } from "@/lib/feedback-auth";
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+const APP_NAME = 'crawl-station'
+
+function db() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const sb = createServerClient();
+  const status = new URL(req.url).searchParams.get('status')
 
-  // ?count=true → 사이드바 미해결 뱃지용
-  if (searchParams.get("count") === "true") {
-    const { count } = await sb
-      .from("feedback_requests")
-      .select("*", { count: "exact", head: true })
-      .not("status", "eq", "done");
-    return NextResponse.json({ unresolved: count ?? 0 });
+  if (new URL(req.url).searchParams.get('count') === 'true') {
+    const { count } = await db()
+      .from('orch_issues')
+      .select('*', { count: 'exact', head: true })
+      .eq('service_name', APP_NAME)
+      .in('status', ['pending', 'in_progress', 'resolved'])
+    return NextResponse.json({ unresolved: count ?? 0 })
   }
 
-  const status = searchParams.get("status");
-  let q = sb.from("feedback_requests").select("*").order("created_at", { ascending: false });
-  if (status && status !== "all") q = q.eq("status", status);
+  let q = db()
+    .from('orch_issues')
+    .select('*')
+    .eq('service_name', APP_NAME)
+    .order('created_at', { ascending: false })
 
-  const { data, error } = await q;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ requests: data ?? [] });
+  if (status && status !== 'all') q = q.eq('status', status)
+
+  const { data, error } = await q
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data ?? [])
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getSSOUser(req);
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+  const body = await req.json()
+  const { type, priority, title, description, submitted_by, image_urls } = body
+  if (!title) return NextResponse.json({ error: '제목은 필수입니다' }, { status: 400 })
+  if (!description) return NextResponse.json({ error: '설명은 필수입니다' }, { status: 400 })
 
-  const { type, priority, title, description, submitted_by, image_urls } = body;
-  if (!title?.trim() || !description?.trim()) {
-    return NextResponse.json({ error: "제목과 내용은 필수입니다." }, { status: 400 });
-  }
+  const { data, error } = await db().from('orch_issues').insert({
+    service_name: APP_NAME,
+    type: type ?? 'feature',
+    priority: priority ?? 'medium',
+    title,
+    description,
+    submitted_by: submitted_by ?? null,
+    image_urls: image_urls ?? [],
+    status: 'pending',
+  }).select().single()
 
-  const sb = createServerClient();
-  const { data, error } = await sb
-    .from("feedback_requests")
-    .insert({
-      type:         type ?? "feature",
-      priority:     priority ?? "medium",
-      title:        title.trim(),
-      description:  description.trim(),
-      submitted_by: submitted_by?.trim() || user?.name || null,
-      user_id:      user?.id ?? null,
-      image_urls:   image_urls ?? [],
-    })
-    .select()
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, request: data }, { status: 201 });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data, { status: 201 })
 }

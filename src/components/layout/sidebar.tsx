@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthGuard";
 import { ssoLogout, getAuthHeaders } from "@/lib/sso";
+import { supabase } from "@/lib/supabase";
 
 const NAV_GROUPS = [
   {
@@ -61,7 +62,7 @@ export function Sidebar() {
   // 페이지 이동 시 모바일 메뉴 닫기
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
-  // 미해결 피드백 뱃지
+  // 미해결 피드백 뱃지 (Realtime)
   useEffect(() => {
     async function fetchBadge() {
       try {
@@ -74,8 +75,18 @@ export function Sidebar() {
       } catch { /* 무시 */ }
     }
     fetchBadge();
-    const id = setInterval(fetchBadge, 60_000); // 1분마다 갱신
-    return () => clearInterval(id);
+
+    const channel = supabase
+      .channel('feedback-badge-crawl-station')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orch_issues',
+        filter: 'service_name=eq.crawl-station'
+      }, () => fetchBadge())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   async function handleLogout() {
