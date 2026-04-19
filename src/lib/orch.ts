@@ -9,7 +9,7 @@ const APP_NAME = 'crawl-station'  // ← 앱 이름으로 변경
 
 const orchClient = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.ORCH_SUPABASE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
 // 이벤트 발행 (fire-and-forget, 오류는 무시)
