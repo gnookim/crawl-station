@@ -571,7 +571,7 @@ export default function QueuePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {orchTasks.slice(0, 5).map((t) => {
+                    {orchTasks.map((t) => {
                       const p = t.payload;
                       const commit = String(p.commit_hash ?? "").slice(0, 7);
                       const deployUrl = String(p.deploy_url ?? "");
@@ -608,10 +608,10 @@ export default function QueuePage() {
                   </tbody>
                 </table>
               </div>
-              {(orchCounts.all ?? 0) > 5 && (
+              {orchTasks.length >= 200 && (
                 <p className="mt-1.5 text-center text-xs text-gray-400">
-                  최근 5개 표시 —{" "}
-                  <button onClick={() => changeCategory("orch")} className="text-blue-500 hover:underline">전체 보기</button>
+                  최근 200개 표시 —{" "}
+                  <button onClick={() => changeCategory("orch")} className="text-blue-500 hover:underline">오케스트레이터 탭에서 전체 조회</button>
                 </p>
               )}
             </div>
