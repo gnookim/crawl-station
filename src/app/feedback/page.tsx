@@ -274,10 +274,10 @@ function NewFeedbackModal({
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">제출자 이름</label>
-            <input type="text" value={submittedBy} onChange={e => setSubmittedBy(e.target.value)} placeholder="이름을 입력하세요"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50">
+            <span className="text-sm">👤</span>
+            <span className="text-sm font-medium text-gray-700">{submittedBy || "(로그인 정보 없음)"}</span>
+            <span className="text-xs text-gray-400 ml-auto">자동 입력</span>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">취소</button>
@@ -736,11 +736,23 @@ export default function FeedbackPage() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    fetch("/api/users/me").then(r => r.json()).then(u => {
-      if (u?.name) setUserName(u.name);
-      if (u?.id) setCurrentUserId(u.id);
-      if (u?.role === "admin") setIsAdmin(true);
-    }).catch(() => {});
+    async function loadUser() {
+      try {
+        const r = await fetch("/api/users/me")
+        if (r.ok) {
+          const u = await r.json()
+          if (u?.name) { setUserName(u.name); if (u?.id) setCurrentUserId(u.id); if (u?.role === "admin") setIsAdmin(true); return }
+        }
+      } catch {}
+      try {
+        const { getCurrentUser } = await import("@/lib/sso")
+        const u = await getCurrentUser()
+        if (u?.name) setUserName(u.name)
+        if (u?.id) setCurrentUserId(u.id)
+        if (u?.role === "admin") setIsAdmin(true)
+      } catch {}
+    }
+    loadUser()
   }, []);
 
   const fetchItems = useCallback(async () => {
