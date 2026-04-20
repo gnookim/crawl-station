@@ -35,6 +35,11 @@ export interface Worker {
     instagram?: { ok: boolean; at: string; error?: string };
     oclick?: { ok: boolean; at: string; error?: string };
   } | null;
+  worker_type?: "pc" | "android_mobile" | null;
+  carrier?: "SKT" | "KT" | "LGU+" | null;
+  battery_level?: number | null;
+  battery_charging?: boolean | null;
+  temperature?: number | null;
 }
 
 export interface WorkerRelease {

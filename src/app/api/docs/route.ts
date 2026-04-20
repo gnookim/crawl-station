@@ -375,6 +375,12 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-20
 
+### Station — 모바일 워커(lnb-mobile-worker) 연동
+- workers 테이블 모바일 컬럼 추가: worker_type, carrier, battery_level, battery_charging, temperature
+- crawl_requests.device_type 컬럼 추가 (pc / mobile)
+- 워커 목록 페이지: 모바일 워커 상태 배지 표시 (통신사 / 배터리 % / 온도)
+- /api/mobile-install 엔드포인트: Termux 원커맨드 설치 스크립트 서빙
+
 ### Station — 작업 큐 오케스트레이터 탭 std_test 지원
 - agent_tasks.payload 필드가 service_name 구조인 std_test 타입 지원
 - 컬럼 재설계: 앱/타입/상태/결과/생성 (트리거/커밋 제거)

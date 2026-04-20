@@ -1019,6 +1019,7 @@ export default function WorkersPage() {
                         {w.hostname && <div className="text-xs text-gray-400 font-mono truncate">🖥 {w.hostname}</div>}
                         {w.current_ip && <div className="text-xs text-gray-400 font-mono truncate">🌐 {w.current_ip}</div>}
                         <div className="text-xs text-gray-300 font-mono truncate">{w.id}</div>
+                        {w.worker_type === "android_mobile" && <div className="mt-0.5"><MobileStatusBadge worker={w} /></div>}
                       </td>
                       {visibleConfigCols.map(key => {
                         if (key === "os") return (
@@ -1702,6 +1703,7 @@ function GroupWorkerRow({
         <div className="flex items-center gap-1.5 mt-0.5">
           {w.location && <span className="text-xs text-gray-400">📍 {w.location}</span>}
           <span className="text-xs text-gray-300 font-mono truncate">{w.id}</span>
+          <MobileStatusBadge worker={w} />
         </div>
       </div>
 
@@ -1919,6 +1921,38 @@ function LastSeenLabel({ lastSeen }: { lastSeen: string | null }) {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return <span className="text-orange-600">{hours}시간 전</span>;
   return <span className="text-red-500">{Math.floor(hours / 24)}일 전</span>;
+}
+
+/* ── 모바일 워커 상태 배지 ── */
+function MobileStatusBadge({ worker }: { worker: Worker }) {
+  if (worker.worker_type !== "android_mobile") return null;
+  const battery = worker.battery_level;
+  const charging = worker.battery_charging;
+  const temp = worker.temperature;
+  const carrier = worker.carrier;
+
+  const batteryColor = battery == null ? "text-gray-400"
+    : battery < 20 ? "text-red-500"
+    : battery < 40 ? "text-orange-500"
+    : "text-green-600";
+
+  const tempColor = temp == null ? "" : temp >= 45 ? "text-red-500" : temp >= 40 ? "text-orange-500" : "";
+
+  return (
+    <span className="inline-flex items-center gap-1 text-xs">
+      {carrier && (
+        <span className="px-1 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">{carrier}</span>
+      )}
+      {battery != null && (
+        <span className={`${batteryColor}`} title={`배터리 ${battery}%${charging ? " (충전중)" : ""}`}>
+          {charging ? "⚡" : "🔋"}{battery}%
+        </span>
+      )}
+      {temp != null && (
+        <span className={`${tempColor}`} title={`온도 ${temp}°C`}>{temp.toFixed(0)}°C</span>
+      )}
+    </span>
+  );
 }
 
 /* ── 버전 배지 ── */
