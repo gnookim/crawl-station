@@ -163,11 +163,12 @@ function buildPromptText(item: FeedbackItem, comments: FeedbackComment[]): strin
 
 // ─── 새 요청 모달 ───────────────────────────────────────────
 function NewFeedbackModal({
-  onClose, onSubmit, defaultName,
+  onClose, onSubmit, defaultName, currentUserId,
 }: {
   onClose: () => void;
-  onSubmit: (data: { type: FeedbackType; priority: FeedbackPriority; title: string; description: string; submitted_by: string; image_urls: string[] }) => Promise<void>;
+  onSubmit: (data: { type: FeedbackType; priority: FeedbackPriority; title: string; description: string; submitted_by: string; user_id: string | null; image_urls: string[] }) => Promise<void>;
   defaultName: string;
+  currentUserId: string | null;
 }) {
   const [type, setType] = useState<FeedbackType>("feature");
   const [priority, setPriority] = useState<FeedbackPriority>("medium");
@@ -209,7 +210,7 @@ function NewFeedbackModal({
     try {
       const image_urls = await uploadImages();
       setUploading(false);
-      await onSubmit({ type, priority, title: title.trim(), description: description.trim(), submitted_by: defaultName.trim(), image_urls });
+      await onSubmit({ type, priority, title: title.trim(), description: description.trim(), submitted_by: defaultName.trim(), user_id: currentUserId, image_urls });
       onClose();
     } finally {
       setSubmitting(false);
@@ -459,7 +460,7 @@ function CommentThread({
       const res = await fetch(`/api/feedback/${feedbackId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: input.trim(), author_name: currentUserName || undefined }),
+        body: JSON.stringify({ body: input.trim(), author_name: currentUserName || undefined, user_id: currentUserId || undefined }),
       });
       if (res.ok) {
         const newComment = await res.json();
@@ -804,7 +805,7 @@ export default function FeedbackPage() {
     return () => { supabasePublic.removeChannel(ch); };
   }, []);
 
-  const handleSubmit = async (data: { type: FeedbackType; priority: FeedbackPriority; title: string; description: string; submitted_by: string; image_urls: string[] }) => {
+  const handleSubmit = async (data: { type: FeedbackType; priority: FeedbackPriority; title: string; description: string; submitted_by: string; user_id: string | null; image_urls: string[] }) => {
     const res = await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -916,7 +917,7 @@ export default function FeedbackPage() {
       )}
 
       {showNew && (
-        <NewFeedbackModal onClose={() => setShowNew(false)} onSubmit={handleSubmit} defaultName={userName} />
+        <NewFeedbackModal onClose={() => setShowNew(false)} onSubmit={handleSubmit} defaultName={userName} currentUserId={currentUserId} />
       )}
       {replyTarget && (
         <ReplyModal feedback={replyTarget} onClose={() => setReplyTarget(null)} onSave={handleSaveReply} />
