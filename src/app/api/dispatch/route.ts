@@ -9,9 +9,10 @@ import { PRIORITY_BY_TYPE, WORKER_ONLINE_THRESHOLD_MS } from "@/types";
  * 인증: X-API-Key 헤더 필수
  *
  * POST /api/dispatch
- * body: { keywords: string[], type: string, strategy?: "round_robin", priority?: number }
+ * body: { keywords: string[], type: string, strategy?: "round_robin", priority?: number, device_type?: "pc" | "mobile" }
  *
  * 활성 워커에게 작업을 자동 분배합니다.
+ * device_type="mobile" 이면 android_mobile 워커에만 분배 (모바일 워커는 claim_next_mobile_job RPC로 자체 claim).
  * 일일 할당량(daily_quota)을 초과한 워커는 분배 대상에서 제외됩니다.
  */
 export async function POST(request: NextRequest) {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   const sb = createServerClient();
   const body = await request.json();
-  const { keywords, type, strategy = "round_robin", priority } = body;
+  const { keywords, type, strategy = "round_robin", priority, device_type = "pc" } = body;
 
   if (!keywords?.length || !type) {
     return NextResponse.json(
@@ -36,19 +37,40 @@ export async function POST(request: NextRequest) {
 
   const effectivePriority = priority || PRIORITY_BY_TYPE[type] || 5;
 
-  // 활성 워커 조회 (idle 또는 crawling 중이면서 최근 30초 이내 heartbeat)
+  // 모바일 작업은 pending으로 등록 — 모바일 워커가 claim_next_mobile_job RPC로 직접 claim
+  if (device_type === "mobile") {
+    const rows = keywords.map((keyword: string) => ({
+      keyword,
+      type,
+      device_type: "mobile",
+      status: "pending",
+      assigned_worker: null,
+      priority: effectivePriority,
+    }));
+    await sb.from("crawl_requests").insert(rows);
+    return NextResponse.json({
+      message: `${keywords.length}개 모바일 작업 등록 (모바일 워커 자동 claim 대기)`,
+      assigned: 0,
+      pending: keywords.length,
+      device_type: "mobile",
+    });
+  }
+
+  // 활성 PC 워커 조회 (idle 또는 crawling 중이면서 최근 30초 이내 heartbeat)
   const cutoff = new Date(Date.now() - WORKER_ONLINE_THRESHOLD_MS).toISOString();
   const { data: activeWorkers } = await sb
     .from("workers")
     .select("id, name, status")
     .in("status", ["idle", "crawling", "online"])
     .gte("last_seen", cutoff)
+    .not("worker_type", "eq", "android_mobile")
     .order("id");
 
   if (!activeWorkers?.length) {
     const rows = keywords.map((keyword: string) => ({
       keyword,
       type,
+      device_type: "pc",
       status: "pending",
       assigned_worker: null,
       priority: effectivePriority,
@@ -117,6 +139,7 @@ export async function POST(request: NextRequest) {
     const rows = keywords.map((keyword: string) => ({
       keyword,
       type,
+      device_type: "pc",
       status: "pending",
       assigned_worker: null,
       priority: effectivePriority,
@@ -139,6 +162,7 @@ export async function POST(request: NextRequest) {
   const rows = assignments.map(({ keyword, workerId }) => ({
     keyword,
     type,
+    device_type: "pc",
     status: "assigned" as const,
     assigned_worker: workerId,
     priority: effectivePriority,

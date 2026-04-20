@@ -16,6 +16,18 @@ echo "  lnb-mobile-worker 설치"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+# ── 0. Python 버전 확인 ──────────────────────
+echo "⓪ 환경 확인 중..."
+PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "0.0")
+PY_MAJOR=$(echo "$PY_VER" | cut -d. -f1)
+PY_MINOR=$(echo "$PY_VER" | cut -d. -f2)
+if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 10 ]; }; then
+    echo "  ❌ Python 3.10 이상 필요 (현재: $PY_VER)"
+    echo "     pkg install python 으로 최신 버전 설치 후 재시도"
+    exit 1
+fi
+echo "  Python $PY_VER ✅"
+
 # ── 1. Termux 패키지 ─────────────────────────
 echo "① Termux 패키지 설치 중..."
 pkg update -y -q
@@ -28,7 +40,25 @@ echo "     F-Droid: https://f-droid.org/packages/com.termux.api"
 echo "     설치 후 계속하려면 Enter..."
 read -r _
 
-# ── 3. 저장소 클론 ───────────────────────────
+if termux-battery-status 2>/dev/null | grep -q "percentage"; then
+    echo "  Termux:API ✅"
+else
+    echo "  ⚠️  Termux:API 응답 없음 — 앱 설치 후 권한 허용했는지 확인"
+    printf "  계속 진행하려면 Enter (배터리 모니터링 비활성)... "; read -r _
+fi
+
+# ── 3. Termux:Boot 안내 ──────────────────────
+echo ""
+echo "  ⚠️  Termux:Boot 앱 설치 필요 (부팅 자동시작용)"
+echo "     F-Droid: https://f-droid.org/packages/com.termux.boot"
+printf "  설치했으면 Enter, 건너뛰려면 's'... "; read -r BOOT_ANS
+if [ "$BOOT_ANS" = "s" ] || [ "$BOOT_ANS" = "S" ]; then
+    SKIP_BOOT=1
+else
+    SKIP_BOOT=0
+fi
+
+# ── 4. 저장소 클론 ───────────────────────────
 echo "② 코드 다운로드 중..."
 if [ -d "$INSTALL_DIR" ]; then
     echo "  기존 설치 발견 — 업데이트"
@@ -38,11 +68,11 @@ else
     cd "$INSTALL_DIR"
 fi
 
-# ── 4. Python 패키지 ─────────────────────────
+# ── 5. Python 패키지 ─────────────────────────
 echo "③ Python 패키지 설치 중..."
 pip install -q -r requirements.txt
 
-# ── 5. .env 생성 ─────────────────────────────
+# ── 6. .env 생성 ─────────────────────────────
 echo "④ 설정 파일 생성 중..."
 if [ ! -f "$INSTALL_DIR/.env" ]; then
     cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
@@ -65,13 +95,39 @@ if [ ! -f "$INSTALL_DIR/.env" ]; then
     sed -i "s|SUPABASE_URL=.*|SUPABASE_URL=$SB_URL|" "$INSTALL_DIR/.env"
     sed -i "s|SUPABASE_SERVICE_KEY=.*|SUPABASE_SERVICE_KEY=$SB_KEY|" "$INSTALL_DIR/.env"
     sed -i "s|CARRIER=.*|CARRIER=$CARRIER|" "$INSTALL_DIR/.env"
-
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 else
     echo "  기존 .env 유지"
 fi
 
-# ── 6. DEVICE_ID 발급 ────────────────────────
+# ── 7. Supabase 연결 테스트 ───────────────────
+echo "  Supabase 연결 확인 중..."
+SB_TEST=$(python3 -c "
+import sys
+try:
+    env = dict(line.strip().split('=',1) for line in open('$INSTALL_DIR/.env') if '=' in line and not line.startswith('#'))
+    url = env.get('SUPABASE_URL','')
+    key = env.get('SUPABASE_SERVICE_KEY','')
+    if not url or not key or 'xxxx' in url:
+        print('SKIP')
+        exit()
+    import urllib.request
+    req = urllib.request.Request(url + '/rest/v1/', headers={'apikey': key, 'Authorization': 'Bearer ' + key})
+    urllib.request.urlopen(req, timeout=5)
+    print('OK')
+except Exception as e:
+    print('FAIL:' + str(e))
+" 2>/dev/null)
+
+case "$SB_TEST" in
+    OK)   echo "  Supabase 연결 ✅" ;;
+    SKIP) echo "  Supabase 연결 확인 건너뜀 (URL 미설정)" ;;
+    *)    echo "  ⚠️  Supabase 연결 실패: $SB_TEST"
+          echo "     URL/Key 를 확인하고 $INSTALL_DIR/.env 를 수정하세요"
+          printf "  계속 진행하려면 Enter... "; read -r _ ;;
+esac
+
+# ── 8. DEVICE_ID 발급 ────────────────────────
 DEVICE_ID=$(python3 -c "
 import uuid
 env = open('$INSTALL_DIR/.env').read()
@@ -86,7 +142,7 @@ if ! grep -q "^DEVICE_ID=" "$INSTALL_DIR/.env"; then
 fi
 echo "  DEVICE_ID: $DEVICE_ID"
 
-# ── 7. orch-std 설정 ─────────────────────────
+# ── 9. orch-std 설정 ─────────────────────────
 echo "⑤ 오케스트레이터 연동 설정 중..."
 cd "$INSTALL_DIR"
 
@@ -127,32 +183,47 @@ except Exception as e:
     print(f'  orch_services 등록 실패 (무시): {e}')
 PYEOF
 
-# ── 8. 부팅 자동시작 ─────────────────────────
-echo "⑥ 부팅 자동시작 설정 중..."
-mkdir -p "$BOOT_DIR"
-cat > "$BOOT_DIR/start-worker.sh" << BOOT
+# ── 10. Chrome CDP 스크립트 ──────────────────
+echo "⑥ Chrome CDP 스크립트 설치 중..."
+mkdir -p "$INSTALL_DIR/scripts"
+cat > "$INSTALL_DIR/scripts/start_chrome_cdp.sh" << 'CDP'
+#!/data/data/com.termux/files/usr/bin/bash
+am start -n com.android.chrome/com.google.android.apps.chrome.Main \\
+  --es "com.google.android.apps.chrome.EXTRA_URL" "about:blank" 2>/dev/null
+sleep 3
+adb shell "am start -a android.intent.action.VIEW \\
+  -n com.android.chrome/com.google.android.apps.chrome.Main \\
+  --ei REMOTE_DEBUGGING_PORT 9222" 2>/dev/null || true
+sleep 2
+for i in $(seq 1 5); do
+    if curl -sf http://localhost:9222/json >/dev/null 2>&1; then
+        echo "Chrome CDP 시작 완료 (port 9222) ✅"
+        exit 0
+    fi
+    sleep 2
+done
+echo "⚠️  Chrome CDP 포트 응답 없음 — ADB 페어링 확인 필요"
+CDP
+chmod +x "$INSTALL_DIR/scripts/start_chrome_cdp.sh"
+
+# ── 11. 부팅 자동시작 ────────────────────────
+if [ "$SKIP_BOOT" = "0" ]; then
+    echo "⑦ 부팅 자동시작 설정 중..."
+    mkdir -p "$BOOT_DIR"
+    cat > "$BOOT_DIR/start-worker.sh" << BOOT
 #!/data/data/com.termux/files/usr/bin/bash
 cd $INSTALL_DIR
 termux-wake-lock
 bash scripts/start_chrome_cdp.sh &
-sleep 3
+sleep 5
 python3 src/main.py >> logs/worker.log 2>&1
 BOOT
-chmod +x "$BOOT_DIR/start-worker.sh"
+    chmod +x "$BOOT_DIR/start-worker.sh"
+    echo "  자동시작 설정 ✅"
+else
+    echo "⑦ 부팅 자동시작 건너뜀"
+fi
 mkdir -p "$INSTALL_DIR/logs"
-
-# ── 9. Chrome CDP 스크립트 ───────────────────
-cat > "$INSTALL_DIR/scripts/start_chrome_cdp.sh" << 'CDP'
-#!/data/data/com.termux/files/usr/bin/bash
-am start -n com.android.chrome/com.google.android.apps.chrome.Main \\
-  --es "com.google.android.apps.chrome.EXTRA_URL" "about:blank"
-sleep 2
-adb shell "am start -a android.intent.action.VIEW \\
-  -n com.android.chrome/com.google.android.apps.chrome.Main \\
-  --ei REMOTE_DEBUGGING_PORT 9222" 2>/dev/null || true
-echo "Chrome CDP 시작 완료 (port 9222)"
-CDP
-chmod +x "$INSTALL_DIR/scripts/start_chrome_cdp.sh"
 
 # ── 완료 ─────────────────────────────────────
 echo ""
@@ -161,8 +232,12 @@ echo "  ✅ 설치 완료!"
 echo ""
 echo "  DEVICE_ID : $DEVICE_ID"
 echo "  워커 시작 : bash $INSTALL_DIR/scripts/start_worker.sh"
-echo "  자동시작  : Termux:Boot 앱 설치 필요"
-echo "             F-Droid: https://f-droid.org/packages/com.termux.boot"
+if [ "$SKIP_BOOT" = "1" ]; then
+echo ""
+echo "  자동시작 설정 방법:"
+echo "    1. F-Droid에서 Termux:Boot 설치"
+echo "    2. bash $INSTALL_DIR/scripts/install.sh 재실행"
+fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 printf "  지금 바로 시작할까요? (y/N): "; read -r START
