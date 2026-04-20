@@ -9,6 +9,11 @@ interface ReleaseInfo {
   macFilename: string | null;
 }
 
+interface MobileReleaseInfo {
+  version: string;
+  published: string;
+}
+
 export default function InstallPage() {
   return (
     <div className="p-4 sm:p-6">
@@ -19,16 +24,25 @@ export default function InstallPage() {
 
 function WorkerInstall() {
   const [release, setRelease] = useState<ReleaseInfo | null>(null);
+  const [mobileRelease, setMobileRelease] = useState<MobileReleaseInfo | null>(null);
+  const [curlCopied, setCurlCopied] = useState(false);
 
   useEffect(() => {
-    // Supabase worker_releases에서 최신 버전 조회
     fetch("/api/releases")
       .then((r) => r.json())
       .then(async (data) => {
-        const latest = (data.releases || []).find((r: { is_latest: boolean }) => r.is_latest);
+        const releases: { is_latest: boolean; worker_type?: string; version: string; created_at: string }[] = data.releases || [];
+
+        // 모바일 최신 버전
+        const latestMobile = releases.find((r) => r.worker_type === "android_mobile" && r.is_latest);
+        if (latestMobile) {
+          setMobileRelease({ version: latestMobile.version, published: latestMobile.created_at });
+        }
+
+        // PC 최신 버전 (worker_type이 null/'pc'인 것)
+        const latest = releases.find((r) => r.is_latest && r.worker_type !== "android_mobile");
         if (!latest) return;
 
-        // GitHub Release에서 버전·파일명 조회 (Supabase 버전과 불일치 방지)
         let winFilename: string | null = null;
         let macFilename: string | null = null;
         let ghVersion: string = latest.version;
@@ -39,7 +53,6 @@ function WorkerInstall() {
           );
           if (ghRes.ok) {
             const ghData = await ghRes.json();
-            // tag_name이 실제 배포 버전 (e.g. "v0.9.26" → "0.9.26")
             if (ghData.tag_name) ghVersion = ghData.tag_name.replace(/^v/, "");
             const exeAssets: { name: string }[] =
               ghData.assets?.filter((a: { name: string }) => a.name.endsWith(".exe")) ?? [];
@@ -187,6 +200,93 @@ function WorkerInstall() {
             <li>단계별 최대 3회 자동 복구 시도</li>
             <li>시스템 설정에서 Anthropic API 키 등록 필요</li>
           </ul>
+        </div>
+
+        {/* Android 모바일 워커 */}
+        <h3 className="text-sm font-semibold text-gray-700 mt-6">Android (모바일 LTE 워커)</h3>
+
+        <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-lg p-5 text-white">
+          <div className="flex items-center gap-3 mb-1">
+            <h4 className="text-base font-bold">Android 모바일 워커</h4>
+            {mobileRelease ? (
+              <span className="px-2 py-0.5 bg-green-500 rounded text-xs font-mono">
+                v{mobileRelease.version}
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 bg-green-500/50 rounded text-xs">버전 미등록</span>
+            )}
+          </div>
+          <p className="text-xs text-green-100 mb-4">
+            Termux 환경에서 실행 — LTE IP로 네이버 크롤링 (Chrome CDP)
+            {mobileRelease?.published && (
+              <span className="ml-2 text-green-200">
+                · 릴리즈 {new Date(mobileRelease.published).toLocaleDateString("ko-KR")}
+              </span>
+            )}
+          </p>
+          <div className="flex gap-3 flex-wrap">
+            <a
+              href="/api/download?type=mobile"
+              download="install.sh"
+              className="inline-flex items-center gap-2 bg-white text-green-700 font-bold px-5 py-2 rounded-md hover:bg-green-50 transition-colors text-sm"
+            >
+              install.sh 다운로드
+            </a>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(
+                  "curl -sL https://crawl-station.vercel.app/api/mobile-install | bash"
+                );
+                setCurlCopied(true);
+                setTimeout(() => setCurlCopied(false), 2000);
+              }}
+              className="inline-flex items-center gap-2 bg-green-500 text-white font-bold px-5 py-2 rounded-md hover:bg-green-400 transition-colors text-sm"
+            >
+              {curlCopied ? "복사됨!" : "curl 명령어 복사"}
+            </button>
+          </div>
+          <p className="text-xs text-green-200 mt-3 font-mono">
+            curl -sL https://crawl-station.vercel.app/api/mobile-install | bash
+          </p>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center gap-3 text-sm flex-wrap">
+            <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
+            <span>Termux 설치 (F-Droid)</span>
+            <span className="text-gray-300">&rarr;</span>
+            <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
+            <span>install.sh 실행</span>
+            <span className="text-gray-300">&rarr;</span>
+            <span className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
+            <span>Supabase URL/Key 입력</span>
+            <span className="text-gray-300">&rarr;</span>
+            <span className="text-green-600 font-semibold">끝</span>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            사전 준비: Android Chrome에서 개발자 옵션 &rarr; USB 디버깅 활성화 &rarr; ADB over WiFi 또는 USB 연결로 CDP 포트(9222) 활성화
+          </p>
+        </div>
+
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-green-800 mb-2">자동으로 처리되는 것</h4>
+          <ul className="text-sm text-green-700 space-y-1">
+            <li>Python 패키지 자동 설치 (supabase, beautifulsoup4)</li>
+            <li>DEVICE_ID 자동 발급 + 워커 등록</li>
+            <li>Termux:Boot 설정 시 부팅 자동 시작</li>
+            <li>worker_releases 폴링으로 핸들러 자동 업데이트</li>
+            <li>배터리·온도·통신사 정보 실시간 전송</li>
+          </ul>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-amber-800 mb-2">지원 기능</h4>
+          <div className="text-xs text-amber-700 grid grid-cols-2 gap-1">
+            {["rank_check", "env_analysis", "deep_analysis", "kin_analysis", "blog_serp", "area_analysis", "daily_rank"].map((f) => (
+              <span key={f} className="font-mono">{f}</span>
+            ))}
+          </div>
+          <p className="text-xs text-amber-600 mt-2">oclick · Instagram IP 로테이션 미지원 (LTE 특성상 제외)</p>
         </div>
       </div>
     </>

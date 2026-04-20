@@ -80,6 +80,40 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // ── Android 모바일 워커 install.sh ──
+  if (typeParam === "mobile") {
+    const sb = createServerClient();
+    const { data: release } = await sb
+      .from("worker_releases")
+      .select("files, version")
+      .eq("worker_type", "android_mobile")
+      .eq("is_latest", true)
+      .single();
+
+    // worker_releases에 install.sh가 저장된 경우 서빙
+    if (release?.files?.["install.sh"]) {
+      return new NextResponse(release.files["install.sh"], {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Content-Disposition": `attachment; filename="install.sh"`,
+          "Cache-Control": "no-cache",
+        },
+      });
+    }
+
+    // fallback: /api/mobile-install 내부 호출
+    const base = request.nextUrl.origin;
+    const res = await fetch(`${base}/api/mobile-install`, { cache: "no-store" });
+    const text = await res.text();
+    return new NextResponse(text, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Disposition": `attachment; filename="install.sh"`,
+        "Cache-Control": "no-cache",
+      },
+    });
+  }
+
   // ── Mac .pkg 인스톨러 (GitHub Release에서 리다이렉트) ──
   if (typeParam === "mac") {
     try {

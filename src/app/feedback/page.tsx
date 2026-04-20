@@ -717,6 +717,7 @@ export default function FeedbackPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<Record<string, FeedbackComment[]>>({});
 
   useEffect(() => {
     async function loadUser() {
@@ -776,6 +777,31 @@ export default function FeedbackPage() {
       .subscribe();
 
     return () => { supabasePublic.removeChannel(channel); };
+  }, []);
+
+  // Realtime: 관리자 댓글 도착 → 열린 상세의 댓글 자동 추가
+  useEffect(() => {
+    const ch = supabasePublic
+      .channel(`feedback-comments-${SERVICE_NAME}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "orch_issue_comments",
+      }, (payload: import("@supabase/supabase-js").RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+        const c = payload.new as { issue_id: string; is_admin: boolean; body: string; author_name: string; id: string; created_at: string };
+        if (!c.is_admin) return;
+        setExpandedComments(prev => {
+          if (!prev[c.issue_id]) return prev;
+          return {
+            ...prev,
+            [c.issue_id]: [...(prev[c.issue_id] || []), c as unknown as FeedbackComment],
+          };
+        });
+        setToast("관리자 댓글이 달렸습니다 💬");
+        setTimeout(() => setToast(null), 4000);
+      })
+      .subscribe();
+    return () => { supabasePublic.removeChannel(ch); };
   }, []);
 
   const handleSubmit = async (data: { type: FeedbackType; priority: FeedbackPriority; title: string; description: string; submitted_by: string; image_urls: string[] }) => {

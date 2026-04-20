@@ -375,6 +375,12 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-20
 
+### Station — Android 모바일 워커 설치 페이지
+- /install 페이지에 Android 섹션 추가 (버전 배지 / install.sh 다운로드 / curl 명령어 복사)
+- /api/download?type=mobile: install.sh 파일 다운로드 엔드포인트
+- /api/releases POST: worker_type 파라미터 지원, PC/모바일 is_latest 독립 관리
+- lnb-keyword-hub: crawl/trigger device_type 파라미터 지원, channel-tab/dispatch device_type="mobile" 고정
+
 ### Station — 모바일 워커(lnb-mobile-worker) 연동
 - workers 테이블 모바일 컬럼 추가: worker_type, carrier, battery_level, battery_charging, temperature
 - crawl_requests.device_type 컬럼 추가 (pc / mobile)

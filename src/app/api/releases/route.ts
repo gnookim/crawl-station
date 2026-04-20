@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   const sb = createServerClient();
   const body = await request.json();
-  const { version, changelog, files } = body;
+  const { version, changelog, files, worker_type = "pc" } = body;
 
   if (!version) {
     return NextResponse.json(
@@ -36,11 +36,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 동일 버전 중복 등록 방지 — 있으면 파일만 업데이트
+  // 동일 버전+타입 중복 등록 방지 — 있으면 파일만 업데이트
   const { data: existing } = await sb
     .from("worker_releases")
     .select("id")
     .eq("version", version)
+    .eq("worker_type", worker_type)
     .single();
 
   if (existing) {
@@ -48,10 +49,12 @@ export async function POST(request: NextRequest) {
       .from("worker_releases")
       .update({ files: files || {}, changelog: changelog || "", is_latest: true })
       .eq("id", existing.id);
+    // is_latest는 같은 worker_type 내에서만 단일 유지
     await sb
       .from("worker_releases")
       .update({ is_latest: false })
       .eq("is_latest", true)
+      .eq("worker_type", worker_type)
       .neq("id", existing.id);
     return NextResponse.json({ message: `v${version} 업데이트 완료 (기존 버전)`, updated: true });
   }
@@ -64,16 +67,18 @@ export async function POST(request: NextRequest) {
       changelog: changelog || "",
       files: files || {},
       is_latest: true,
+      worker_type,
     })
     .select()
     .single();
 
   if (!error && data) {
-    // 새 릴리즈 등록 성공 후 기존 is_latest를 false로 (새 건 제외)
+    // 같은 worker_type의 이전 is_latest를 false로 (다른 타입은 건드리지 않음)
     await sb
       .from("worker_releases")
       .update({ is_latest: false })
       .eq("is_latest", true)
+      .eq("worker_type", worker_type)
       .neq("id", data.id);
   }
 
@@ -84,15 +89,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 워커들의 현재 버전과 비교 → outdated 워커 수 계산
-  const { count } = await sb
-    .from("workers")
-    .select("id", { count: "exact", head: true })
-    .neq("version", version);
+  // PC 워커만 outdated 카운트 (모바일은 자체 핫리로드)
+  let outdated_workers = 0;
+  if (worker_type === "pc") {
+    const { count } = await sb
+      .from("workers")
+      .select("id", { count: "exact", head: true })
+      .neq("version", version)
+      .not("worker_type", "eq", "android_mobile");
+    outdated_workers = count || 0;
+  }
 
   return NextResponse.json({
-    message: `v${version} 릴리스 등록 완료`,
+    message: `v${version} 릴리스 등록 완료 (${worker_type})`,
     release: data,
-    outdated_workers: count || 0,
+    outdated_workers,
   });
 }

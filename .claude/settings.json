@@ -1,40 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh secret:*)",
-      "Bash(grep NEXT_PUBLIC_SUPABASE_URL .env*)",
-      "Bash(grep SUPABASE_URL .env*)",
-      "Bash(grep -E \"SUPABASE_SERVICE_KEY|SUPABASE_ANON_KEY|NEXT_PUBLIC_SUPABASE_ANON_KEY\" .env*)",
-      "Bash(curl -s https://crawl-station.vercel.app/api/releases)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); releases=d if isinstance\\(d,list\\) else d.get\\(''''releases'''',d.get\\(''''data'''',[]\\)\\); [print\\(fv{r[''''version'''']} latest={r.get\\(''''is_latest'''',''''''''\\)} {r.get\\(''''changelog'''',''''''''\\)}\\) for r in \\(releases[:5] if releases else []\\)]\")",
-      "Bash(python3 -c \"import sys; print\\(sys.stdin.read\\(\\)[:500]\\)\")",
-      "Bash(python3 -c \":*)",
-      "Bash(curl -s -X PATCH \"https://uovisddipuiniissawde.supabase.co/rest/v1/worker_releases?version=eq.0.2.1\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\" -H \"Content-Type: application/json\" -d '{\"\"is_latest\"\": true}')",
-      "Bash(curl -s \"https://raw.githubusercontent.com/gnookim/naver-crawler/main/worker.py\")",
-      "Bash(curl -s -X POST \"https://uovisddipuiniissawde.supabase.co/rest/v1/rpc\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\" -H \"Content-Type: application/json\" -d '{}')",
-      "Bash(curl -s -X POST \"https://uovisddipuiniissawde.supabase.co/rest/v1/connected_apps\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\" -H \"Content-Type: application/json\" -d '{\"\"name\"\":\"\"test\"\"}')",
-      "Bash(curl -s -X POST \"https://uovisddipuiniissawde.supabase.co/rest/v1/rpc/exec_sql\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\" -H \"Content-Type: application/json\" -d '{\"\"sql\"\": \"\"SELECT 1\"\"}')",
-      "Bash(curl -s \"https://crawl-station.vercel.app/api/docs?type=changelog\")",
-      "Bash(curl -s \"https://crawl-station.vercel.app/api/apps\")",
-      "Bash(curl -s \"https://raw.githubusercontent.com/gnookim/naver-crawler/main/handlers/base.py\")",
-      "Bash(grep -n \"def __init__\" /Users/gnookim/Desktop/Claude_Agent/naver-crawler/handlers/*.py)",
-      "Bash(curl -s \"https://uovisddipuiniissawde.supabase.co/rest/v1/worker_config?select=*&limit=3\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\")",
-      "Bash(python3 -m json.tool)",
-      "Bash(python3 -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\(''''message'''',''''error''''\\)\\)\")",
-      "Bash(supabase/migrations/20260401_add_network_columns.sql:*)",
-      "Bash(supabase migration:*)",
-      "Bash(curl -s \"https://uovisddipuiniissawde.supabase.co/rest/v1/worker_config?id=eq.global&select=proxy_url,network_type,tethering_carrier,tethering_auto_reconnect\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmlzZGRpcHVpbmlpc3Nhd2RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY4ODMxNCwiZXhwIjoyMDkwMjY0MzE0fQ.atnVKvKdrAdHuljmJwPFumBmYFjRuNkLqhLHyd2CgsA\")",
-      "Bash(find /Users/gnookim/Desktop/Claude_Agent/crawl-station/src -name *worker*)",
-      "Bash(curl -s \"http://localhost:4000/api/settings?key=anthropic_api_key\")",
-      "Bash(curl -s -X POST \"http://localhost:4000/api/settings\" -H \"Content-Type: application/json\" -d '{\"\"key\"\": \"\"anthropic_api_key\"\", \"\"value\"\": \"\"sk-ant-test-12345\"\"}')",
-      "Bash(curl -s -X POST \"http://localhost:4000/api/settings\" -H \"Content-Type: application/json\" -d '{\"\"key\"\": \"\"anthropic_api_key\"\", \"\"value\"\": null}')",
-      "Bash(git tag:*)",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(''''tag:'''', d[''''tag_name'''']\\); [print\\(''''asset:'''', a[''''name''''], a[''''browser_download_url'''']\\) for a in d[''''assets'''']]\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://crawl-station.vercel.app/api/download?file=worker.py\")",
-      "Bash(curl -s \"https://crawl-station.vercel.app/api/download?file=worker.py\")",
-      "Bash(ls /Users/gnookim/Desktop/Claude_Agent/crawl-station/*.md)",
-      "Bash(grep -r \"SUPABASE_URL\\\\|NEXT_PUBLIC_SUPABASE\" .env*)",
-      "Bash(grep -r \"SUPABASE_SERVICE\\\\|SUPABASE_DB\\\\|DATABASE_URL\\\\|SUPABASE_ACCESS_TOKEN\" .env*)"
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)"
     ]
   }
 }
