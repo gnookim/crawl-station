@@ -8,6 +8,7 @@ interface InstallSession {
   os_version: string | null;
   os_machine: string | null;
   installer_version: string | null;
+  device_type: string | null;
   current_step: number;
   current_step_name: string;
   total_steps: number;
@@ -189,7 +190,7 @@ export default function InstallsPage() {
         </select>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        Windows 워커 설치 진행 상황을 실시간으로 모니터링합니다.
+        워커 설치 진행 상황을 실시간으로 모니터링합니다. (PC · Android 모바일)
       </p>
 
       {groups.length === 0 ? (
@@ -230,6 +231,7 @@ export default function InstallsPage() {
                   {/* 호스트 정보 */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-base">{s.device_type === "android_mobile" ? "📱" : "💻"}</span>
                       <span className="text-sm font-semibold text-gray-900">{s.hostname || "알 수 없음"}</span>
                       <span className={`px-1.5 py-0.5 text-xs rounded ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
                       {s.diagnosis_count > 0 && (
@@ -240,7 +242,7 @@ export default function InstallsPage() {
                       )}
                     </div>
                     <div className="text-xs text-gray-400 mt-0.5 flex gap-3">
-                      <span>{s.os_version ? `Win ${s.os_version}` : ""} {s.os_machine || ""}</span>
+                      <span>{s.os_version || ""} {s.os_machine || ""}</span>
                       <span>v{s.installer_version || "?"}</span>
                       <span>업데이트: {relativeTime(s.updated_at)}</span>
                     </div>

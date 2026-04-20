@@ -375,6 +375,13 @@ const CHANGELOG_MD = `# CrawlStation 업데이트 기록
 
 ## 2026-04-20
 
+### Station — 모바일 워커 설치 AI 자가진단 + 모니터링
+- /api/mobile-diagnose: Termux 설치 실패 시 Claude Haiku가 진단 + bash 수정 명령 반환
+- install.sh 전면 재작성: 9단계 진행 보고 + 실패 시 AI 진단 + 자동 수정 재시도 (최대 3회)
+- /api/install-status: device_type, total_steps 파라미터 추가
+- /installs 페이지: 모바일 세션 📱 아이콘 + 플랫폼 표시
+- install_sessions 테이블: device_type, total_steps 컬럼 추가
+
 ### Station — Android 모바일 워커 설치 페이지
 - /install 페이지에 Android 섹션 추가 (버전 배지 / install.sh 다운로드 / curl 명령어 복사)
 - /api/download?type=mobile: install.sh 파일 다운로드 엔드포인트

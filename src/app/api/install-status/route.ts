@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
         os_version: body.os_version || null,
         os_machine: body.os_machine || null,
         installer_version: body.installer_version || null,
+        device_type: body.device_type || "pc",
+        total_steps: body.total_steps || 9,
         current_step: 0,
         current_step_name: "시작",
         status: "starting",
