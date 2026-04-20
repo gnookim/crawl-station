@@ -1,7 +1,18 @@
+// @orch-std: feedback v2.0.0
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Bug, Lightbulb, Wrench, ChevronDown, ImagePlus, X, Trash2, Copy, Check, CheckCircle2, MessageCircle, Send, ChevronUp, Bot } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
+
+// ── 앱마다 이 값만 교체 ───────────────────────────────────────
+const SERVICE_NAME = "crawl-station";
+// ─────────────────────────────────────────────────────────────
+
+const supabasePublic = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 type FeedbackType = "bug" | "feature" | "improvement";
 type FeedbackPriority = "high" | "medium" | "low";
@@ -81,7 +92,6 @@ function formatDateFull(dateStr: string | null): string {
     d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-/** 원본 요청만 복사 (댓글·답변 제외) */
 function buildCopyText(item: FeedbackItem): string {
   const typeLabel = TYPE_CONFIG[item.type].label;
   const priorityLabel = PRIORITY_CONFIG[item.priority].label;
@@ -106,7 +116,6 @@ function buildCopyText(item: FeedbackItem): string {
   return lines.join("\n");
 }
 
-/** 대화 내용 기반 Claude 작업 프롬프트 생성 */
 function buildPromptText(item: FeedbackItem, comments: FeedbackComment[]): string {
   const typeLabel = TYPE_CONFIG[item.type].label;
   const priorityLabel = PRIORITY_CONFIG[item.priority].label;
@@ -164,13 +173,10 @@ function NewFeedbackModal({
   const [priority, setPriority] = useState<FeedbackPriority>("medium");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [submittedBy, setSubmittedBy] = useState(defaultName);
   const [submitting, setSubmitting] = useState(false);
   const [images, setImages] = useState<{ file: File; preview: string; url?: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { setSubmittedBy(defaultName); }, [defaultName]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -203,7 +209,7 @@ function NewFeedbackModal({
     try {
       const image_urls = await uploadImages();
       setUploading(false);
-      await onSubmit({ type, priority, title: title.trim(), description: description.trim(), submitted_by: submittedBy.trim(), image_urls });
+      await onSubmit({ type, priority, title: title.trim(), description: description.trim(), submitted_by: defaultName.trim(), image_urls });
       onClose();
     } finally {
       setSubmitting(false);
@@ -274,9 +280,10 @@ function NewFeedbackModal({
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
           </div>
+          {/* 제출자: 읽기 전용 */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50">
             <span className="text-sm">👤</span>
-            <span className="text-sm font-medium text-gray-700">{submittedBy || "(로그인 정보 없음)"}</span>
+            <span className="text-sm font-medium text-gray-700">{defaultName || "(로그인 정보 없음)"}</span>
             <span className="text-xs text-gray-400 ml-auto">자동 입력</span>
           </div>
           <div className="flex justify-end gap-2 pt-2">
@@ -364,11 +371,10 @@ function ReplyModal({
         <div className="px-6 py-4 space-y-3">
           <p className="text-sm text-gray-500 font-medium truncate">{feedback.title}</p>
           <textarea value={reply} onChange={e => setReply(e.target.value)}
-            placeholder={"어떻게 처리됐는지 설명해 주세요\n예) v1.4.0에서 캠페인 기간을 직접 지정하도록 개선했습니다. 확인 부탁드려요."}
+            placeholder={"어떻게 처리됐는지 설명해 주세요\n예) v1.4.0에서 해당 기능을 개선했습니다. 확인 부탁드려요."}
             rows={4} autoFocus
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 resize-none" />
 
-          {/* 이미지 첨부 */}
           <div>
             <p className="text-xs text-gray-500 mb-1.5">처리 결과 캡처 이미지 <span className="text-gray-400">(선택, 최대 5장)</span></p>
             <div className="flex flex-wrap gap-2">
@@ -412,15 +418,8 @@ function ReplyModal({
 
 // ─── 댓글 스레드 ─────────────────────────────────────────────
 function CommentThread({
-  feedbackId,
-  adminReply,
-  repliedAt,
-  replyImageUrls,
-  isDone,
-  currentUserId,
-  currentUserName,
-  isAdmin,
-  item,
+  feedbackId, adminReply, repliedAt, replyImageUrls, isDone,
+  currentUserId, currentUserName, isAdmin, item,
 }: {
   feedbackId: string;
   adminReply: string | null;
@@ -439,7 +438,6 @@ function CommentThread({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handlePromptCopy = async (comment: FeedbackComment) => {
-    // 해당 댓글까지 누적된 대화 전체를 포함
     const upToThis = comments.slice(0, comments.indexOf(comment) + 1);
     const text = buildPromptText(item, upToThis);
     await navigator.clipboard.writeText(text);
@@ -486,7 +484,6 @@ function CommentThread({
 
   return (
     <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
-      {/* 관리자 공식 답변 (첫 번째 말풍선) */}
       {adminReply && (
         <div className="flex gap-2">
           <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5">관</div>
@@ -509,7 +506,6 @@ function CommentThread({
         </div>
       )}
 
-      {/* 댓글 목록 */}
       {comments.map(c => {
         const isMyComment = currentUserId && c.user_id === currentUserId;
         const canDelete = isAdmin || isMyComment;
@@ -548,7 +544,6 @@ function CommentThread({
         <p className="text-xs text-gray-400 text-center py-1">아직 대화가 없습니다</p>
       )}
 
-      {/* 입력창 */}
       {!isDone && (
         <div className="flex gap-2 pt-1">
           <textarea
@@ -593,18 +588,13 @@ function FeedbackCard({
   const isDone = item.status === "done";
   const [copied, setCopied] = useState(false);
   const [threadOpen, setThreadOpen] = useState(false);
-  const [comments, setComments] = useState<FeedbackComment[]>([]);
   const [commentCount, setCommentCount] = useState<number | null>(null);
 
-  // 댓글 수 미리 로드 (카드 렌더 시)
   useEffect(() => {
     fetch(`/api/feedback/${item.id}/comments`)
       .then(r => r.ok ? r.json() : [])
       .then((data: unknown) => {
-        if (Array.isArray(data)) {
-          setComments(data as FeedbackComment[]);
-          setCommentCount((data as FeedbackComment[]).length);
-        }
+        if (Array.isArray(data)) setCommentCount((data as FeedbackComment[]).length);
       })
       .catch(() => {});
   }, [item.id]);
@@ -623,17 +613,14 @@ function FeedbackCard({
         <div className={`mt-0.5 ${typeConf.color}`}>{typeConf.icon}</div>
 
         <div className="flex-1 min-w-0">
-          {/* 제목 행 */}
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h3 className="text-sm font-semibold text-gray-800">{item.title}</h3>
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${priorityConf.badge}`}>{priorityConf.label}</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusConf.badge}`}>{statusConf.label}</span>
           </div>
 
-          {/* 본문 */}
           <p className="text-sm text-gray-600 whitespace-pre-wrap mb-2">{item.description}</p>
 
-          {/* 첨부 이미지 */}
           {item.image_urls && item.image_urls.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
               {item.image_urls.map((url, i) => (
@@ -645,7 +632,6 @@ function FeedbackCard({
             </div>
           )}
 
-          {/* 요청자 확인 버튼 (resolved + 본인) */}
           {item.status === "resolved" && currentUserId && item.user_id === currentUserId && (
             <div className="mb-2">
               <button
@@ -658,14 +644,12 @@ function FeedbackCard({
             </div>
           )}
 
-          {/* 메타 */}
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-400">
             <span>{item.submitted_by ?? "익명"}</span>
             <span>{formatDateFull(item.created_at)}</span>
             {item.completed_at && <span className="text-green-500">완료: {formatDateFull(item.completed_at)}</span>}
           </div>
 
-          {/* 대화 토글 버튼 */}
           <button
             onClick={() => setThreadOpen(v => !v)}
             className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-blue-500 transition-colors"
@@ -675,7 +659,6 @@ function FeedbackCard({
             {threadOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
           </button>
 
-          {/* 댓글 스레드 */}
           {threadOpen && (
             <CommentThread
               feedbackId={item.id}
@@ -691,7 +674,6 @@ function FeedbackCard({
           )}
         </div>
 
-        {/* 우측 액션 */}
         <div className="flex items-center gap-1.5 shrink-0">
           <div className="relative">
             <select value={item.status} onChange={e => onStatusChange(item.id, e.target.value as FeedbackStatus)}
@@ -704,7 +686,7 @@ function FeedbackCard({
             <ChevronDown size={11} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
 
-          <button onClick={handleCopy} title="Claude에 붙여넣기용으로 복사 (대화 포함)"
+          <button onClick={handleCopy} title="Claude에 붙여넣기용으로 복사"
             className={`p-1.5 rounded-lg border transition-colors ${copied ? "border-green-300 bg-green-50 text-green-600" : "border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50"}`}>
             {copied ? <Check size={13} /> : <Copy size={13} />}
           </button>
@@ -734,25 +716,26 @@ export default function FeedbackPage() {
   const [userName, setUserName] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadUser() {
       try {
-        const r = await fetch("/api/users/me")
+        const r = await fetch("/api/users/me");
         if (r.ok) {
-          const u = await r.json()
-          if (u?.name) { setUserName(u.name); if (u?.id) setCurrentUserId(u.id); if (u?.role === "admin") setIsAdmin(true); return }
+          const u = await r.json();
+          if (u?.name) { setUserName(u.name); if (u?.id) setCurrentUserId(u.id); if (u?.role === "admin") setIsAdmin(true); return; }
         }
       } catch {}
       try {
-        const { getCurrentUser } = await import("@/lib/sso")
-        const u = await getCurrentUser()
-        if (u?.name) setUserName(u.name)
-        if (u?.id) setCurrentUserId(u.id)
-        if (u?.role === "admin") setIsAdmin(true)
+        const { getCurrentUser } = await import("@/lib/sso");
+        const u = await getCurrentUser();
+        if (u?.name) setUserName(u.name);
+        if (u?.id) setCurrentUserId(u.id);
+        if (u?.role === "admin") setIsAdmin(true);
       } catch {}
     }
-    loadUser()
+    loadUser();
   }, []);
 
   const fetchItems = useCallback(async () => {
@@ -766,6 +749,34 @@ export default function FeedbackPage() {
   }, [activeTab]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  // Realtime: 답변 도착·상태 변경 토스트
+  useEffect(() => {
+    const channel = supabasePublic
+      .channel(`feedback-replies-${SERVICE_NAME}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "orch_issues",
+        filter: `service_name=eq.${SERVICE_NAME}`,
+      }, (payload: import("@supabase/supabase-js").RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+        const newRow = payload.new as { admin_reply?: string; status?: string; id: string };
+        const oldRow = payload.old as { admin_reply?: string; status?: string };
+
+        if (newRow.admin_reply && !oldRow.admin_reply) {
+          setToast("관리자 답변이 도착했습니다 💬");
+          setTimeout(() => setToast(null), 4000);
+        } else if (newRow.status && newRow.status !== oldRow.status) {
+          const statusLabel = STATUS_CONFIG[newRow.status as FeedbackStatus]?.label ?? newRow.status;
+          setToast(`요청 상태가 '${statusLabel}'로 변경됐습니다`);
+          setTimeout(() => setToast(null), 4000);
+        }
+        setItems(prev => prev.map(f => f.id === newRow.id ? { ...f, ...newRow } as FeedbackItem : f));
+      })
+      .subscribe();
+
+    return () => { supabasePublic.removeChannel(channel); };
+  }, []);
 
   const handleSubmit = async (data: { type: FeedbackType; priority: FeedbackPriority; title: string; description: string; submitted_by: string; image_urls: string[] }) => {
     const res = await fetch("/api/feedback", {
@@ -831,12 +842,10 @@ export default function FeedbackPage() {
           <h1 className="text-xl font-bold text-gray-900">오류 신고 &amp; 기능 개발 요청</h1>
           <p className="text-sm text-gray-500 mt-0.5">버그 신고, 기능 요청, 개선 제안을 남겨주세요</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowNew(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
-            <Plus size={15} />수정 및 개발 요청
-          </button>
-        </div>
+        <button onClick={() => setShowNew(true)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
+          <Plus size={15} />수정 및 개발 요청
+        </button>
       </div>
 
       <div className="flex gap-1 mb-5 border-b border-gray-100 pb-0">
@@ -885,6 +894,13 @@ export default function FeedbackPage() {
       )}
       {replyTarget && (
         <ReplyModal feedback={replyTarget} onClose={() => setReplyTarget(null)} onSave={handleSaveReply} />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium"
+          style={{ background: "#6366f1", color: "#fff", animation: "fadeIn 0.2s ease" }}>
+          {toast}
+        </div>
       )}
     </div>
   );
